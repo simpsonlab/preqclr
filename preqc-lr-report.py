@@ -8,7 +8,7 @@ MPL.use('Agg')
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 import pylab as plt
-import sys, os
+import sys, os, csv
 
 def main():
         # process input
@@ -105,7 +105,6 @@ def create_report(output_prefix, fa_filename, genome_size, data_type):
         for read in fasta_sequences:
             read_id, read_sequence, read_length = read.id, str(read.seq), len(str(read.seq))
             read_seqs[read_id] = read_sequence
-	    print read_length
             read_lengths.append(read_length)
             total_num_bases+=read_length
         mean_read_length = float(total_num_bases)/float(len(read_seqs))
@@ -129,6 +128,12 @@ def plot_read_length_distribution(ax, fasta, output_prefix):
         print "___________________________________________"
 
         read_lengths = fasta.get_read_lengths()
+	
+	read_length_data = output_prefix + "_read_length_data.csv"
+	with open(read_length_data, 'wb') as myfile:
+    		wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
+    		wr.writerow(read_lengths)
+
         ax.hist(read_lengths)
         ax.set_title('Read length distribution')
         ax.set_xlabel('Read lengths (bps)')
@@ -168,12 +173,11 @@ def plot_average_overlaps_vs_coverage_distribution(ax, fasta, output_prefix):
             for c in coverage_levels:
                     # calculate the number of reads needed to achieve coverage
                     num_reads = round(math.ceil(float((c * int(genome_size)))/float(mean_read_length)))
-                    print num_reads
 
                     # use seqtk to downsample fastq files
                     downsample_file = "./" + output_prefix + "/" + output_prefix + "_" + str(c) + "X.fasta"
                     downsample_command = "seqtk sample " + fa_filename + " " + str(num_reads) + " > " + downsample_file
-                    print downsample_command
+          #          print downsample_command
                     subprocess.call(downsample_command, shell=True)
 
                     # use minimap2 to calculate long read overlaps
@@ -200,7 +204,6 @@ def plot_average_overlaps_vs_coverage_distribution(ax, fasta, output_prefix):
                         total_overlaps += reads_overlap_count[query_read_id]
                     average_num_overlaps = total_overlaps/num_reads
 
-                    print "Average number of overlaps for coverage " + str(c) + " : " + str(average_num_overlaps)
                     data[c] = average_num_overlaps
 
             # plotting the avg number of overlaps vs coverage
@@ -208,6 +211,13 @@ def plot_average_overlaps_vs_coverage_distribution(ax, fasta, output_prefix):
             lists = sorted(data.items())
             # unpack a list of pairs into two tuples
             x, y = zip(*lists)
+
+	    overlaps_vs_coverage_data = output_prefix + "_overlaps_vs_coverage_data.csv"
+            with open(overlaps_vs_coverage_data, 'wb') as myfile:
+		writer = csv.writer(myfile)
+		for key, value in data.items():
+			writer.writerow([key, value])
+            myfile.close()
 
             ax.scatter(x, y)
             ax.set_title('Average number of overlaps vs Coverage')
@@ -249,12 +259,19 @@ def plot_num_overlaps_per_read_distribution(ax, fasta, output_prefix):
         
         # divide number of overlaps by the length of each sequence
         for read_id in reads_overlap_count:
-            print reads_overlap_count[read_id]
+#            print reads_overlap_count[read_id]
 	    read_length = float(len(reads[read_id]))
 	    num_overlaps = float(reads_overlap_count[read_id])
 	    # taking into account the read lengths
             reads_overlap_count[read_id] = num_overlaps / read_length 
-            print reads_overlap_count[read_id]
+       #     print reads_overlap_count[read_id]
+
+	read_overlaps_count_data = output_prefix + "_read_overlaps_count_data.csv"
+        with open(read_overlaps_count_data, 'wb') as myfile:
+        	writer = csv.writer(myfile)
+        	for key, value in reads_overlap_count.items():
+                	writer.writerow([key, value])
+        myfile.close()
 
         # plotting the number of overlaps/read
         ax.hist(reads_overlap_count.values(), bins=120)
@@ -278,7 +295,7 @@ def plot_average_coverage_per_base_per_read(ax, fasta, output_prefix):
 
 	# getting the overlaps file created with all reads
         max_coverage = round(math.ceil((int(num_reads) * float(mean_read_length)) / float(genome_size)))
-        overlaps_filename = create_overlaps_file(fa_filename, output_prefix, 20, data_type)
+        overlaps_filename = create_overlaps_file(fa_filename, output_prefix, max_coverage, data_type)
 
         overlaps = open(overlaps_filename, 'r')
         reads_overlaps = dict()
@@ -301,11 +318,22 @@ def plot_average_coverage_per_base_per_read(ax, fasta, output_prefix):
             seq = reads[read_id]
             num_bases = len(seq)
             cov_per_base_per_read = reads_overlaps[read_id] / num_bases
-            data.append(cov_per_base_per_read)
+            data.append(tuple((read_id, cov_per_base_per_read)))
+
+        estimated_coverage_data = output_prefix + "_estimated_coverage_data.csv"
+        with open(estimated_coverage_data, 'wb') as myfile:
+        	writer = csv.writer(myfile)
+                writer.writerow(['read_id','avg_cov_per_base'])
+		for row in data:
+			writer.writerow(row)
+        myfile.close()
+
 
         # plotting the cov per base per read
-        ax.hist(data, bins=120)
-        ax.set_title('Average coverage per base position per read distribution')
+	values_only = list()
+	values_only = [x[1] for x in data]
+        ax.hist(values_only,100)
+        ax.set_title('Estimated coverage distribution')
         ax.set_xlabel('Avg. number of overlaps per base per read')
         ax.set_ylabel('Frequency')   
 
