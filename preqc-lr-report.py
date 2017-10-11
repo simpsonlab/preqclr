@@ -23,12 +23,16 @@ def main():
         work_dir = './' + args.prefix
         print work_dir
         overlaps_dir = './' + args.prefix + '/overlaps'
+	downsample_dir = './' + args.prefix + '/downsample'
+	plot_dir = './' + args.prefix + '/plot_data'
         if not os.path.exists(work_dir):
             os.makedirs(work_dir)
-            print "HELLO"
         if not os.path.exists(overlaps_dir):
             os.makedirs(overlaps_dir)
-
+	if not os.path.exists(plot_dir):
+            os.makedirs(plot_dir)
+        if not os.path.exists(downsample_dir):
+            os.makedirs(downsample_dir)
         # parse the fasta file
         create_report(args.prefix, args.fa_filename, args.genome_size, args.data_type)
 
@@ -118,7 +122,7 @@ def create_report(output_prefix, fa_filename, genome_size, data_type):
         plot_read_length_distribution(ax1, fasta, output_prefix)
         plot_average_overlaps_vs_coverage_distribution(ax2, fasta, output_prefix)
         plot_num_overlaps_per_read_distribution(ax3, fasta, output_prefix)
-        plot_average_coverage_per_base_per_read(ax4, fasta, output_prefix)
+        plot_estimated_coverage(ax4, fasta, output_prefix)
         fig.savefig(pp, format='pdf')
         pp.close()
 
@@ -129,7 +133,7 @@ def plot_read_length_distribution(ax, fasta, output_prefix):
 
         read_lengths = fasta.get_read_lengths()
 	
-	read_length_data = output_prefix + "_read_length_data.csv"
+	read_length_data = "./" + output_prefix + "/plot_data/" + output_prefix + "_read_length_data.csv"
 	with open(read_length_data, 'wb') as myfile:
     		wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
     		wr.writerow(read_lengths)
@@ -175,9 +179,9 @@ def plot_average_overlaps_vs_coverage_distribution(ax, fasta, output_prefix):
                     num_reads = round(math.ceil(float((c * int(genome_size)))/float(mean_read_length)))
 
                     # use seqtk to downsample fastq files
-                    downsample_file = "./" + output_prefix + "/" + output_prefix + "_" + str(c) + "X.fasta"
+                    downsample_file = "./" + output_prefix + "/downsample/" + output_prefix + "_" + str(c) + "X.fasta"
                     downsample_command = "seqtk sample " + fa_filename + " " + str(num_reads) + " > " + downsample_file
-          #          print downsample_command
+             	    print downsample_command
                     subprocess.call(downsample_command, shell=True)
 
                     # use minimap2 to calculate long read overlaps
@@ -212,7 +216,8 @@ def plot_average_overlaps_vs_coverage_distribution(ax, fasta, output_prefix):
             # unpack a list of pairs into two tuples
             x, y = zip(*lists)
 
-	    overlaps_vs_coverage_data = output_prefix + "_overlaps_vs_coverage_data.csv"
+	    # write plot data to csv file
+	    overlaps_vs_coverage_data = "./" + output_prefix + "/plot_data/" + output_prefix + "_overlaps_vs_coverage_data.csv"
             with open(overlaps_vs_coverage_data, 'wb') as myfile:
 		writer = csv.writer(myfile)
 		for key, value in data.items():
@@ -259,14 +264,13 @@ def plot_num_overlaps_per_read_distribution(ax, fasta, output_prefix):
         
         # divide number of overlaps by the length of each sequence
         for read_id in reads_overlap_count:
-#            print reads_overlap_count[read_id]
 	    read_length = float(len(reads[read_id]))
 	    num_overlaps = float(reads_overlap_count[read_id])
 	    # taking into account the read lengths
             reads_overlap_count[read_id] = num_overlaps / read_length 
-       #     print reads_overlap_count[read_id]
 
-	read_overlaps_count_data = output_prefix + "_read_overlaps_count_data.csv"
+	# write plot data to csv
+	read_overlaps_count_data = "./" + output_prefix + "/plot_data/" + output_prefix + "_read_overlaps_count_data.csv"
         with open(read_overlaps_count_data, 'wb') as myfile:
         	writer = csv.writer(myfile)
         	for key, value in reads_overlap_count.items():
@@ -279,14 +283,13 @@ def plot_num_overlaps_per_read_distribution(ax, fasta, output_prefix):
         ax.set_xlabel('Number of overlaps/read/length')
         ax.set_ylabel('Frequency')    
 
-def plot_average_coverage_per_base_per_read(ax, fasta, output_prefix):
+def plot_estimated_coverage(ax, fasta, output_prefix):
 	print "\n\n\n\n"
 	print "Plotting average coverage per base per read"
 	print "___________________________________________"
 
 
-        # get overlaps file for max_coverage total data size
-        # get overlaps file created with all reads
+        # get all information on fasta file needed
         mean_read_length = fasta.get_mean_read_length()
         genome_size = fasta.get_genome_size()
         num_reads = fasta.get_num_reads()
@@ -301,41 +304,62 @@ def plot_average_coverage_per_base_per_read(ax, fasta, output_prefix):
         reads_overlaps = dict()
         for line in overlaps:
             query_read_id = line.split('\t')[0]
+	    target_read_id = line.split('\t')[5]
             query_start_pos = line.split('\t')[2]
             query_end_pos = line.split('\t')[3]
-            query_length = int(query_end_pos) - int(query_start_pos)
-            if query_read_id in reads_overlaps: 
-                reads_overlaps[query_read_id]+= query_length
-            else:
-                reads_overlaps[query_read_id] = 0
+	    target_start_pos = line.split('\t')[7]
+	    target_end_pos = line.split('\t')[8]
+	    target_overlap_length = int(target_end_pos) - int(target_start_pos)
+            query_overlap_length = int(query_end_pos) - int(query_start_pos)
+	    print "Query Length: " + str(query_overlap_length)
+	    if not (query_read_id == target_read_id):
+            	if query_read_id in reads_overlaps: 
+            		reads_overlaps[query_read_id]+=query_overlap_length
+            	else:
+                	reads_overlaps[query_read_id]=query_overlap_length
+		if target_read_id in reads_overlaps:
+                        reads_overlaps[target_read_id]+=target_overlap_length
+		else:
+                        reads_overlaps[target_read_id]=target_overlap_length
         overlaps.close()
 
         # initialize list of coverage_per_base_per_read values
         # get the reads list from the fasta file object so we can get length of reads
         reads = fasta.get_read_seqs()
-        data = list()
+        data = dict()
         for read_id in reads_overlaps:
             seq = reads[read_id]
             num_bases = len(seq)
-            cov_per_base_per_read = reads_overlaps[read_id] / num_bases
-            data.append(tuple((read_id, cov_per_base_per_read)))
+	    cov_per_base_per_read = int(round(float(reads_overlaps[read_id]) / float(num_bases)))
+	    if cov_per_base_per_read in data:
+		data[cov_per_base_per_read]+=1
+	    else:
+		data[cov_per_base_per_read]=1
 
-        estimated_coverage_data = output_prefix + "_estimated_coverage_data.csv"
+	# write plot data to csv file
+        estimated_coverage_data = "./" + output_prefix + "/plot_data/" + output_prefix + "_estimated_coverage_data.csv"
         with open(estimated_coverage_data, 'wb') as myfile:
-        	writer = csv.writer(myfile)
-                writer.writerow(['read_id','avg_cov_per_base'])
-		for row in data:
-			writer.writerow(row)
-        myfile.close()
+                writer = csv.writer(myfile)
+                for key, value in data.items():
+                        writer.writerow([key, value])
+	myfile.close()
 
 
         # plotting the cov per base per read
-	values_only = list()
-	values_only = [x[1] for x in data]
-        ax.hist(values_only,100)
+	
+	# superimposing hamza's data
+	reader = csv.reader(open('/.mounts/labs/simpsonlab/users/h2khan/projects/preqc-lr/analysis/cov.csv', 'r'))
+	counted_data = {}
+	next(reader) # skip first line
+	for row in reader:
+   		k, v = row
+  		counted_data[int(k)] = int(v)
+	ax.hist(counted_data.keys(), weights=counted_data.values(), alpha=0.5, label="Ref-SimReads", bins=100)
+        ax.hist(data.keys(), weights=data.values(), alpha=0.5, label="SimReads-SimReads", bins=100)
         ax.set_title('Estimated coverage distribution')
         ax.set_xlabel('Avg. number of overlaps per base per read')
         ax.set_ylabel('Frequency')   
+	ax.legend(loc='upper right')
 
 def create_overlaps_file(fa_filename, output_prefix, coverage, data_type):
         # use minimap2 to calculate long read overlaps
