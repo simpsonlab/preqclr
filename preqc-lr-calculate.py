@@ -10,6 +10,9 @@ from matplotlib.backends.backend_pdf import PdfPages
 import pylab as plt
 import sys, os, csv
 import json, gzip
+from operator import itemgetter
+from scipy import stats
+import time as time
 
 def main():
     # --------------------------------------------------------
@@ -134,7 +137,8 @@ def calculate_report(output_prefix, fa_filename, genome_size, data_type, cov_rea
     calculate_num_overlaps_per_read(fasta, output_prefix, data)
     calculate_estimated_coverage(fasta, output_prefix, cov_reads_to_ref, data)
     calculate_GC_content_per_read(fasta, output_prefix, data)
-
+    calculate_expected_minimum_fractional_overlaps_vs_read_length(fasta, output_prefix, data)
+#    print data['num_matching_residues']
     # --------------------------------------------------------
     # PART 3: After all calculations are done, store in json
     # --------------------------------------------------------
@@ -316,7 +320,7 @@ def calculate_num_overlaps_per_read(fasta, output_prefix, data):
 
 def calculate_estimated_coverage(fasta, output_prefix, cov_reads_to_ref, data):
     print "\n\n\n\n"
-    print "Calculating average coverage per read "
+    print "Calculating average coverage per read"
     print "___________________________________________"
 
     # --------------------------------------------------------
@@ -383,7 +387,6 @@ def calculate_estimated_coverage(fasta, output_prefix, cov_reads_to_ref, data):
 		else:
         		left_clip = min(query_prefix_len, target_suffix_len)
         		right_clip = min(query_suffix_len, target_prefix_len)
-
 		overlap_length += left_clip + right_clip
         # _________________________________ End Jared Simpson code __________________________________________ #
 
@@ -399,34 +402,37 @@ def calculate_estimated_coverage(fasta, output_prefix, cov_reads_to_ref, data):
 		else:
             		sum_overlap_lengths[target_read_id]=overlap_length
     overlaps.close()
+    print "Point 3"
 
     # --------------------------------------------------------
     # PART 4: for each coverage level count num reads w/ cov
     # --------------------------------------------------------
     # This part is also recording which reads fall under each coverage level,
     # this part is also generating data for scatter plot with read length vs estimated coverage per read.
-    # read_cov_count will hold the read counts for each coverage level
+    # per_cov_read_count will hold the read counts for each coverage level
     # data_seqs will hold the list of read ids for each coverage level
-    # read_lengths_estimated_cov will hold the data points for the scatter plot for read length vs estimated coverage plot
-
-    reads_cov_count = dict()         		# key = avg coverage, value = number of reads with this avg coverage
-    data_seqs = dict()                     	# key = avg coverage, value = list of read ids that have this avg coverage
-    read_lengths_estimated_cov = list()    	# list of tuples (read_length, estimated_coverage)
-    cov_list = list()
+    # read_length_and_estimated_cov will hold the data points for the scatter plot for read length vs estimated coverage plot
+    print "Sum overlaps lengths length: " + str(len(sum_overlap_lengths))
+    #per_cov_read_count = dict()         	# key = avg coverage, value = number of reads with this avg coverage
+    #data_seqs = dict()                     	# key = avg coverage, value = list of read ids that have this avg coverage
+    covs = list()
+    read_length_and_estimated_cov = list()    	# list of tuples (read_length, estimated_coverage)
     for read_id in sum_overlap_lengths:
     	seq = reads[read_id]
+        length = len(seq)
         num_bases = float(len(seq))
         total_overlaps_length = float(sum_overlap_lengths[read_id])
-        cov_per_read = int(round(total_overlaps_length / num_bases))
-    	if cov_per_read in reads_cov_count:
-        	reads_cov_count[cov_per_read]+=1
-	else:
-        	reads_cov_count[cov_per_read]=1
-        cov_list.append(cov_per_read)
-        read_lengths_estimated_cov.append((num_bases, cov_per_read))
+        cov = int(round(total_overlaps_length / num_bases))
+	covs.append((cov, length))
+    	#if cov in per_cov_read_count:
+        #	per_cov_read_count[cov]+=1
+	#else:
+        #	per_cov_read_count[cov]=1
+        read_length_and_estimated_cov.append((num_bases, cov))
     print "Finished coverage level count num reads with cov"    
+    #print per_cov_read_count
 
-    print "Length of read_lengths_estimated_cov: " +  str(len(read_lengths_estimated_cov))
+    print "Length of read_lengths_estimated_cov: " +  str(len(read_length_and_estimated_cov))
     # --------------------------------------------------------
     # PART 5: Add the reads-to-ref data set by Hamza
     # --------------------------------------------------------
@@ -438,37 +444,53 @@ def calculate_estimated_coverage(fasta, output_prefix, cov_reads_to_ref, data):
   	read_ref[int(k)] = int(v)
 
     # --------------------------------------------------------
-    # PART 6: Estimate genome size based off of coverage
+    # PART 6: Filter outliers
     # --------------------------------------------------------
-    median_cov = float(np.median(cov_list))
-    mean_cov = float(np.mean(cov_list))
-    print "Median Cov: " + str(median_cov)
-    print "Mean Cov: " + str(mean_cov)
-    print "Total num reads: " + str(total_num_reads)
-    print "Mean read length: " + str(mean_read_length)
-    print "Total num reads in reads_cov_count: " + str(sum(reads_cov_count.values())) 
-    n = float(total_num_reads)
-    l = float(mean_read_length)
-    genome_size = ( n * l ) / median_cov
-    print genome_size
+    max_cov = max(covs, key=itemgetter(0))[0]
+    min_cov = min(covs, key=itemgetter(0))[0]
+    print "Max cov: " + str(max_cov)
+    print "Min cov: " + str(min_cov)
+    q75, q25 = np.percentile([x[0] for x in covs], [75 ,25])
+    IQR = float(q75) - float(q25)
+    upperbound = q75 + IQR * 1.5
+    lowerbound = q25 - IQR * 1.5
+    print "Q75: " + str(q75)
+    print "Q25: " + str(q25)
+    print "Upperbound: " + str(upperbound)
+    print "Lowerbound: " + str(lowerbound)
+    temp = [i for i in covs if i[0] < upperbound]
+    filtered_covs = [i for i in temp if i[0] > lowerbound]
 
     # --------------------------------------------------------
-    # PART 7: Add to the data set
+    # PART 7: Estimate genome size based off of coverage
     # --------------------------------------------------------
-    data['estimated_coverage'] = (read_ref, reads_cov_count)
-    data['read_lengths_estimated_cov'] = read_lengths_estimated_cov	
-    data['estimated_genome_size'] = genome_size
+    mean_cov = float(np.mean([x[0] for x in filtered_covs]))
+    median_cov = float(np.median([x[0] for x in filtered_covs]))
+    mode_cov = stats.mode([x[0] for x in filtered_covs])
+    mean_read_length = float(np.mean([x[1] for x in filtered_covs]))
+    median_read_length = float(np.median([x[1] for x in filtered_covs]))
+    mode_read_length = stats.mode([x[1] for x in filtered_covs])
+    print "Cov (mean, median, mode): (" + str(mean_cov) + "," + str(median_cov) + "," + str(mode_cov) + ")"
+    print "Read length (mean, median, mode): (" + str(mean_read_length) + "," + str(median_read_length) + "," + str(mode_read_length) + ")"   
+
+    num_reads_used = float(len(filtered_covs))
+    n = float(len(filtered_covs))
+    l = float(mean_read_length)
+    c = float(np.median([x[0] for x in filtered_covs]))
+    estimated_genome_size = ( n * l ) / c
+
+    # --------------------------------------------------------
+    # PART 8: Add to the data set
+    # --------------------------------------------------------
+    data['estimated_coverage'] = (read_ref, filtered_covs)
+    data['read_lengths_estimated_cov'] = read_length_and_estimated_cov	
+    data['estimated_genome_size'] = estimated_genome_size
 
 def calculate_GC_content_per_read(fasta, output_prefix, data):
     # ========================================================
     # Purpose: Calculate the mean GC content (%) per read,
     # this will be used in plot with mean GC content vs freq. 
     # ========================================================
-    # get informaiton on fasta
-    # for each read sequence in read_dict
-    # count the number of Gs
-    # count the number of Cs
-    # G+C / (G+C+A+T)
     print "\n\n\n\n"
     print "Calculating GC-content per read"
     print "___________________________________________"
@@ -483,23 +505,54 @@ def calculate_GC_content_per_read(fasta, output_prefix, data):
     # --------------------------------------------------------
     read_counts_per_GC_content = dict()
     for read_id in reads:
-	seq = reads[read_id]
+        seq = reads[read_id]
         length = len(seq)
-	count_C = 0
-	count_G = 0
-	for i in seq:
-		if str(i) == "C":
-			count_C+=1
-		elif str(i) == "G":
-			count_G+=1
-	count_GC = count_C + count_G
-	GC_content = math.ceil((float(count_GC)/float(length))*100)
-	if GC_content in read_counts_per_GC_content:
+        count_C = seq.count('C')
+        count_G = seq.count('G')
+    	count_GC = count_C + count_G	
+    	GC_content = math.ceil((float(count_GC)/float(length))*100)
+    	if GC_content in read_counts_per_GC_content:
 		read_counts_per_GC_content[GC_content]+=1
-	else:
+    	else:
 		read_counts_per_GC_content[GC_content]=1
+
     data["read_counts_per_GC_content"] = read_counts_per_GC_content			
-   
+
+def calculate_expected_minimum_fractional_overlaps_vs_read_length(fasta, output_prefix, data):
+    # get the distribution of matching residues
+    # get the PAF file with the max number of 
+    print "\n\n\n\n"
+    print "Calculating num of matches per overlap distribution "
+    print "___________________________________________"
+
+    # --------------------------------------------------------
+    # PART 0: Get all the information needed from fasta
+    # --------------------------------------------------------
+    fa_filename = fasta.get_fa_filename()
+    genome_size = fasta.get_genome_size()
+    data_type = fasta.get_data_type()
+    reads = fasta.get_read_seqs()
+    mean_read_length = fasta.get_mean_read_length()
+    total_num_reads = fasta.get_num_reads()
+
+    # --------------------------------------------------------
+    # PART 1: get the PAF file calculated w all reads
+    # --------------------------------------------------------
+    # we get this by calculating the max_coverage
+    n = int(total_num_reads)
+    l = float(mean_read_length)
+    g = float(genome_size)
+    max_coverage = round(math.ceil((n * l) / g))
+    overlaps_filename = create_overlaps_file(fa_filename, output_prefix, max_coverage, data_type)
+    print overlaps_filename
+    overlaps = open(overlaps_filename, "r")
+    num = list()
+    for line in overlaps:
+        num_matching_residues = int(line.split('\t')[9])
+	num.append(num_matching_residues)
+
+    data['num_matching_residues'] = num
+    
 
 def create_overlaps_file(fa_filename, output_prefix, coverage, data_type):
     # use minimap2 to calculate long read overlaps
