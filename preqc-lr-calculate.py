@@ -24,6 +24,7 @@ def main():
     parser.add_argument('-g', '--genome_size', action="store", required=True, dest="genome_size", help="Genome size. Default = 4641652 bps.")
     parser.add_argument('-t', '--type', action="store", required=True, dest="data_type", choices=['pb', 'ont'], help="Either pacbio or ONT.")
     parser.add_argument('-c', '--cov', action="store", required=True, dest="cov_reads_to_ref", help="Ref-SimReads coverage results in csv format with 2 columns: coverage, count")
+    parser.add_argument('-n', '--sample_name', action="store", required=True, dest="sample_name", help="Sample name. You can use the name of species for example. No spaces allowed.")
     args = parser.parse_args()
 
     # --------------------------------------------------------
@@ -35,6 +36,7 @@ def main():
     # PART 2: Initiate json obect, and record current info
     # --------------------------------------------------------
     data = {}
+    data['sample_name'] = args.sample_name
     data['genome_size'] = args.genome_size
     data['data_type'] = args.data_type
     data['cov_reads_to_ref'] = args.cov_reads_to_ref
@@ -221,9 +223,7 @@ def calculate_average_overlaps_vs_coverage(fasta, output_prefix, data):
         l = float(mean_read_length)
         num_reads = round(math.ceil(float((c * g)/l)))
 
-        downsample_file = "./" + output_prefix + "/downsample/" + output_prefix + "_" + str(c) + "X.fasta"
-        downsample_command = "seqtk sample " + fa_filename + " " + str(num_reads) + " > " + downsample_file
-        subprocess.call(downsample_command, shell=True)
+	downsample_file = create_downsample_file(fa_filename, output_prefix, c, num_reads)
 
     # --------------------------------------------------------
     # PART 4: Get overlap files with minimap2
@@ -347,7 +347,8 @@ def calculate_estimated_coverage(fasta, output_prefix, cov_reads_to_ref, data):
     # --------------------------------------------------------
     # PART 2: get the overlap lengths for each overlap
     # --------------------------------------------------------
-    sum_overlap_lengths = dict() 
+    sum_overlap_lengths = dict()
+    overlap_accuracy = dict()			# key = read id, values = (sum_overlap_length, sum_matches )
     overlaps = open(overlaps_filename, "r")
     for line in overlaps:
         query_read_id = line.split('\t')[0]
@@ -359,50 +360,55 @@ def calculate_estimated_coverage(fasta, output_prefix, cov_reads_to_ref, data):
         query_length = int(line.split('\t')[1])
         target_length = int(line.split('\t')[6])
         strand = line.split('\t')[4]
+	num_matches = int(line.split('\t')[9])
         if not (query_read_id == target_read_id):
-	# ______________________ Jared Simpson code for calculating the overlap length ______________________ #
-	# Calculate the length of the unaligned prefix and suffix for the query and target read
-        # Q   --------===============-
-        # T         --===============-----
-        # q prefix: 8, q suffix: 1
-        # t prefix: 2, t suffix: 5
-		query_prefix_len = query_start_pos
-        	query_suffix_len = query_length - query_end_pos
+                query_prefix_len = query_start_pos
+                query_suffix_len = query_length - query_end_pos
 
-		target_prefix_len = target_start_pos
-		target_suffix_len = target_length - target_end_pos
+                target_prefix_len = target_start_pos
+                target_suffix_len = target_length - target_end_pos
 
-		# calculate length of overlap
-		overlap_length = query_end_pos - query_start_pos
+                # calculate length of overlap
+                overlap_length = query_end_pos - query_start_pos
 
-		# Minimap2 computes local alignments so the reported overlap length
-        	# might be less than the true overlap length. Correct for clipping
-		# here by extending the overlap length by the prefix/suffix length
-		# Whether we use the prefix or suffix depends on the strand of the match
-		left_clip = 0
-		right_clip = 0
-		if strand == "+":
-        		left_clip = min(query_prefix_len, target_prefix_len)
-        		right_clip = min(query_suffix_len, target_suffix_len)
-		else:
-        		left_clip = min(query_prefix_len, target_suffix_len)
-        		right_clip = min(query_suffix_len, target_prefix_len)
-		overlap_length += left_clip + right_clip
-        # _________________________________ End Jared Simpson code __________________________________________ #
+                left_clip = 0
+                right_clip = 0
+                if not (query_start_pos == 0) and not (target_start_pos == 0) :
+                        if strand == "+":
+                                left_clip = min(query_prefix_len, target_prefix_len)
+                        else:
+                                left_clip = min(query_prefix_len, target_suffix_len)
+                if not (query_end_pos == 0) and not (target_end_pos == 0) :
+                        if strand == "+":
+                                right_clip = min(query_suffix_len, target_suffix_len)
+                        else:
+                                right_clip = min(query_suffix_len, target_prefix_len)
+                overlap_length += left_clip + right_clip
 
     # --------------------------------------------------------
     # PART 3: add to the current recorded sum overlap length
     # --------------------------------------------------------
-       		if query_read_id in sum_overlap_lengths: 
-        		sum_overlap_lengths[query_read_id]+=overlap_length
-        	else:
-            		sum_overlap_lengths[query_read_id]=overlap_length
-		if target_read_id in sum_overlap_lengths:
-            		sum_overlap_lengths[target_read_id]+=overlap_length
-		else:
-            		sum_overlap_lengths[target_read_id]=overlap_length
+                if query_read_id in sum_overlap_lengths:
+                        sum_overlap_lengths[query_read_id]+=overlap_length
+			current_overlap_length = overlap_accuracy[query_read_id][0]
+			new_overlap_length = current_overlap_length + overlap_length
+			current_num_matches = overlap_accuracy[query_read_id][1]
+			new_num_matches = current_num_matches + num_matches
+			overlap_accuracy[query_read_id] = (new_overlap_length, new_num_matches)
+                else:
+                        sum_overlap_lengths[query_read_id]=overlap_length
+			overlap_accuracy[query_read_id] = (overlap_length, num_matches)
+                if target_read_id in sum_overlap_lengths:
+                        sum_overlap_lengths[target_read_id]+=overlap_length
+			current_overlap_length = overlap_accuracy[target_read_id][0]
+                        new_overlap_length = current_overlap_length + overlap_length
+                        current_num_matches = overlap_accuracy[target_read_id][1]
+                        new_num_matches = current_num_matches + num_matches
+                        overlap_accuracy[target_read_id] = (new_overlap_length, new_num_matches)
+                else:
+                        sum_overlap_lengths[target_read_id]=overlap_length
+			overlap_accuracy[target_read_id] = (float(overlap_length), float(num_matches))
     overlaps.close()
-    print "Point 3"
 
     # --------------------------------------------------------
     # PART 4: for each coverage level count num reads w/ cov
@@ -412,25 +418,25 @@ def calculate_estimated_coverage(fasta, output_prefix, cov_reads_to_ref, data):
     # per_cov_read_count will hold the read counts for each coverage level
     # data_seqs will hold the list of read ids for each coverage level
     # read_length_and_estimated_cov will hold the data points for the scatter plot for read length vs estimated coverage plot
-    print "Sum overlaps lengths length: " + str(len(sum_overlap_lengths))
-    #per_cov_read_count = dict()         	# key = avg coverage, value = number of reads with this avg coverage
-    #data_seqs = dict()                     	# key = avg coverage, value = list of read ids that have this avg coverage
+    per_cov_read_count = dict()         	# key = avg coverage, value = number of reads with this avg coverage
     covs = list()
+    accuracies = list()
     read_length_and_estimated_cov = list()    	# list of tuples (read_length, estimated_coverage)
     for read_id in sum_overlap_lengths:
     	seq = reads[read_id]
         length = len(seq)
         num_bases = float(len(seq))
         total_overlaps_length = float(sum_overlap_lengths[read_id])
-        cov = int(round(total_overlaps_length / num_bases))
+        cov = int(round(float(total_overlaps_length) / float(num_bases)))
+	accuracy = (overlap_accuracy[read_id][1])/float(overlap_accuracy[read_id][0])
 	covs.append((cov, length))
-    	#if cov in per_cov_read_count:
-        #	per_cov_read_count[cov]+=1
-	#else:
-        #	per_cov_read_count[cov]=1
+	accuracies.append((accuracy, length))
+    	if cov in per_cov_read_count:
+        	per_cov_read_count[cov]+=1
+	else:
+        	per_cov_read_count[cov]=1
         read_length_and_estimated_cov.append((num_bases, cov))
     print "Finished coverage level count num reads with cov"    
-    #print per_cov_read_count
 
     print "Length of read_lengths_estimated_cov: " +  str(len(read_length_and_estimated_cov))
     # --------------------------------------------------------
@@ -460,6 +466,10 @@ def calculate_estimated_coverage(fasta, output_prefix, cov_reads_to_ref, data):
     print "Lowerbound: " + str(lowerbound)
     temp = [i for i in covs if i[0] < upperbound]
     filtered_covs = [i for i in temp if i[0] > lowerbound]
+    max_cov = max(filtered_covs, key=itemgetter(0))[0]
+    min_cov = min(filtered_covs, key=itemgetter(0))[0]
+    print "Max cov: " + str(max_cov)
+    print "Min cov: " + str(min_cov)
 
     # --------------------------------------------------------
     # PART 7: Estimate genome size based off of coverage
@@ -480,11 +490,26 @@ def calculate_estimated_coverage(fasta, output_prefix, cov_reads_to_ref, data):
     estimated_genome_size = ( n * l ) / c
 
     # --------------------------------------------------------
-    # PART 8: Add to the data set
+    # PART 8: Estimate number of islands
     # --------------------------------------------------------
-    data['estimated_coverage'] = (read_ref, filtered_covs)
+    T = 100.0			# amount of overlap in base pairs needed to detect overlap
+    theta = T / l  		# expected minimum fractional overlap required between two clones
+    print "T: " + str(T)
+    print "Mean read length:" + str(l) 
+    print "Theta: " + str(theta)
+    sigma = 1 - theta
+    estimated_num_islands = ( ( g * c ) / l ) * math.exp(-(1 - theta) * c)
+    estimated_num_islands_1 = n/math.exp(sigma * c) - n/math.exp(2*sigma*c)
+    print estimated_num_islands
+    print estimated_num_islands_1
+    # --------------------------------------------------------
+    # PART 9: Add to the data set
+    # --------------------------------------------------------
+    data['estimated_coverage'] = (read_ref, [x[0] for x in filtered_covs])
     data['read_lengths_estimated_cov'] = read_length_and_estimated_cov	
     data['estimated_genome_size'] = estimated_genome_size
+    data['overlap_accuracies'] = accuracies
+    data['estimated_num_islands'] = estimated_num_islands
 
 def calculate_GC_content_per_read(fasta, output_prefix, data):
     # ========================================================
@@ -517,6 +542,24 @@ def calculate_GC_content_per_read(fasta, output_prefix, data):
 		read_counts_per_GC_content[GC_content]=1
 
     data["read_counts_per_GC_content"] = read_counts_per_GC_content			
+
+'''def calculate_homopolymer_distribution(fasta, output_prefix, data):
+    # --------------------------------------------------------
+    # PART 0: Get all the information needed from fasta
+    # --------------------------------------------------------
+    reads = fasta.get_read_seqs()
+
+    for read_id in reads:
+	seq = reads[read_id]
+	length = len(seq)
+	for i in range(20):
+		key = 'A' + str(i)
+		j = 0
+ 		hp = ''
+		while j < i
+			hp = hp + 'A'
+'''		
+	
 
 def calculate_expected_minimum_fractional_overlaps_vs_read_length(fasta, output_prefix, data):
     # get the distribution of matching residues
@@ -553,6 +596,16 @@ def calculate_expected_minimum_fractional_overlaps_vs_read_length(fasta, output_
 
     data['num_matching_residues'] = num
     
+def create_downsample_file(fa_filename, output_prefix, coverage, num_reads):
+        downsample_filename = "./" + output_prefix + "/downsample/" + output_prefix + "_" + str(coverage) + "X.fasta"
+        downsample_command = "seqtk sample " + fa_filename + " " + str(num_reads) + " > " + downsample_file
+        print downsample_command
+
+	# create downsample file if it doesn't already exist
+    	if not (os.path.exists(downsample_filename) and os.path.getsize(downsample_filename) > 0):
+        	subprocess.call(downsample_command, shell=True)
+
+	return downsample_filename
 
 def create_overlaps_file(fa_filename, output_prefix, coverage, data_type):
     # use minimap2 to calculate long read overlaps
