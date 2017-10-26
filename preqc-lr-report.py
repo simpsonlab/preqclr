@@ -64,6 +64,7 @@ def create_report(output_prefix, preqclr_file):
         ax11 = fig1.add_subplot(325)
         ax12 = fig1.add_subplot(326)
 
+	estimated_genome_sizes = dict()
 	read_lengths = dict()
 	per_coverage_avg_num_overlaps = dict()
 	per_read_overlap_count = dict()
@@ -72,30 +73,32 @@ def create_report(output_prefix, preqclr_file):
 	per_read_GC_content = dict()
 	num_matching_residues = dict()
 
-	markers = ['o', 's', '^', 'p', '+']
-	colors = ['#db5461', '#70d6ff', '#df9a57', '#fde74c', '#cad178'] 
+	markers = ['s', 'o', '^', 'p', '+']
+	colors = ['#E84855', '#3C91E6', '#FFFD82', '#FF9B71', '#1B998B'] 
 	for sample_preqclr_file in preqclr_file:
 		# get sample name
-		sample = str(os.path.splitext(sample_preqclr_file)[0])
 		color = colors.pop(0)
 		marker = markers.pop(0)
         	with open(sample_preqclr_file) as json_file:
 			data = json.load(json_file)
+			sample = data['sample_name']
+			estimated_genome_sizes[sample] = (color, data['estimated_genome_size'], marker)
 			read_lengths[sample] = (color, data['read_lengths'], marker)
 			per_coverage_avg_num_overlaps[sample] = (color, data['coverage_avg_num_overlaps'], marker)		# scatter plot
-			per_read_overlap_count[sample] = (color, data['num_overlaps_per_read'], marker)			# histogram
+			per_read_overlap_count[sample] = (color, data['num_overlaps_per_read'], marker)				# histogram
 			estimated_coverage_via_avg_overlaps[sample] = (color, data['estimated_coverage'], marker) 		# histogram
 			read_lengths_estimated_cov[sample] = (color, data['read_lengths_estimated_cov'], marker) 		# scatter plot
 			per_read_GC_content[sample] = (color, data['read_counts_per_GC_content'], marker) 			# histogram
-			num_matching_residues[sample] = (color, data['num_matching_residues'], marker)			# histogram
+			num_matching_residues[sample] = (color, data['num_matching_residues'], marker)				# histogram
 
-	plot_read_length_distribution(ax1, read_lengths, output_prefix)
-        plot_average_overlaps_vs_coverage_distribution(ax2, per_coverage_avg_num_overlaps, output_prefix)
-        plot_num_overlaps_per_read_distribution(ax3, per_read_overlap_count, output_prefix)
-        plot_estimated_coverage(ax4, estimated_coverage_via_avg_overlaps, output_prefix)
-	plot_estimated_coverage_per_read(ax5, read_lengths_estimated_cov, output_prefix)
-	plot_per_read_GC_content(ax6, per_read_GC_content, output_prefix)
-	plot_num_matching_residues(ax7, num_matching_residues, output_prefix)
+	plot_estimated_genome_size(ax1, estimated_genome_sizes, output_prefix)
+	plot_read_length_distribution(ax2, read_lengths, output_prefix)
+        plot_average_overlaps_vs_coverage_distribution(ax3, per_coverage_avg_num_overlaps, output_prefix)
+        plot_num_overlaps_per_read_distribution(ax4, per_read_overlap_count, output_prefix)
+        plot_estimated_coverage(ax5, estimated_coverage_via_avg_overlaps, output_prefix)
+	plot_estimated_coverage_per_read(ax6, read_lengths_estimated_cov, output_prefix)
+	plot_per_read_GC_content(ax7, per_read_GC_content, output_prefix)
+	plot_num_matching_residues(ax8, num_matching_residues, output_prefix)
 	fig.savefig(pp, format='pdf')
         fig1.savefig(pp, format='pdf')
 
@@ -263,7 +266,7 @@ def plot_estimated_coverage(ax, data, output_prefix):
 		#ax.hist(sample_data_ref.keys(), weights=sample_data_ref.values(), alpha=0.3, label="ref", bins=bins)
 		ax.hist(sample_data_reads, alpha=0.5, color=sample_color, label=sample_name, bins=bins)
 
-        ax.set_title('Estimated coverage distribution')
+        ax.set_title('Coverage distribution')
 	ax.grid(True, linestyle='-', linewidth=0.3)
 	ax.set_xticks(np.arange(0, max_cov, int(5 * round(float( num_bins/2)/5))))
         ax.set_xlabel('Avg. number of overlaps per base per read')
@@ -282,7 +285,7 @@ def plot_estimated_coverage_per_read(ax, data, output_prefix):
 	        ax.scatter(x, y, alpha=0.5, marker=sample_marker, s=4, edgecolors=sample_color, linewidth=0.5, facecolors='None')
 	
 	# scatter plot with read length on x axis, and estimted coverage for read on y axis
-        ax.set_title('Estimated coverage vs read length')
+        ax.set_title('Coverage vs read length')
         ax.grid(True, linestyle='-', linewidth=0.3)
         ax.set_xlabel('Read length')
         ax.set_ylabel('Coverage')
@@ -304,7 +307,7 @@ def plot_num_matching_residues(ax, data, output_prefix):
                 sample_name = sample
                 sample_color = data[sample][0]
                 sample_data = data[sample][1]
-		ax.hist(sample_data, bins=bins, label=sample_name, color=sample_color)	
+		ax.hist(sample_data, bins=bins, alpha=0.5, label=sample_name, color=sample_color)	
 
 	ax.set_title('Number of matching residues per overlap distributions')
         ax.grid(True, linestyle='-', linewidth=0.3)
@@ -327,12 +330,45 @@ def plot_per_read_GC_content(ax, data, output_prefix):
         ax.grid(True, linestyle='-', linewidth=0.3)
         ax.legend(loc='upper right')
 
+def plot_estimated_genome_size(ax, data, output_prefix):
+        print "\n\n\n\n"
+        print "Plotting genome size estimates"
+        print "___________________________________________"
+
+	genome_sizes = list()
+	sample_names = list()
+	colors = list()
+        # now start plotting
+        for sample in data:
+                sample_name = sample
+                sample_color = data[sample][0]
+                sample_data = data[sample][1]
+		genome_sizes.append(sample_data)
+		sample_names.append(sample_name)
+		colors.append(str(sample_color))
+		print sample_data
+		print sample_name
+
+	print sample_names
+        # plotting the number of overlaps/read
+	y_pos = np.arange(len(genome_sizes))
+	ax.bar(y_pos, genome_sizes, align='center', alpha=0.5, color=colors)
+	ax.set_xticks(y_pos)
+	ax.set_xticklabels(sample_names)
+        ax.set_title('Estimated genome size')
+        ax.set_xlabel('Samples')
+        ax.set_ylabel('Genome size (bps)')
+        ax.grid(True, linestyle='-', linewidth=0.3)
+        ax.legend(loc='upper right')
+	
+
 def getshape(d):
-    if isinstance(d, dict):
-        return {k:getshape(d[k]) for k in d}
-    else:
-        # Replace all non-dict values with None.
-        return None
+	if isinstance(d, dict):
+        	return {k:getshape(d[k]) for k in d}
+	else:
+        	# Replace all non-dict values with None.
+        	return None
+
 
 '''def filter_outliers(data, thresh=1.5):
     points = ''
