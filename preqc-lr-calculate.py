@@ -12,28 +12,48 @@ import sys, os, csv
 import json, gzip
 from operator import itemgetter
 from scipy import stats
-import time as time
+
+paf_given=False
+store_csv=False
 
 def main():
     # --------------------------------------------------------
     # PART 0: Parse the input
     # --------------------------------------------------------
     parser = argparse.ArgumentParser(description='Display Pre-QC Long Read report')
-    parser.add_argument('-i', '--input', action="store", required=True, dest="fa_filename", help="Fasta/q files containing reads")
-    parser.add_argument('-o', '--output', action="store", dest="prefix", default="preqc-lr-output", help="Prefix for output pdf")
-    parser.add_argument('-g', '--genome_size', action="store", required=True, dest="genome_size", help="Genome size. Default = 4641652 bps.")
-    parser.add_argument('-t', '--type', action="store", required=True, dest="data_type", choices=['pb', 'ont'], help="Either pacbio or ONT.")
-    parser.add_argument('-c', '--cov', action="store", required=True, dest="cov_reads_to_ref", help="Ref-SimReads coverage results in csv format with 2 columns: coverage, count")
-    parser.add_argument('-n', '--sample_name', action="store", required=True, dest="sample_name", help="Sample name. You can use the name of species for example. No spaces allowed.")
+    parser.add_argument('-i', '--input', action="store", required=True, 
+			dest="fa_filename", help="Fasta, fastq, fasta.gz, or fastq.gz files containing reads.")
+    parser.add_argument('-o', '--output', action="store", required=True, 
+			dest="prefix", help="Prefix for output directory.")
+    parser.add_argument('-g', '--genome_size', action="store", required=True, 
+			dest="genome_size", help="Genome size ... this is temporary.")
+    parser.add_argument('-t', '--type', action="store", required=True, 
+			dest="data_type", choices=['pb', 'ont'], help="Either pacbio (pb) or oxford nanopore technology data (ONT).")
+    parser.add_argument('-c', '--cov', action="store", required=True, 
+			dest="cov_reads_to_ref", help="Ref-SimReads coverage results in csv format with 2 columns: coverage, count")
+    parser.add_argument('-n', '--sample_name', action="store", required=True, 
+			dest="sample_name", help="Sample name. You can use the name of species for example. No spaces allowed.")
+    parser.add_argument('-p', '--paf', action="store", required=False, 
+			dest="paf", help="Minimap2 pairwise alignment file (PAF). This is produced using 'minimap2 -x ava-ont sample.fastq sample.fastq'.")
+    parser.add_argument('--csv', action="store_true", required=False,
+			dest="store_csv", default=False, help="Comma separated values (CSV) file can be stored.")
     args = parser.parse_args()
 
     # --------------------------------------------------------
-    # PART 1: Get all the information needed from fasta
+    # PART 1: Check the file, only fasta/q or gzipped allowed.
+    # Also checking to see if user wants csv output, and if 
+    # paf file was given.
     # --------------------------------------------------------
     print detect_filetype(args.fa_filename)
-    
+    global paf_given
+    global store_csv
+    if args.paf:
+        paf_given=True
+    if args.store_csv:
+	store_csv=True
+
     # --------------------------------------------------------
-    # PART 2: Initiate json obect, and record current info
+    # PART 2: Initiate json object, and record input info
     # --------------------------------------------------------
     data = {}
     data['sample_name'] = args.sample_name
@@ -42,27 +62,36 @@ def main():
     data['cov_reads_to_ref'] = args.cov_reads_to_ref
     data['fa_filename'] = args.fa_filename
     data['output_prefix'] = args.prefix
-    
+    data['csv_storage'] = args.store_csv
+    if paf_given:
+    	data['paf'] = args.paf
+
     # --------------------------------------------------------
     # PART 3: Create all folders
     # --------------------------------------------------------
     work_dir = './' + args.prefix
     overlaps_dir = './' + args.prefix + '/overlaps'
     downsample_dir = './' + args.prefix + '/downsample'
+    csv_dir = './' + args.prefix + '/csv'
     if not os.path.exists(work_dir):
         os.makedirs(work_dir)
     if not os.path.exists(overlaps_dir):
         os.makedirs(overlaps_dir)
     if not os.path.exists(downsample_dir):
         os.makedirs(downsample_dir)
+    if args.store_csv and not os.path.exists(csv_dir):
+	os.makedirs(csv_dir)
 
     # --------------------------------------------------------
     # PART 4: Create the preqclr report data
     # --------------------------------------------------------
-    calculate_report(args.prefix, args.fa_filename, args.genome_size, args.data_type, args.cov_reads_to_ref, data)
+    if paf_given:
+    	calculate_report(args.prefix, args.fa_filename, args.genome_size, args.data_type, args.cov_reads_to_ref, data, args.paf) 
+    else:
+	calculate_report(args.prefix, args.fa_filename, args.genome_size, args.data_type, args.cov_reads_to_ref, data)
 
 class fasta_file:
-    def __init__(self, fa_filename, read_seqs, read_lengths, genome_size, num_reads, mean_read_length, data_type):
+    def __init__(self, fa_filename, read_seqs, read_lengths, genome_size, num_reads, mean_read_length, data_type, paf = ''):
         self.fa_filename = fa_filename
         self.read_seqs = read_seqs
         self.read_lengths = read_lengths
@@ -70,6 +99,7 @@ class fasta_file:
         self.num_reads = num_reads
         self.mean_read_length = mean_read_length
         self.data_type = data_type
+	self.paf = paf
 
     def get_fa_filename(self):
         return self.fa_filename
@@ -92,8 +122,33 @@ class fasta_file:
     def get_data_type(self):
         return self.data_type
 
+    def set_paf(self, paf):
+	try:
+		if os.path.exists(paf) and os.path.getsize(paf) > 0:
+			self.paf = paf
+		else:
+			raise PAFError
+	except PAFError:
+		print("The PAF file is empty or does not exist")
 
-def calculate_report(output_prefix, fa_filename, genome_size, data_type, cov_reads_to_ref, data):
+    def get_paf(self):
+        try:
+                if os.path.exists(self.paf) and os.path.getsize(self.paf) > 0:
+                        return self.paf
+                else:
+                        raise PAFError
+        except PAFError:
+                print("The PAF file is empty or does not exist")
+
+class Error(Exception):
+	"""Base class for other exceptions"""
+	pass
+
+class PAFError(Error):
+	"""Raised if PAF does not exist, or exists but it is empty"""
+	pass
+
+def calculate_report(output_prefix, fa_filename, genome_size, data_type, cov_reads_to_ref, data, paf=''):
     # --------------------------------------------------------
     # PART 0: Detect the file type, parse file, save to dict
     # --------------------------------------------------------
@@ -102,45 +157,55 @@ def calculate_report(output_prefix, fa_filename, genome_size, data_type, cov_rea
     if ".gz" in file_type:
         with gzip.open(fa_filename, "rt") as handle:
             if "fasta.gz" in file_type:
-                fa_sequences = SeqIO.to_dict(SeqIO.parse(handle, "fasta"))		
+		for record in SeqIO.parse(handle, "fasta"):
+			read_id, read_seq = record.id, record.seq
+			fa_sequences[read_id] = read_seq
             elif "fastq.gz" in file_type:
-    		fa_sequences = SeqIO.to_dict(SeqIO.parse(handle, "fastq"))
+		for record in SeqIO.parse(handle, "fastq"):
+                        read_id, read_seq = record.id, record.seq
+                        fa_sequences[read_id] = read_seq
     else:
         with open(fa_filename, "rt") as handle:
             if "fasta" in file_type:
-                fa_sequences = SeqIO.to_dict(SeqIO.parse(handle, "fasta"))
+                for record in SeqIO.parse(handle, "fasta"):
+                        read_id, read_seq = record.id, record.seq
+                        fa_sequences[read_id] = read_seq
             elif "fastq" in file_type:
-                fa_sequences = SeqIO.to_dict(SeqIO.parse(handle, "fastq"))
+                for record in SeqIO.parse(handle, "fastq"):
+                        read_id, read_seq = record.id, record.seq
+                        fa_sequences[read_id] = read_seq
 
     # --------------------------------------------------------
     # PART 1: Create all necessary info for fasta object
     # --------------------------------------------------------
-    # read_seqs will contain all of the read sequences w/ read_ids
     # read_lengths will contain all the read lengths w/out read_ids
-    # we will also need mean_read_length later for downsampling and for calculating max coverage for later on
-    read_seqs = dict()
+    # we will also need mean_read_length later for downsampling and for calculating max coverage
     read_lengths = list()
     total_num_bases = 0
     for read_id in fa_sequences:
-        read_sequence, read_length = str(fa_sequences[read_id].seq), len(str(fa_sequences[read_id].seq))
-        read_seqs[read_id] = read_sequence
-        read_lengths.append(read_length)
-        total_num_bases+=read_length
-    mean_read_length = float(total_num_bases)/float(len(read_seqs))
-    num_reads = len(read_seqs)
-    # initialize a fasta object
-    fasta = fasta_file(fa_filename, read_seqs, read_lengths, genome_size, num_reads, mean_read_length, data_type)
+	seq = fa_sequences[read_id]
+        seq_length = len(str(seq))
+        read_lengths.append(seq_length)
+        total_num_bases+=seq_length
+    mean_read_length = float(total_num_bases)/float(len(read_lengths))
+    num_reads = len(read_lengths)
+
+    global paf_given
+    if not paf_given:
+	paf = create_overlaps_file(fa_filename, output_prefix, data_type)
+
+    fasta = fasta_file(fa_filename, fa_sequences, read_lengths, genome_size, num_reads, mean_read_length, data_type, paf)	
 
     # --------------------------------------------------------
     # PART 2: Let the calculations begin...
     # --------------------------------------------------------
     calculate_read_length(fasta, output_prefix, data)
-    calculate_average_overlaps_vs_coverage(fasta, output_prefix, data)
+#   calculate_average_overlaps_vs_coverage(fasta, output_prefix, data)
     calculate_num_overlaps_per_read(fasta, output_prefix, data)
     calculate_estimated_coverage(fasta, output_prefix, cov_reads_to_ref, data)
     calculate_GC_content_per_read(fasta, output_prefix, data)
     calculate_expected_minimum_fractional_overlaps_vs_read_length(fasta, output_prefix, data)
-#    print data['num_matching_residues']
+
     # --------------------------------------------------------
     # PART 3: After all calculations are done, store in json
     # --------------------------------------------------------
@@ -283,8 +348,7 @@ def calculate_num_overlaps_per_read(fasta, output_prefix, data):
     num_reads = fasta.get_num_reads()
 
     # get overlaps file created with all reads
-    max_coverage = round(math.ceil((int(num_reads) * float(mean_read_length)) / float(genome_size)))
-    overlaps_filename = create_overlaps_file(fa_filename, output_prefix, max_coverage, data_type)
+    overlaps_filename = fasta.get_paf
 
     # --------------------------------------------------------
     # PART 1: Get the num of overlaps per read
@@ -332,20 +396,11 @@ def calculate_estimated_coverage(fasta, output_prefix, cov_reads_to_ref, data):
     reads = fasta.get_read_seqs()
     mean_read_length = fasta.get_mean_read_length()
     total_num_reads = fasta.get_num_reads()
-
-    # --------------------------------------------------------
-    # PART 1: get the PAF file calculated w all reads
-    # --------------------------------------------------------
-    # we get this by calculating the max_coverage
-    n = int(total_num_reads)
-    l = float(mean_read_length)
-    g = float(genome_size)
-    max_coverage = round(math.ceil((n * l) / g))
-    overlaps_filename = create_overlaps_file(fa_filename, output_prefix, max_coverage, data_type)
+    overlaps_filename = fasta.get_paf()
     print overlaps_filename
 
     # --------------------------------------------------------
-    # PART 2: get the overlap lengths for each overlap
+    # PART 1: Get the sum of overlap lengths for each read
     # --------------------------------------------------------
     sum_overlap_lengths = dict()
     overlap_accuracy = dict()			# key = read id, values = (sum_overlap_length, sum_matches )
@@ -438,7 +493,7 @@ def calculate_estimated_coverage(fasta, output_prefix, cov_reads_to_ref, data):
         read_length_and_estimated_cov.append((num_bases, cov))
     print "Finished coverage level count num reads with cov"    
 
-    print "Length of read_lengths_estimated_cov: " +  str(len(read_length_and_estimated_cov))
+
     # --------------------------------------------------------
     # PART 5: Add the reads-to-ref data set by Hamza
     # --------------------------------------------------------
@@ -500,8 +555,11 @@ def calculate_estimated_coverage(fasta, output_prefix, cov_reads_to_ref, data):
     sigma = 1 - theta
     estimated_num_islands = ( ( g * c ) / l ) * math.exp(-(1 - theta) * c)
     estimated_num_islands_1 = n/math.exp(sigma * c) - n/math.exp(2*sigma*c)
+    estimated_num_islands_2 = n / math.exp(sigma * c)
     print estimated_num_islands
     print estimated_num_islands_1
+    print estimated_num_islands_2
+
     # --------------------------------------------------------
     # PART 9: Add to the data set
     # --------------------------------------------------------
@@ -598,7 +656,7 @@ def calculate_expected_minimum_fractional_overlaps_vs_read_length(fasta, output_
     
 def create_downsample_file(fa_filename, output_prefix, coverage, num_reads):
         downsample_filename = "./" + output_prefix + "/downsample/" + output_prefix + "_" + str(coverage) + "X.fasta"
-        downsample_command = "seqtk sample " + fa_filename + " " + str(num_reads) + " > " + downsample_file
+        downsample_command = "seqtk sample " + fa_filename + " " + str(num_reads) + " > " + downsample_filename
         print downsample_command
 
 	# create downsample file if it doesn't already exist
@@ -607,9 +665,12 @@ def create_downsample_file(fa_filename, output_prefix, coverage, num_reads):
 
 	return downsample_filename
 
-def create_overlaps_file(fa_filename, output_prefix, coverage, data_type):
+def create_overlaps_file(fa_filename, output_prefix, data_type, coverage=''):
     # use minimap2 to calculate long read overlaps
-    overlaps_filename = "./" + output_prefix + "/overlaps/" + output_prefix + "_" + str(coverage) + "X_overlaps.paf"
+    if not coverage == "":
+    	overlaps_filename = "./" + output_prefix + "/overlaps/" + output_prefix + "_" + str(coverage) + "X_overlaps.paf"
+    else:
+	overlaps_filename = "./" + output_prefix + "/overlaps/" + output_prefix + "_overlaps.paf"
 
     # create overlaps file if it doesn't already exist
     if not (os.path.exists(overlaps_filename) and os.path.getsize(overlaps_filename) > 0):
