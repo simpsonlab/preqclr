@@ -20,35 +20,61 @@ def main():
     # --------------------------------------------------------
     # PART 0: Parse the input
     # --------------------------------------------------------
-    parser = argparse.ArgumentParser(description='Display Pre-QC Long Read report')
+    parser = argparse.ArgumentParser(prog='preqc-lr',description='Calculate Pre-QC Long Read report')
     parser.add_argument('-i', '--input', action="store", required=True, 
 			dest="fa_filename", help="Fasta, fastq, fasta.gz, or fastq.gz files containing reads.")
     parser.add_argument('-o', '--output', action="store", required=True, 
-			dest="prefix", help="Prefix for output directory.")
+			dest="output_prefix", help="Prefix for output directory.")
     parser.add_argument('-g', '--genome_size', action="store", required=True, 
 			dest="genome_size", help="Genome size ... this is temporary.")
     parser.add_argument('-t', '--type', action="store", required=True, 
-			dest="data_type", choices=['pb', 'ont'], help="Either pacbio (pb) or oxford nanopore technology data (ONT).")
+			dest="data_type", choices=['pb', 'ont'], help="Either pacbio (pb) or oxford nanopore technology data (ont).")
     parser.add_argument('-c', '--cov', action="store", required=True, 
 			dest="cov_reads_to_ref", help="Ref-SimReads coverage results in csv format with 2 columns: coverage, count")
     parser.add_argument('-n', '--sample_name', action="store", required=True, 
-			dest="sample_name", help="Sample name. You can use the name of species for example. No spaces allowed.")
+			dest="sample_name", help="Sample name; you can use the name of species for example.")
     parser.add_argument('-p', '--paf', action="store", required=False, 
 			dest="paf", help="Minimap2 pairwise alignment file (PAF). This is produced using 'minimap2 -x ava-ont sample.fastq sample.fastq'.")
     parser.add_argument('--csv', action="store_true", required=False,
-			dest="store_csv", default=False, help="Comma separated values (CSV) file can be stored.")
+			dest="store_csv", default=False, help="Use flag to save comma separated values (CSV) files for each plot.")
+    parser.add_argument('-v', '--version', action='version', version='%(prog)s 0.9')
     args = parser.parse_args()
 
     # --------------------------------------------------------
-    # PART 1: Check the file, only fasta/q or gzipped allowed.
-    # Also checking to see if user wants csv output, and if 
-    # paf file was given.
+    # PART 1: Check input integrity
     # --------------------------------------------------------
-    print detect_filetype(args.fa_filename)
+    # check sequences input
+    if not os.path.exists(args.fa_filename) or not os.path.getsize(args.fa_filename) > 0 or not os.access(args.fa_filename, os.R_OK):
+	print "Fasta/fastq file does not exist, is empty or is not readable."
+	raise InputFileError('Fasta/fastq')
+		
+    # check output directory, report if already exists, see if user would like to change output directory
+    output_prefix = args.output_prefix
+    working_dir = './' + output_prefix
+    while os.path.exists(working_dir):
+    	use_working_dir = ''
+	while not use_working_dir == "n" and not use_working_dir == "y":
+		print "Output directory \'" + working_dir + "\' already exists. Do you still want to use this directory? [y/n]"
+		use_working_dir = raw_input()
+		if not use_working_dir == "n" and not use_working_dir == "y":
+			print "Only 'y' or 'n' as response."
+        if use_working_dir == "n":
+		print "Please input new output_prefix:"
+		output_prefix = raw_input()
+	else:
+	        working_dir = './' +  output_prefix
+		print "Output directory: " + working_dir
+		break
+
+    # check paf if given
     global paf_given
-    global store_csv
     if args.paf:
-        paf_given=True
+        if not os.path.exists(paf) or not os.path.getsize(paf) > 0 or not os.access(paf, os.R_OK):
+                raise InputFileError('PAF')
+	else:	
+		paf_given = True	
+
+    global store_csv
     if args.store_csv:
 	store_csv=True
 
@@ -61,7 +87,7 @@ def main():
     data['data_type'] = args.data_type
     data['cov_reads_to_ref'] = args.cov_reads_to_ref
     data['fa_filename'] = args.fa_filename
-    data['output_prefix'] = args.prefix
+    data['output_prefix'] = args.output_prefix
     data['csv_storage'] = args.store_csv
     if paf_given:
     	data['paf'] = args.paf
@@ -69,12 +95,9 @@ def main():
     # --------------------------------------------------------
     # PART 3: Create all folders
     # --------------------------------------------------------
-    work_dir = './' + args.prefix
-    overlaps_dir = './' + args.prefix + '/overlaps'
-    downsample_dir = './' + args.prefix + '/downsample'
-    csv_dir = './' + args.prefix + '/csv'
-    if not os.path.exists(work_dir):
-        os.makedirs(work_dir)
+    overlaps_dir = './' + output_prefix + '/overlaps'
+    downsample_dir = './' + output_prefix + '/downsample'
+    csv_dir = './' + output_prefix + '/csv'
     if not os.path.exists(overlaps_dir):
         os.makedirs(overlaps_dir)
     if not os.path.exists(downsample_dir):
@@ -86,9 +109,9 @@ def main():
     # PART 4: Create the preqclr report data
     # --------------------------------------------------------
     if paf_given:
-    	calculate_report(args.prefix, args.fa_filename, args.genome_size, args.data_type, args.cov_reads_to_ref, data, args.paf) 
+    	calculate_report(output_prefix, args.fa_filename, args.genome_size, args.data_type, args.cov_reads_to_ref, data, args.paf) 
     else:
-	calculate_report(args.prefix, args.fa_filename, args.genome_size, args.data_type, args.cov_reads_to_ref, data)
+	calculate_report(output_prefix, args.fa_filename, args.genome_size, args.data_type, args.cov_reads_to_ref, data)
 
 class fasta_file:
     def __init__(self, fa_filename, read_seqs, read_lengths, genome_size, num_reads, mean_read_length, data_type, paf = ''):
@@ -123,30 +146,29 @@ class fasta_file:
         return self.data_type
 
     def set_paf(self, paf):
-	try:
-		if os.path.exists(paf) and os.path.getsize(paf) > 0:
-			self.paf = paf
-		else:
-			raise PAFError
-	except PAFError:
-		print("The PAF file is empty or does not exist")
+	if os.path.exists(paf) and os.path.getsize(paf) > 0 and os.access(paf, os.R_OK):
+		self.paf = paf
+	else:
+		raise InputFileError('PAF')
 
     def get_paf(self):
         try:
-                if os.path.exists(self.paf) and os.path.getsize(self.paf) > 0:
+                if os.path.exists(self.paf) and os.path.getsize(self.paf) > 0 and os.access(self.paf, os.R_OK):
                         return self.paf
                 else:
-                        raise PAFError
-        except PAFError:
-                print("The PAF file is empty or does not exist")
+                        raise InputFileError('PAF')
+        except InputFileError:
+                print e.msg
 
 class Error(Exception):
 	"""Base class for other exceptions"""
 	pass
 
-class PAFError(Error):
-	"""Raised if PAF does not exist, or exists but it is empty"""
-	pass
+class InputFileError(Error):
+	"""Raised if PAF does not exist, or exists but it is empty or not readable"""
+	def __init__(self, filetype):
+		self.filetype = filetype
+		self.msg =  self.filetype + " does not exist, or exists but it is empty or not readable"
 
 def calculate_report(output_prefix, fa_filename, genome_size, data_type, cov_reads_to_ref, data, paf=''):
     # --------------------------------------------------------
@@ -303,18 +325,17 @@ def calculate_average_overlaps_vs_coverage(fasta, output_prefix, data):
     # overlaps is the opened PAF file
     # each overlap is indicated as a new line in the PAF file
         reads_overlap_count = dict()
-        overlaps = open(overlaps_filename, 'r')
-        for line in overlaps:
-            query_read_id = line.split('\t')[0]
-            target_read_id = line.split('\t')[5]
+        with open(overlaps_filename, 'r') as overlaps:
+        	for line in overlaps:
+            		query_read_id = line.split('\t')[0]
+            		target_read_id = line.split('\t')[5]
 
-            # do not count overlaps with self
-            if target_read_id != query_read_id:    
-                if query_read_id in reads_overlap_count:
-                    reads_overlap_count[query_read_id] += 1
-                else:
-                    reads_overlap_count[query_read_id] = 1
-        overlaps.close()
+            		# do not count overlaps with self
+            		if target_read_id != query_read_id:    
+                		if query_read_id in reads_overlap_count:
+                    			reads_overlap_count[query_read_id] += 1
+                		else:
+                    			reads_overlap_count[query_read_id] = 1
 
     # --------------------------------------------------------
     # PART 6: Get the average number of overlaps at cov level
@@ -355,20 +376,19 @@ def calculate_num_overlaps_per_read(fasta, output_prefix, data):
     # --------------------------------------------------------
     # overlaps is the opened PAF file
     # num_overlaps_per_read will, in the end, hold the total number of overlaps
-    overlaps = open(overlaps_filename, 'r')    
     num_overlaps_per_read = dict()
-    for line in overlaps:
-        query_read_id = line.split('\t')[0]
-        target_read_id = line.split('\t')[5]
+    with open(overlaps_filename, 'r') as overlaps:
+    	for line in overlaps:
+        	query_read_id = line.split('\t')[0]
+        	target_read_id = line.split('\t')[5]
 
-        # do not count overlaps with self
-        if target_read_id != query_read_id:
-            if query_read_id in num_overlaps_per_read:
-                num_overlaps_per_read[query_read_id] += 1
-            else:
-                num_overlaps_per_read[query_read_id] = 1
-    overlaps.close()
-        
+        	# do not count overlaps with self
+        	if target_read_id != query_read_id:
+            		if query_read_id in num_overlaps_per_read:
+                		num_overlaps_per_read[query_read_id] += 1
+            		else:
+                		num_overlaps_per_read[query_read_id] = 1
+ 
     # --------------------------------------------------------
     # PART 2: Divide the num overlaps by the read length
     # --------------------------------------------------------
@@ -404,41 +424,41 @@ def calculate_estimated_coverage(fasta, output_prefix, cov_reads_to_ref, data):
     # --------------------------------------------------------
     sum_overlap_lengths = dict()
     overlap_accuracy = dict()			# key = read id, values = (sum_overlap_length, sum_matches )
-    overlaps = open(overlaps_filename, "r")
-    for line in overlaps:
-        query_read_id = line.split('\t')[0]
-        target_read_id = line.split('\t')[5]
-        query_start_pos = int(line.split('\t')[2])
-        query_end_pos = int(line.split('\t')[3])
-        target_start_pos = int(line.split('\t')[7])
-        target_end_pos = int(line.split('\t')[8])
-        query_length = int(line.split('\t')[1])
-        target_length = int(line.split('\t')[6])
-        strand = line.split('\t')[4]
-	num_matches = int(line.split('\t')[9])
-        if not (query_read_id == target_read_id):
-                query_prefix_len = query_start_pos
-                query_suffix_len = query_length - query_end_pos
+    with open(overlaps_filename, "r") as overlaps:
+    	for line in overlaps:
+        	query_read_id = line.split('\t')[0]
+        	target_read_id = line.split('\t')[5]
+        	query_start_pos = int(line.split('\t')[2])
+        	query_end_pos = int(line.split('\t')[3])
+        	target_start_pos = int(line.split('\t')[7])
+        	target_end_pos = int(line.split('\t')[8])
+        	query_length = int(line.split('\t')[1])
+        	target_length = int(line.split('\t')[6])
+        	strand = line.split('\t')[4]
+		num_matches = int(line.split('\t')[9])
+        	if not (query_read_id == target_read_id):
+                	query_prefix_len = query_start_pos
+                	query_suffix_len = query_length - query_end_pos
 
-                target_prefix_len = target_start_pos
-                target_suffix_len = target_length - target_end_pos
+                	target_prefix_len = target_start_pos
+                	target_suffix_len = target_length - target_end_pos
 
-                # calculate length of overlap
-                overlap_length = query_end_pos - query_start_pos
+                	# calculate length of overlap
+               	 	overlap_length = query_end_pos - query_start_pos
 
-                left_clip = 0
-                right_clip = 0
-                if not (query_start_pos == 0) and not (target_start_pos == 0) :
-                        if strand == "+":
-                                left_clip = min(query_prefix_len, target_prefix_len)
-                        else:
-                                left_clip = min(query_prefix_len, target_suffix_len)
-                if not (query_end_pos == 0) and not (target_end_pos == 0) :
-                        if strand == "+":
-                                right_clip = min(query_suffix_len, target_suffix_len)
-                        else:
-                                right_clip = min(query_suffix_len, target_prefix_len)
-                overlap_length += left_clip + right_clip
+                	left_clip = 0
+                	right_clip = 0
+                	if not (query_start_pos == 0) and not (target_start_pos == 0) :
+                        	if strand == "+":
+                                	left_clip = min(query_prefix_len, target_prefix_len)
+                        	else:
+                                	left_clip = min(query_prefix_len, target_suffix_len)
+                	if not (query_end_pos == 0) and not (target_end_pos == 0) :
+                        	if strand == "+":
+                                	right_clip = min(query_suffix_len, target_suffix_len)
+                        	else:
+                                	right_clip = min(query_suffix_len, target_prefix_len)
+                	overlap_length += left_clip + right_clip
 
     # --------------------------------------------------------
     # PART 3: add to the current recorded sum overlap length
@@ -463,7 +483,6 @@ def calculate_estimated_coverage(fasta, output_prefix, cov_reads_to_ref, data):
                 else:
                         sum_overlap_lengths[target_read_id]=overlap_length
 			overlap_accuracy[target_read_id] = (float(overlap_length), float(num_matches))
-    overlaps.close()
 
     # --------------------------------------------------------
     # PART 4: for each coverage level count num reads w/ cov
