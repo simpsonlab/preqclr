@@ -165,7 +165,7 @@ def plot_average_overlaps_vs_coverage_distribution(ax, data, output_prefix):
 
 def plot_num_overlaps_per_read_distribution(ax, data, output_prefix):
         print "\n\n\n\n"
-        print "Plotting number of overlaps per reads"
+        print "Plotting number of overlaps per read"
         print "___________________________________________"
 
         max_num_overlaps = 0
@@ -185,8 +185,8 @@ def plot_num_overlaps_per_read_distribution(ax, data, output_prefix):
 	        ax.hist(sample_data.values(), bins=bins, alpha=0.5, label=sample_name, color=sample_color)
 
         # plotting the number of overlaps/read
-        ax.set_title('Per-base coverage distribution')
-        ax.set_xlabel('Coverage')
+        ax.set_title('Start positions per read distribution')
+        ax.set_xlabel('Number of overlaps')
         ax.set_ylabel('Frequency')    
         ax.grid(True, linestyle='-', linewidth=0.3)
         ax.legend(loc='upper right')
@@ -323,19 +323,26 @@ def plot_estimated_genome_size(ax, data, output_prefix):
 	print sample_names
         # plotting the number of overlaps/read
 	y_pos = np.arange(len(genome_sizes))
-	ax.bar(y_pos, genome_sizes, align='center', alpha=0.5, color=colors)
+	ax.barh(y_pos, genome_sizes, align='center')
 	# add the actual estimated genome size values to the bars
 	rects = ax.patches
-	
-	for rect, value in zip(rects, genome_sizes):
-		height = rect.get_height()
-		ax.text(rect.get_x() + rect.get_width()/2, height + 5, int(value), ha='center', va='bottom', fontsize='5')
 
-	ax.set_xticks(y_pos)
-	ax.set_xticklabels(sample_names)
+	if len(sample_names) == 1 :
+		height = 0.3
+	else:
+		height = 1.0/float(len(sample_names))
+
+	for rect, value, sample in zip(rects, genome_sizes, sample_names):
+		rect.set_facecolor(data[sample][0])
+		rect.set_height(height)
+		genome_size_in_megabases = round(float(value)/float(1000000), 2)
+		t = ax.text(0.05, rect.get_y() + rect.get_height()/2.0, sample_name + ": " + str(genome_size_in_megabases) + "Mbps", ha='left', va='center', fontsize='8')
+		t.set_bbox(dict(facecolor='#FFFFFF', alpha=0.5, edgecolor='#FFFFFF'))
+
+	ax.set_yticks([])
         ax.set_title('Estimated genome size')
-        ax.set_xlabel('Samples')
-        ax.set_ylabel('Genome size (bps)')
+        ax.set_xlabel('Genome size (bps)')
+	ax.set_ylabel(' \n \n ')
         ax.grid(True, linestyle='-', linewidth=0.3)
         ax.legend(loc='upper right')
 
