@@ -10,6 +10,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import pylab as plt
 import sys, os, csv
 import json
+import collections
 
 def main():
         # process input
@@ -102,7 +103,7 @@ def create_report(output_prefix, preqclr_file):
 	plot_mean_overlap_accuracies_per_read(ax6, overlap_accuracies, output_prefix)
 	plot_per_read_GC_content(ax7, per_read_GC_content, output_prefix)
 	plot_num_matching_residues(ax8, num_matching_residues, output_prefix)
-	fig.savefig(pp, format='pdf', dpi=400)
+	fig.savefig(pp, format='pdf', dpi=1000)
         fig1.savefig(pp, format='pdf')
 
         pp.close()
@@ -123,6 +124,7 @@ def plot_read_length_distribution(ax, data, output_prefix):
 		sample_max_read_length = max(sample_read_lengths)
 		if sample_max_read_length > max_read_length:
 			max_read_length = sample_max_read_length
+			x_lim = np.percentile(sample_read_lengths, 99)
         binwidth = 1000.0
         bins = np.arange(0, max_read_length + binwidth, binwidth)
 
@@ -130,12 +132,16 @@ def plot_read_length_distribution(ax, data, output_prefix):
 	for sample in read_lengths:
                 sample_name = sample
                 sample_color = read_lengths[sample][0]
-                sample_read_lengths = read_lengths[sample][1]
-                ax.hist(sample_read_lengths, color=sample_color, label=sample_name, alpha=0.5, bins=bins)
+                sample_data = read_lengths[sample][1]
+		base = 100
+                sample_data_rounded = [ int(base * round(float(x)/base)) for x in sample_data ]
+                labels, values = zip(*sorted(collections.Counter(sorted(sample_data_rounded)).items()))
+	        ax.plot(labels, [float(i) for i in values], color=sample_color, label=sample_name)
 
         ax.set_title('Read length distribution')
         ax.set_xlabel('Read lengths (bps)')
         ax.set_ylabel('Frequency')
+	ax.set_xlim(0, x_lim)
         ax.grid(True, linestyle='-', linewidth=0.3)
 	ax.get_xaxis().get_major_formatter().set_scientific(False)
 	ax.get_xaxis().get_major_formatter().set_useOffset(False)
@@ -174,7 +180,8 @@ def plot_num_overlaps_per_read_distribution(ax, data, output_prefix):
                 sample_max_num_overlaps = max(sample_data.values())
                 if sample_max_num_overlaps > max_num_overlaps:
                         max_num_overlaps = sample_max_num_overlaps
-        binwidth = 0.01
+			x_lim = np.percentile(sample_data.values(), 99)
+        binwidth = 0.001
         bins = np.arange(0, float(max_num_overlaps) + binwidth, binwidth)
 
 	# now start plotting
@@ -182,7 +189,10 @@ def plot_num_overlaps_per_read_distribution(ax, data, output_prefix):
                 sample_name = sample
                 sample_color = data[sample][0]
                 sample_data = data[sample][1]
-	        ax.hist(sample_data.values(), bins=bins, alpha=0.5, label=sample_name, color=sample_color)
+		sample_data_rounded = [ round(x, 4) for x in sample_data.values() ]
+                labels, values = zip(*sorted(collections.Counter(sorted(sample_data_rounded)).items()))
+		print labels
+	        ax.plot(labels, values, label=sample_name, color=sample_color)
 
         # plotting the number of overlaps/read
         ax.set_title('Start positions per read distribution')
@@ -190,6 +200,7 @@ def plot_num_overlaps_per_read_distribution(ax, data, output_prefix):
         ax.set_ylabel('Frequency')    
         ax.grid(True, linestyle='-', linewidth=0.3)
         ax.legend(loc='upper right')
+	ax.set_xlim(0, float(x_lim))
 
 def plot_estimated_coverage(ax, data, output_prefix):
 	print "\n\n\n\n"
@@ -222,14 +233,15 @@ def plot_estimated_coverage(ax, data, output_prefix):
                 sample_data = data[sample][1]
                 sample_data_reads = sample_data[0]
 		sample_data_upperbound = sample_data[1]
-
-		ax.hist(sample_data_reads, alpha=0.5, color=sample_color, label=sample_name, bins=bins)
+		labels, values = zip(*collections.Counter(sample_data_reads).items())
+		ax.plot(labels, values, color=sample_color, label=sample_name)
 
         ax.set_title('Estimated coverage distribution')
 	ax.grid(True, linestyle='-', linewidth=0.3)
-	ax.set_xticks(np.arange(0, max_cov + binwidth, num_bins*5.0))
+	#ax.set_xticks(np.arange(0, max_cov + binwidth, num_bins*5.0))
         ax.set_xlabel('Estimated coverage')
         ax.set_ylabel('Frequency')   
+	ax.set_xlim(0, max_cov)
 	ax.legend(loc='upper right')
 
 def plot_estimated_coverage_vs_read_length(ax, data, output_prefix):
@@ -244,7 +256,7 @@ def plot_estimated_coverage_vs_read_length(ax, data, output_prefix):
 		sample_marker = data[sample][2]
         	# get x and y values from list of tuples
         	x,y = zip(*sample_data)
-	        ax.scatter(x, y, alpha=0.5, marker=sample_marker, s=4, edgecolors=sample_color, linewidth=0.5, facecolors='None', rasterized=True)
+	        ax.scatter(x, y, alpha=0.2, marker=sample_marker, s=4, edgecolors=sample_color, linewidth=0.5, facecolors=sample_color, rasterized=True)
 	
 	# scatter plot with read length on x axis, and estimted coverage for read on y axis
         ax.set_title('Estimated coverage vs read length')
@@ -294,7 +306,9 @@ def plot_per_read_GC_content(ax, data, output_prefix):
 		print sample_data
 		for GC_content_level in sample_data:
 			per_read_GC_content[int(float(GC_content_level))] = int(sample_data[GC_content_level])
-		ax.hist(per_read_GC_content.keys(), weights=per_read_GC_content.values(), color=sample_color, bins=np.arange(0, 100, binwidth), alpha=0.6)
+#		ax.plot(per_read_GC_content.keys(), weights=per_read_GC_content.values(), color=sample_color, bins=np.arange(0, 100, binwidth), alpha=0.
+#6)
+		ax.plot(per_read_GC_content.keys(), per_read_GC_content.values(), color=sample_color, label=sample_name)
         ax.set_title('Per read GC content')
         ax.set_xlabel('% GC content')
         ax.set_ylabel('Frequency')
@@ -314,7 +328,8 @@ def plot_estimated_genome_size(ax, data, output_prefix):
                 sample_name = sample
                 sample_color = data[sample][0]
                 sample_data = data[sample][1]
-		genome_sizes.append(sample_data)
+		genome_size_in_megabases = round(float(sample_data)/float(1000000), 2)
+		genome_sizes.append(genome_size_in_megabases)
 		sample_names.append(sample_name)
 		colors.append(str(sample_color))
 		print sample_data
@@ -335,13 +350,13 @@ def plot_estimated_genome_size(ax, data, output_prefix):
 	for rect, value, sample in zip(rects, genome_sizes, sample_names):
 		rect.set_facecolor(data[sample][0])
 		rect.set_height(height)
-		genome_size_in_megabases = round(float(value)/float(1000000), 2)
-		t = ax.text(0.05, rect.get_y() + rect.get_height()/2.0, sample_name + ": " + str(genome_size_in_megabases) + "Mbps", ha='left', va='center', fontsize='8')
+		#genome_size_in_megabases = round(float(value)/float(1000000), 2)
+		t = ax.text(0.05, rect.get_y() + rect.get_height()/2.0, sample_name + ": " + str(value) + "Mbp", ha='left', va='center', fontsize='8')
 		t.set_bbox(dict(facecolor='#FFFFFF', alpha=0.5, edgecolor='#FFFFFF'))
 
 	ax.set_yticks([])
         ax.set_title('Estimated genome size')
-        ax.set_xlabel('Genome size (bps)')
+        ax.set_xlabel('Genome size (Mbp)')
 	ax.set_ylabel(' \n \n ')
         ax.grid(True, linestyle='-', linewidth=0.3)
         ax.legend(loc='upper right')
@@ -358,7 +373,7 @@ def plot_mean_overlap_accuracies_per_read(ax, data, output_prefix):
                 sample_marker = data[sample][2]
                 # get x and y values from list of tuples
                 y,x = zip(*sample_data)
-                ax.scatter(x, y, alpha=0.5, marker=sample_marker, s=4, edgecolors=sample_color, linewidth=0.5, facecolors='None', rasterized=True)
+                ax.scatter(x, y, alpha=0.1, marker=sample_marker, s=4, edgecolors=sample_color, linewidth=0.5, facecolors=sample_color, rasterized=True)
 
         # scatter plot with read length on x axis, and estimted coverage for read on y axis
         ax.set_title('Mean accuracy vs read length')
