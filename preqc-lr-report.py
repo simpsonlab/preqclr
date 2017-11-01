@@ -12,16 +12,66 @@ import sys, os, csv
 import json
 import collections
 
+plots_available = ['est_genome_size', 'read_length_dist', 'start_pos_per_read_dist', 'est_cov_dist', 'est_cov_vs_read_length', 'per_read_GC_content_dist']
+
 def main():
+        global plots_available
+
         # process input
         parser = argparse.ArgumentParser(description='Display Pre-QC Long Read report')
         parser.add_argument('-i', '--input', action="store", required=True, dest="preqc_file", nargs='+', help="preqclr file(s)")
         parser.add_argument('-o', '--output', action="store", dest="prefix", default="preqc-lr-output", help="Prefix for output pdf")
+	parser.add_argument('--plot', action="store", required=False, dest="plots_requested", nargs='+', choices=plots_available, help="List of plots wanted by name.")
+	parser.add_argument('--list_plots', action="store_true", dest="list_plots", default=False, help="Use to see the plots available")
         args = parser.parse_args()
-        
-        create_report(args.prefix, args.preqc_file)
 
-def create_report(output_prefix, preqclr_file):
+	# list plots if requested
+	if args.list_plots:
+		i = 1
+		print "List of available plots: "
+		for p in plots_available:
+			print '\t' + str(i) + ". " + p
+			i+=1 
+		print "Use --plot and names to choose which plots to create."
+		sys.exit(0)
+
+	# list plots to make
+	plots = list()
+	if args.plots_requested:
+		plots = args.plots_requested
+	else:
+		# if user did not specify plots, make all plots
+		plots = plots_available
+
+	try:
+		if len(args.preqc_file) > 6:
+			raise ValueError
+	except ValueError:
+		print "Warning: Large amount of samples may not display as well"
+
+        create_report(args.prefix, args.preqc_file, plots)
+
+def create_report(output_prefix, preqclr_file, plots_requested):
+	# calculate number of plots to create
+	# total number of plots = a + b
+	# a = number of plots in plots_requested not including est. cov vs read length
+	# b = est. cov vs read length * number of samples
+	# if est. cov vs read length requested, we need to create one for each sample
+
+	num_samples = len(preqclr_file)
+	# calculate a
+	a = len(plots_requested)
+
+	# if est cov vs read length requested
+	if 'est_cov_vs_read_length' in plots_requested:
+		b = num_samples - 1
+	else:
+		b = 0
+
+	num_plots = a + b
+	if num_samples > 7:
+		print "Too many samples."
+		sys.exit(1)
 
         # configure the PDF file 
         MPL.rc('figure', figsize=(8,10.5)) # in inches
@@ -33,11 +83,7 @@ def create_report(output_prefix, preqclr_file):
         MPL.rc('axes', labelsize=8)
         MPL.rcParams['lines.linewidth'] = 1.5
 
-        # TO DO : we need to adjust how many plots should be on the page
-        '''
-            insert code here
-        '''
-
+	# set PDF name
         output_pdf = output_prefix + ".pdf"
         pp = PdfPages(output_pdf)
 
@@ -46,10 +92,6 @@ def create_report(output_prefix, preqclr_file):
         fig.suptitle("Preqc Long Read Results : " + output_prefix )
         fig.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.3, hspace=0.3)
 
-	fig1 = plt.figure()
-	fig1.suptitle("Preqc Long Read Results : " + output_prefix )
-        fig1.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.3, hspace=0.3)
-
         # six subplots per pdf page
         ax1 = fig.add_subplot(321)
         ax2 = fig.add_subplot(322)
@@ -57,13 +99,22 @@ def create_report(output_prefix, preqclr_file):
         ax4 = fig.add_subplot(324)
         ax5 = fig.add_subplot(325)
         ax6 = fig.add_subplot(326)
+        subplots = list()
+        subplots.extend((ax1, ax2, ax3, ax4, ax5, ax6))
 
-        ax7 = fig1.add_subplot(321)
-        ax8 = fig1.add_subplot(322)
-        ax9 = fig1.add_subplot(323)
-        ax10 = fig1.add_subplot(324)
-        ax11 = fig1.add_subplot(325)
-        ax12 = fig1.add_subplot(326)
+	if num_plots > 6:
+		fig1 = plt.figure()
+		fig1.suptitle("Preqc Long Read Results : " + output_prefix )
+        	fig1.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.3, hspace=0.3)
+
+        	ax7 = fig1.add_subplot(321)
+        	ax8 = fig1.add_subplot(322)
+        	ax9 = fig1.add_subplot(323)
+        	ax10 = fig1.add_subplot(324)
+        	ax11 = fig1.add_subplot(325)
+        	ax12 = fig1.add_subplot(326)
+		
+		subplots.extend((ax7, ax8, ax9, ax10, ax11, ax12))
 
 	estimated_genome_sizes = dict()
 	per_read_read_length = dict()
@@ -75,8 +126,8 @@ def create_report(output_prefix, preqclr_file):
 	num_matching_residues = dict()
 	overlap_accuracies = dict()
 
-	markers = ['s', 'o', '^', 'p', '+']
-	colors = ['#E84855', '#3C91E6', '#FFFD82', '#FF9B71', '#1B998B'] 
+	markers = ['s', 'o', '^', 'p', '+', '*', 'v']
+	colors = ['#E84855', '#3C91E6', '#FFFD82', '#FF9B71', '#1B998B', '#68A691' ] 
 	for sample_preqclr_file in preqclr_file:
 		# get sample name
 		color = colors.pop(0)
@@ -94,17 +145,33 @@ def create_report(output_prefix, preqclr_file):
 			num_matching_residues[sample] = (color, data['num_matching_residues'], marker)				# histogram
 			overlap_accuracies[sample] = (color, data['overlap_accuracies'], marker)				# scatter plot
 
-	plot_estimated_genome_size(ax1, estimated_genome_sizes, output_prefix)
-	plot_read_length_distribution(ax2, per_read_read_length, output_prefix)
+
+	if 'est_genome_size' in plots_requested:
+		ax = subplots.pop(0)
+		plot_estimated_genome_size(ax, estimated_genome_sizes, output_prefix)
+	if 'read_length_dist' in plots_requested:
+                ax = subplots.pop(0)
+		plot_read_length_distribution(ax, per_read_read_length, output_prefix)
+	if 'start_pos_per_read_dist' in plots_requested:
+		ax = subplots.pop(0)
+	        plot_num_overlaps_per_read_distribution(ax, per_read_overlap_count, output_prefix) 
+	if 'est_cov_dist' in plots_requested:
+		ax = subplots.pop(0)
+       	 	plot_estimated_coverage(ax, per_read_estimated_coverage, output_prefix)
+        if 'per_read_GC_content_dist' in plots_requested:
+                ax = subplots.pop(0)
+                plot_per_read_GC_content(ax, per_read_GC_content, output_prefix)
+	if 'est_cov_vs_read_length' in plots_requested:
+        	for sample in read_lengths_estimated_cov:
+                	ax = subplots.pop(0)
+			plot_estimated_coverage_vs_read_length(ax, read_lengths_estimated_cov, sample, output_prefix)
+
+	#	plot_mean_overlap_accuracies_per_read(ax, overlap_accuracies, output_prefix)
+	#plot_num_matching_residues(ax8, num_matching_residues, output_prefix)
         #plot_average_overlaps_vs_coverage_distribution(ax3, per_coverage_avg_num_overlaps, output_prefix)
-        plot_num_overlaps_per_read_distribution(ax3, per_read_overlap_count, output_prefix)
-        plot_estimated_coverage(ax4, per_read_estimated_coverage, output_prefix)
-	plot_estimated_coverage_vs_read_length(ax5, read_lengths_estimated_cov, output_prefix)
-	plot_mean_overlap_accuracies_per_read(ax6, overlap_accuracies, output_prefix)
-	plot_per_read_GC_content(ax7, per_read_GC_content, output_prefix)
-	plot_num_matching_residues(ax8, num_matching_residues, output_prefix)
 	fig.savefig(pp, format='pdf', dpi=1000)
-        fig1.savefig(pp, format='pdf')
+	if num_plots > 6:
+	        fig1.savefig(pp, format='pdf')
 
         pp.close()
 
@@ -244,19 +311,19 @@ def plot_estimated_coverage(ax, data, output_prefix):
 	ax.set_xlim(0, max_cov)
 	ax.legend(loc='upper right')
 
-def plot_estimated_coverage_vs_read_length(ax, data, output_prefix):
+def plot_estimated_coverage_vs_read_length(ax, data, sample, output_prefix):
         print "\n\n\n\n"
         print "Plotting estimated coverage vs read length scatter plot"
         print "___________________________________________"
 
-        for sample in data:
-                sample_name = sample
-                sample_color = data[sample][0]
-                sample_data = data[sample][1]
-		sample_marker = data[sample][2]
-        	# get x and y values from list of tuples
-        	x,y = zip(*sample_data)
-	        ax.scatter(x, y, alpha=0.2, marker=sample_marker, s=4, edgecolors=sample_color, linewidth=0.5, facecolors=sample_color, rasterized=True)
+	# get the specific sample's data
+        sample_name = sample
+        sample_color = data[sample][0]
+        sample_data = data[sample][1]
+	sample_marker = data[sample][2]
+        # get x and y values from list of tuples
+        x,y = zip(*sample_data)
+	ax.scatter(x, y, alpha=0.2, marker=sample_marker, s=4, edgecolors=sample_color, linewidth=0.5, facecolors=sample_color, rasterized=True)
 	
 	# scatter plot with read length on x axis, and estimted coverage for read on y axis
         ax.set_title('Estimated coverage vs read length')
