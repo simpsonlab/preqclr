@@ -250,7 +250,12 @@ def calculate_read_length(fasta, output_prefix, data):
         for read_id in reads:
 		read_lengths.append(int(reads[read_id][1]))
 
-	print read_lengths
+        # --------------------------------------------------------
+        # PART 1: Write to csv if requested
+        # --------------------------------------------------------
+	if store_csv:
+		csv_filename = 'read_lengths.csv'
+		write_to_csv( csv_filename, output_prefix, read_lengths)
 
     	# --------------------------------------------------------
     	# PART 1: Add to the data set
@@ -299,9 +304,16 @@ def calculate_num_overlaps_per_read(fasta, output_prefix, data):
         	read_length = float(reads[read_id][1])
         	num_overlaps = float(num_overlaps_per_read[read_id])
         	num_overlaps_per_read[read_id] = num_overlaps / read_length 
-    
+
+        # --------------------------------------------------------
+        # PART 3: Write to csv if requested
+        # --------------------------------------------------------
+        if store_csv:
+                csv_filename = 'num_overlaps_per_read.csv'
+                write_to_csv( csv_filename, output_prefix, num_overlaps_per_read)
+ 
     	# --------------------------------------------------------
-    	# PART 3: Add to the data set
+    	# PART 4: Add to the data set
     	# --------------------------------------------------------
     	data['per_read_overlap_count'] = num_overlaps_per_read
 
@@ -491,8 +503,18 @@ def calculate_estimated_coverage(fasta, output_prefix, data):
     	print estimated_num_islands_1
     	print estimated_num_islands_2
 
+        # --------------------------------------------------------
+        # PART 8: Write to csv if requested
+        # --------------------------------------------------------
+        if store_csv:
+                csv_filename = 'per_read_estimated_coverage.csv'
+                write_to_csv( csv_filename, output_prefix, [x[0] for x in covs])
+		
+		csv_filename = 'read_lengths_estimated_cov.csv'
+		write_to_csv( csv_filename, output_prefix, read_length_and_estimated_cov)
+
     	# --------------------------------------------------------
-    	# PART 8: Add to the data set
+    	# PART 9: Add to the data set
     	# --------------------------------------------------------
     	data['estimated_coverage_stats_pre_filter'] = pre_filter
     	data['estimated_coverage_stats_post_filter'] = post_filter
@@ -537,7 +559,17 @@ def calculate_GC_content_per_read(fasta, output_prefix, data):
 			read_counts_per_GC_content[round(GC_content)]+=1
     		else:
 			read_counts_per_GC_content[round(GC_content)]=1
-	print read_counts_per_GC_content
+
+        # --------------------------------------------------------
+        # PART 1: Write to csv if requested
+        # --------------------------------------------------------
+        if store_csv:
+                csv_filename = 'read_counts_per_GC_content.csv'
+                write_to_csv( csv_filename, output_prefix, read_counts_per_GC_content)
+
+        # --------------------------------------------------------
+        # PART 2: Add to the data set 
+        # --------------------------------------------------------
     	data["read_counts_per_GC_content"] = read_counts_per_GC_content			
 
 def calculate_expected_minimum_fractional_overlaps_vs_read_length(fasta, output_prefix, data):
@@ -569,7 +601,20 @@ def calculate_expected_minimum_fractional_overlaps_vs_read_length(fasta, output_
 	num.append(num_matching_residues)
 
     data['num_matching_residues'] = num
-    
+
+def write_to_csv(csv_filename, output_prefix, data):
+	csv_filepath = './' + output_prefix + '/csv/' + csv_filename 
+	if isinstance(data, list):
+		with open(csv_filepath, "w") as outfile:
+        		for entry in data:
+            			outfile.write(str(entry))
+            			outfile.write("\n")
+	elif isinstance(data, dict):
+		with open(csv_filepath, 'wb') as outfile:
+    			writer = csv.writer(outfile)
+    			for key, value in data.items():
+       				writer.writerow([key, value])
+ 
 def create_overlaps_file(fa_filename, output_prefix, data_type, coverage=''):
     # use minimap2 to calculate long read overlaps
     if not coverage == "":
