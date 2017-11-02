@@ -127,7 +127,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	overlap_accuracies = dict()
 
 	markers = ['s', 'o', '^', 'p', '+', '*', 'v']
-	colors = ['#E84855', '#3C91E6', '#FFFD82', '#FF9B71', '#1B998B', '#68A691' ] 
+	colors = ['#FF6677', '#623CEA', '#06D6A0', '#FFF05A', '#F9A03F', '#5B507A' ] 
 	for sample_preqclr_file in preqclr_file:
 		# get sample name
 		color = colors.pop(0)
@@ -191,11 +191,12 @@ def plot_read_length_distribution(ax, data, output_prefix):
 		sample_max_read_length = max(sample_read_lengths)
 		if sample_max_read_length > max_read_length:
 			max_read_length = sample_max_read_length
-			x_lim = np.percentile(sample_read_lengths, 99)
+			x_lim = np.percentile(sample_read_lengths, 90)
         binwidth = 1000.0
         bins = np.arange(0, max_read_length + binwidth, binwidth)
 
 	# now start plotting
+	max_y = 0
 	for sample in read_lengths:
                 sample_name = sample
                 sample_color = read_lengths[sample][0]
@@ -203,12 +204,23 @@ def plot_read_length_distribution(ax, data, output_prefix):
 		base = 100
                 sample_data_rounded = [ int(base * round(float(x)/base)) for x in sample_data ]
                 labels, values = zip(*sorted(collections.Counter(sorted(sample_data_rounded)).items()))
-	        ax.plot(labels, [float(i) for i in values], color=sample_color, label=sample_name)
+		# normalize labels
+		s = sum(values)
+		print s
+		nlabels = list()
+		nvalues = list()
+		for v in values:
+			nv = float(v)/float(s)
+			nvalues.append(nv)
+		if max(nvalues) > max_y:
+			max_y = max(nvalues)
+	        ax.plot(labels, [float(i) for i in nvalues], color=sample_color, label=sample_name)
 
         ax.set_title('Read length distribution')
-        ax.set_xlabel('Read lengths (bps)')
-        ax.set_ylabel('Frequency')
+        ax.set_xlabel('Read lengths (bp)')
+        ax.set_ylabel('Proportion')
 	ax.set_xlim(0, x_lim)
+	ax.set_ylim(0, max_y)
         ax.grid(True, linestyle='-', linewidth=0.3)
 	ax.get_xaxis().get_major_formatter().set_scientific(False)
 	ax.get_xaxis().get_major_formatter().set_useOffset(False)
@@ -228,7 +240,14 @@ def plot_average_overlaps_vs_coverage_distribution(ax, data, output_prefix):
 		lists = sorted(sample_data.items())
 		# unpack a list of pairs into two tuples
 		x, y = zip(*lists)
-        	ax.scatter(x, y, color=sample_color, marker=sample_marker, alpha=0.6, label=sample_name)
+		# normalize the data
+		s = sum(y)
+		ny = list()
+		for i in y:
+			ni = float(i)/float(s)
+			ny.append(ni)
+
+        	ax.scatter(x, ny, color=sample_color, marker=sample_marker, alpha=0.6, label=sample_name)
 
 	ax.set_title('Average number of overlaps vs coverage')
 	ax.set_xlabel('Coverage')
@@ -247,7 +266,7 @@ def plot_num_overlaps_per_read_distribution(ax, data, output_prefix):
                 sample_max_num_overlaps = max(sample_data.values())
                 if sample_max_num_overlaps > max_num_overlaps:
                         max_num_overlaps = sample_max_num_overlaps
-			x_lim = np.percentile(sample_data.values(), 99)
+			x_lim = np.percentile(sample_data.values(), 90)
         binwidth = 0.001
         bins = np.arange(0, float(max_num_overlaps) + binwidth, binwidth)
 
@@ -258,8 +277,12 @@ def plot_num_overlaps_per_read_distribution(ax, data, output_prefix):
                 sample_data = data[sample][1]
 		sample_data_rounded = [ round(x, 4) for x in sample_data.values() ]
                 labels, values = zip(*sorted(collections.Counter(sorted(sample_data_rounded)).items()))
-		print labels
-	        ax.plot(labels, values, label=sample_name, color=sample_color)
+		s = sum(values)
+		nvalues = list()
+		for v in values:
+			nv = float(v)/float(s)
+			nvalues.append(nv)
+	        ax.plot(labels, nvalues, label=sample_name, color=sample_color)
 
         # plotting the number of overlaps/read
         ax.set_title('Start positions per read distribution')
@@ -323,7 +346,7 @@ def plot_estimated_coverage_vs_read_length(ax, data, sample, output_prefix):
 	sample_marker = data[sample][2]
         # get x and y values from list of tuples
         x,y = zip(*sample_data)
-	ax.scatter(x, y, alpha=0.2, marker=sample_marker, s=4, edgecolors=sample_color, linewidth=0.5, facecolors=sample_color, rasterized=True)
+	ax.scatter(x, y, alpha=0.2, marker=sample_marker, s=4, label=sample_name,edgecolors=sample_color, linewidth=0.5, facecolors=sample_color, rasterized=True)
 	
 	# scatter plot with read length on x axis, and estimted coverage for read on y axis
         ax.set_title('Estimated coverage vs read length')
@@ -364,21 +387,22 @@ def plot_per_read_GC_content(ax, data, output_prefix):
         print "Plotting GC content"
         print "___________________________________________"
 
-        per_read_GC_content = {}
         binwidth = 1.0
 	for sample in data:
+        	per_read_GC_content = {}
                 sample_name = sample
                 sample_color = data[sample][0]
                 sample_data = data[sample][1]
 		print sample_data
+		s = sum(sample_data.values())
 		for GC_content_level in sample_data:
-			per_read_GC_content[int(float(GC_content_level))] = int(sample_data[GC_content_level])
-#		ax.plot(per_read_GC_content.keys(), weights=per_read_GC_content.values(), color=sample_color, bins=np.arange(0, 100, binwidth), alpha=0.
-#6)
+			value = sample_data[GC_content_level]
+			nvalue = float(value)/float(s)
+			per_read_GC_content[int(float(GC_content_level))] = nvalue
 		ax.plot(per_read_GC_content.keys(), per_read_GC_content.values(), color=sample_color, label=sample_name)
         ax.set_title('Per read GC content')
         ax.set_xlabel('% GC content')
-        ax.set_ylabel('Frequency')
+        ax.set_ylabel('Proportion')
         ax.grid(True, linestyle='-', linewidth=0.3)
         ax.legend(loc='upper right')
 
@@ -418,7 +442,7 @@ def plot_estimated_genome_size(ax, data, output_prefix):
 		rect.set_facecolor(data[sample][0])
 		rect.set_height(height)
 		#genome_size_in_megabases = round(float(value)/float(1000000), 2)
-		t = ax.text(0.05, rect.get_y() + rect.get_height()/2.0, sample_name + ": " + str(value) + "Mbp", ha='left', va='center', fontsize='8')
+		t = ax.text(0.05, rect.get_y() + rect.get_height()/2.0, sample + ": " + str(value) + "Mbp", ha='left', va='center', fontsize='8')
 		t.set_bbox(dict(facecolor='#FFFFFF', alpha=0.5, edgecolor='#FFFFFF'))
 
 	ax.set_yticks([])
@@ -448,43 +472,6 @@ def plot_mean_overlap_accuracies_per_read(ax, data, output_prefix):
         ax.set_xlabel('Read length')
         ax.set_ylabel('Mean accuracy')
         ax.legend(loc='upper right')	
-
-def getshape(d):
-	if isinstance(d, dict):
-        	return {k:getshape(d[k]) for k in d}
-	else:
-        	# Replace all non-dict values with None.
-        	return None
-
-
-'''def filter_outliers(data, thresh=1.5):
-    points = ''
-    if isinstance(data, dict):
-	points = data.copy()
-	q75, q25 = np.percentile(points.values(), [75,25])
-    elif isinstance(data, list):
-	points = data[:]
-	q75, q25 = np.percentile(points, [75,25])
-    else:
-	return points
-    IQR = q75 - q25
-    upperbound = float(q75 + IQR * thresh)
-    lowerbound = float(q25 - IQR * thresh)
-
-    if isinstance(points, dict):
-	for key in points:
-		if points[key] > upperbound:
-			points.pop(key, None)
-		if points[key] < lowerbound:
-			points.pop(key, None)
-    elif isinstance(points, list):
-	for value in points:
-		if value > upperbound:
-			points.remove(value)
-		elif value < lowerbound:
-			points.remove(value)
-
-    return points'''	
 	
 if __name__ == "__main__":
     main()
