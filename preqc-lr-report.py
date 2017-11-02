@@ -12,7 +12,7 @@ import sys, os, csv
 import json
 import collections
 
-plots_available = ['est_genome_size', 'read_length_dist', 'start_pos_per_read_dist', 'est_cov_dist', 'est_cov_vs_read_length', 'per_read_GC_content_dist']
+plots_available = ['est_genome_size', 'read_length_dist', 'start_pos_per_read_dist', 'est_cov_dist', 'est_cov_vs_read_length', 'per_read_GC_content_dist', 'total_num_bases_vs_min_read_length']
 
 def main():
         global plots_available
@@ -125,9 +125,10 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	per_read_GC_content = dict()
 	num_matching_residues = dict()
 	overlap_accuracies = dict()
+	total_num_bases_vs_min_read_length = dict()
 
 	markers = ['s', 'o', '^', 'p', '+', '*', 'v']
-	colors = ['#FF6677', '#623CEA', '#06D6A0', '#FFF05A', '#F9A03F', '#5B507A' ] 
+	colors = ['#FC614C', '#2DBDD8', '#B4E23D', '#F7C525', '#2DBDD8', '#5B507A' ] 
 	for sample_preqclr_file in preqclr_file:
 		# get sample name
 		color = colors.pop(0)
@@ -144,7 +145,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			per_read_GC_content[sample] = (color, data['read_counts_per_GC_content'], marker) 			# histogram
 			num_matching_residues[sample] = (color, data['num_matching_residues'], marker)				# histogram
 			overlap_accuracies[sample] = (color, data['overlap_accuracies'], marker)				# scatter plot
-
+			total_num_bases_vs_min_read_length[sample] = (color, data['total_num_bases_vs_min_read_length'], marker)
 
 	if 'est_genome_size' in plots_requested:
 		ax = subplots.pop(0)
@@ -165,6 +166,10 @@ def create_report(output_prefix, preqclr_file, plots_requested):
         	for sample in read_lengths_estimated_cov:
                 	ax = subplots.pop(0)
 			plot_estimated_coverage_vs_read_length(ax, read_lengths_estimated_cov, sample, output_prefix)
+	if 'total_num_bases_vs_min_read_length' in plots_requested:
+		ax = subplots.pop(0)
+		plot_total_num_bases_vs_min_read_length(ax, total_num_bases_vs_min_read_length, output_prefix)
+
 
 	#	plot_mean_overlap_accuracies_per_read(ax, overlap_accuracies, output_prefix)
 	#plot_num_matching_residues(ax8, num_matching_residues, output_prefix)
@@ -206,7 +211,6 @@ def plot_read_length_distribution(ax, data, output_prefix):
                 labels, values = zip(*sorted(collections.Counter(sorted(sample_data_rounded)).items()))
 		# normalize labels
 		s = sum(values)
-		print s
 		nlabels = list()
 		nvalues = list()
 		for v in values:
@@ -287,7 +291,7 @@ def plot_num_overlaps_per_read_distribution(ax, data, output_prefix):
         # plotting the number of overlaps/read
         ax.set_title('Start positions per read distribution')
         ax.set_xlabel('Number of overlaps')
-        ax.set_ylabel('Frequency')    
+        ax.set_ylabel('Proportion')    
         ax.grid(True, linestyle='-', linewidth=0.3)
         ax.legend(loc='upper right')
 	ax.set_xlim(0, float(x_lim))
@@ -312,11 +316,8 @@ def plot_estimated_coverage(ax, data, output_prefix):
         		IQR = float(sample_data_q75 - sample_data_q25)
         		n = float(sample_data_num_reads)
         		binwidth = int(float(2 * IQR) / float(n ** (1/3)))
-			print binwidth
         		num_bins = int(float(max_cov-min(sample_data_reads))/binwidth)
-        print max(sample_data_reads)
 	bins = np.arange(0, max_cov + binwidth, num_bins)
-	print num_bins
 	for sample in data:
 		sample_name = sample
 		sample_color = data[sample][0]
@@ -393,7 +394,6 @@ def plot_per_read_GC_content(ax, data, output_prefix):
                 sample_name = sample
                 sample_color = data[sample][0]
                 sample_data = data[sample][1]
-		print sample_data
 		s = sum(sample_data.values())
 		for GC_content_level in sample_data:
 			value = sample_data[GC_content_level]
@@ -423,10 +423,7 @@ def plot_estimated_genome_size(ax, data, output_prefix):
 		genome_sizes.append(genome_size_in_megabases)
 		sample_names.append(sample_name)
 		colors.append(str(sample_color))
-		print sample_data
-		print sample_name
 
-	print sample_names
         # plotting the number of overlaps/read
 	y_pos = np.arange(len(genome_sizes))
 	ax.barh(y_pos, genome_sizes, align='center')
@@ -472,7 +469,25 @@ def plot_mean_overlap_accuracies_per_read(ax, data, output_prefix):
         ax.set_xlabel('Read length')
         ax.set_ylabel('Mean accuracy')
         ax.legend(loc='upper right')	
-	
+
+def plot_total_num_bases_vs_min_read_length(ax, data, output_prefix):
+        for sample in data:
+                sample_name = sample
+                sample_color = data[sample][0]
+                sample_data = data[sample][1]		# dictionary: key = min read length cut off, value = total bases
+                sample_marker = data[sample][2]
+                # get x and y values from list of tuples
+		min_read_length_cutoffs = sample_data.keys()
+		total_num_bases = sample_data.values()
+                ax.scatter(sample_data.keys(), sample_data.values(), label=sample_name, marker=sample_marker, color=sample_color)
+
+        # scatter plot with read length on x axis, and estimted coverage for read on y axis
+        ax.set_title('Total number of bases')
+        ax.grid(True, linestyle='-', linewidth=0.3)
+        ax.set_xlabel('Minimum read length (bp)')
+        ax.set_ylabel('Total number of bases (bp)')
+        ax.legend(loc='upper right')
+
 if __name__ == "__main__":
     main()
 
