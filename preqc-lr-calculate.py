@@ -13,6 +13,7 @@ try:
 	import json, gzip
 	from operator import itemgetter
 	from scipy import stats
+	import time
 except ImportError:
 	print('Missing package(s)')
 
@@ -20,18 +21,17 @@ paf_given=False
 store_csv=False
 
 def main():
+	start = time.clock()
 	# --------------------------------------------------------
     	# PART 0: Parse the input
     	# --------------------------------------------------------
     	parser = argparse.ArgumentParser(prog='preqc-lr',description='Calculate Pre-QC Long Read report')
     	parser.add_argument('-i', '--input', action="store", required=True, 
 			dest="fa_filename", help="Fasta, fastq, fasta.gz, or fastq.gz files containing reads.")
-    	parser.add_argument('-o', '--output', action="store", required=True, 
-			dest="output_prefix", help="Prefix for output directory.")
     	parser.add_argument('-t', '--type', action="store", required=True, 
 			dest="data_type", choices=['pb', 'ont'], help="Either pacbio (pb) or oxford nanopore technology data (ont).")
     	parser.add_argument('-n', '--sample_name', action="store", required=True, 
-			dest="sample_name", help="Sample name; you can use the name of species for example.")
+			dest="sample_name", help="Sample name; you can use the name of species for example. This will be used as output prefix.")
     	parser.add_argument('-p', '--paf', action="store", required=False, 
 			dest="paf", help="Minimap2 pairwise alignment file (PAF). This is produced using 'minimap2 -x ava-ont sample.fastq sample.fastq'.")
     	parser.add_argument('--csv', action="store_true", required=False,
@@ -48,7 +48,7 @@ def main():
 		raise InputFileError('Fasta/fastq')
 		
     	# check output directory, report if already exists, see if user would like to change output directory
-   	output_prefix = args.output_prefix
+   	output_prefix = args.sample_name
     	working_dir = './' + output_prefix
     	while os.path.exists(working_dir):
     		use_working_dir = ''
@@ -68,7 +68,7 @@ def main():
     	# check paf if given
     	global paf_given
     	if args.paf:
-        	if not os.path.exists(paf) or not os.path.getsize(paf) > 0 or not os.access(paf, os.R_OK):
+        	if not os.path.exists(args.paf) or not os.path.getsize(args.paf) > 0 or not os.access(args.paf, os.R_OK):
                 	raise InputFileError('PAF')
 		else:	
 			paf_given = True	
@@ -84,7 +84,6 @@ def main():
     	data['sample_name'] = args.sample_name
     	data['data_type'] = args.data_type
     	data['fa_filename'] = args.fa_filename
-    	data['output_prefix'] = args.output_prefix
     	data['csv_storage'] = args.store_csv
     	if paf_given:
     		data['paf'] = args.paf
@@ -106,6 +105,9 @@ def main():
     		calculate_report(output_prefix, args.fa_filename, args.data_type, data, args.paf) 
     	else:
 		calculate_report(output_prefix, args.fa_filename, args.data_type, data)
+	end = time.clock()
+	total_time = end - start
+	print "Total time: " + str(total_time) + " seconds"
 
 class fasta_file:
     def __init__(self, fa_filename, read_seqs, num_reads, mean_read_length, data_type, paf = ''):
@@ -165,6 +167,10 @@ def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
     	# --------------------------------------------------------
     	# PART 0: Detect the file type, parse file, save to dict
     	# --------------------------------------------------------
+	print '\n \n'
+	print "Parsing sequences file"
+	print "-------------------------------------"
+	start = time.clock()
     	file_type = detect_filetype(fa_filename)
     	fa_sequences = dict(list())
     	if ".gz" in file_type:
@@ -188,11 +194,13 @@ def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
                 		for record in SeqIO.parse(handle, "fastq"):
                         		read_id, read_seq = record.id, record.seq
                         		fa_sequences[read_id] = reduce_represent(read_seq)
+	end = time.clock()
+	total_time = end - start
+	print "Time elapsed: " + str(total_time) + " seconds"
 
     	# --------------------------------------------------------
     	# PART 1: Create all necessary info for fasta object
     	# --------------------------------------------------------
-    	# we will also need mean_read_length later for downsampling and for calculating max coverage
     	total_num_bases = 0
     	for read_id in fa_sequences:
         	seq_length = fa_sequences[read_id][1]
@@ -215,11 +223,35 @@ def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
     	# --------------------------------------------------------
     	# PART 2: Let the calculations begin...
    	# --------------------------------------------------------
+	start = time.clock()
     	calculate_read_length(fasta, output_prefix, data)
+	end = time.clock()
+	print "Time elapsed: " + str(end - start) + " seconds"
+
+	start = time.clock()
     	calculate_num_overlaps_per_read(fasta, output_prefix, data)
+	end = time.clock()
+	print "Time elapsed: " + str(end - start) + " seconds"
+
+	start = time.clock()
     	calculate_estimated_coverage(fasta, output_prefix, data)
+        end = time.clock()
+        print "Time elapsed: " + str(end - start) + " seconds"
+
+        start = time.clock()
     	calculate_GC_content_per_read(fasta, output_prefix, data)
+        end = time.clock()
+        print "Time elapsed: " + str(end - start) + " seconds"
+
+        start = time.clock()
     	calculate_expected_minimum_fractional_overlaps_vs_read_length(fasta, output_prefix, data)
+        end = time.clock()
+        print "Time elapsed: " + str(end - start) + " seconds"
+
+        start = time.clock()
+	calculate_total_num_bases_vs_min_read_length(fasta, output_prefix, data)
+        end = time.clock()
+        print "Time elapsed: " + str(end - start) + " seconds"
 
     	# --------------------------------------------------------
     	# PART 3: After all calculations are done, store in json
@@ -573,34 +605,94 @@ def calculate_GC_content_per_read(fasta, output_prefix, data):
     	data["read_counts_per_GC_content"] = read_counts_per_GC_content			
 
 def calculate_expected_minimum_fractional_overlaps_vs_read_length(fasta, output_prefix, data):
-    # get the distribution of matching residues
-    # get the PAF file with the max number of 
-    print "\n\n\n\n"
-    print "Calculating num of matches per overlap distribution "
-    print "___________________________________________"
+    	# get the distribution of matching residues
+    	# get the PAF file with the max number of 
+    	print "\n\n\n\n"
+    	print "Calculating num of matches per overlap distribution "
+    	print "___________________________________________"
 
-    # --------------------------------------------------------
-    # PART 0: Get all the information needed from fasta
-    # --------------------------------------------------------
-    fa_filename = fasta.get_fa_filename()
-    data_type = fasta.get_data_type()
-    reads = fasta.get_read_seqs()
-    mean_read_length = fasta.get_mean_read_length()
-    total_num_reads = fasta.get_num_reads()
+    	# --------------------------------------------------------
+    	# PART 0: Get all the information needed from fasta
+    	# --------------------------------------------------------
+    	fa_filename = fasta.get_fa_filename()
+    	data_type = fasta.get_data_type()
+    	reads = fasta.get_read_seqs()
+    	mean_read_length = fasta.get_mean_read_length()
+    	total_num_reads = fasta.get_num_reads()
 
-    # --------------------------------------------------------
-    # PART 1: get the PAF file calculated w all reads
-    # --------------------------------------------------------
-    # we get this by calculating the max_coverage
-    overlaps_filename = fasta.get_paf()
-    print overlaps_filename
-    overlaps = open(overlaps_filename, "r")
-    num = list()
-    for line in overlaps:
-        num_matching_residues = int(line.split('\t')[9])
-	num.append(num_matching_residues)
+    	# --------------------------------------------------------
+    	# PART 1: get the PAF file calculated w all reads
+    	# --------------------------------------------------------
+    	# we get this by calculating the max_coverage
+    	overlaps_filename = fasta.get_paf()
+    	print overlaps_filename
+    	overlaps = open(overlaps_filename, "r")
+    	num = list()
+    	for line in overlaps:
+       		num_matching_residues = int(line.split('\t')[9])
+		num.append(num_matching_residues)
 
-    data['num_matching_residues'] = num
+    	data['num_matching_residues'] = num
+
+def calculate_total_num_bases_vs_min_read_length(fasta, output_prefix, data):
+    	print "\n\n\n\n"
+    	print "Calculating total number of bases as a function of min read length"
+    	print "___________________________________________"
+
+    	# --------------------------------------------------------
+    	# PART 0: Get all the information needed from fasta
+    	# --------------------------------------------------------
+    	fa_filename = fasta.get_fa_filename()
+    	data_type = fasta.get_data_type()
+    	reads = fasta.get_read_seqs()
+    	mean_read_length = fasta.get_mean_read_length()
+    	total_num_reads = fasta.get_num_reads()
+
+	# get read lengths
+        read_lengths = dict()
+        for read_id in reads:
+		#read_lengths.append(int(reads[read_id][1]))
+		l = int(reads[read_id][1])
+		if l in read_lengths:
+			read_lengths[l] += 1
+		else:
+			read_lengths[l] = 1
+
+	# get 100th, 90th, 80th, 70th, 60th, ..., 0th percentile
+	min_read_lengths = list()
+
+        unique_lengths = read_lengths.keys()
+	percentile = 90
+	while percentile > 0:
+		cutoff = np.percentile(unique_lengths, percentile)
+		min_read_lengths.append(int(cutoff))
+		percentile-=5
+
+	total_num_bases_vs_min_read_length = dict()
+        total_num_bases = 0
+	while not len(min_read_lengths) == 0:
+		# starting from the maximum read length cut off
+		cutoff = min_read_lengths.pop(0)
+		# starting from the largest read length value then going down ...
+		unique_lengths.sort()
+		l = unique_lengths.pop(len(unique_lengths)-1)
+		while l > cutoff:
+			num_reads_w_length = read_lengths[l]
+			total_num_bases+=l*num_reads_w_length
+			l = unique_lengths.pop(len(unique_lengths)-1)
+		total_num_bases_vs_min_read_length[cutoff] = total_num_bases
+
+	print total_num_bases_vs_min_read_length	
+
+        # --------------------------------------------------------
+        # PART 1: Write to csv if requested
+        # --------------------------------------------------------
+        if store_csv:
+                csv_filename = 'total_num_bases_vs_min_read_length.csv'
+                write_to_csv( csv_filename, output_prefix, total_num_bases_vs_min_read_length)
+
+
+	data['total_num_bases_vs_min_read_length'] = total_num_bases_vs_min_read_length
 
 def write_to_csv(csv_filename, output_prefix, data):
 	csv_filepath = './' + output_prefix + '/csv/' + csv_filename 
