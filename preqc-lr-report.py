@@ -13,6 +13,7 @@ import json
 import collections
 
 plots_available = ['est_genome_size', 'read_length_dist', 'start_pos_per_read_dist', 'est_cov_dist', 'est_cov_vs_read_length', 'per_read_GC_content_dist', 'total_num_bases_vs_min_read_length']
+save_png=False
 
 def main():
         global plots_available
@@ -20,9 +21,10 @@ def main():
         # process input
         parser = argparse.ArgumentParser(description='Display Pre-QC Long Read report')
         parser.add_argument('-i', '--input', action="store", required=True, dest="preqc_file", nargs='+', help="preqclr file(s)")
-        parser.add_argument('-o', '--output', action="store", dest="prefix", default="preqc-lr-output", help="Prefix for output pdf")
+        parser.add_argument('-o', '--output', action="store", dest="output_prefix", default="preqc-lr-output", help="Prefix for output pdf")
 	parser.add_argument('--plot', action="store", required=False, dest="plots_requested", nargs='+', choices=plots_available, help="List of plots wanted by name.")
 	parser.add_argument('--list_plots', action="store_true", dest="list_plots", default=False, help="Use to see the plots available")
+	parser.add_argument('--save_png', action="store_true", dest="save_png", default=False, help= "Use to save png for each plot.")
         args = parser.parse_args()
 
 	# list plots if requested
@@ -34,6 +36,14 @@ def main():
 			i+=1 
 		print "Use --plot and names to choose which plots to create."
 		sys.exit(0)
+
+	# set global variable of save png
+	global save_png
+	if args.save_png:
+		save_png=True
+		png_dir = "./" + args.output_prefix + "/png/"
+		if not os.path.exists(png_dir):
+    			os.makedirs(png_dir)
 
 	# list plots to make
 	plots = list()
@@ -49,7 +59,7 @@ def main():
 	except ValueError:
 		print "Warning: Large amount of samples may not display as well"
 
-        create_report(args.prefix, args.preqc_file, plots)
+        create_report(args.output_prefix, args.preqc_file, plots)
 
 def create_report(output_prefix, preqclr_file, plots_requested):
 	# calculate number of plots to create
@@ -90,7 +100,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
         # add figure
         fig = plt.figure()
         fig.suptitle("Preqc Long Read Results : " + output_prefix )
-        fig.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.3, hspace=0.3)
+        fig.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.5, hspace=0.5)
 
         # six subplots per pdf page
         ax1 = fig.add_subplot(321)
@@ -147,29 +157,66 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			overlap_accuracies[sample] = (color, data['overlap_accuracies'], marker)				# scatter plot
 			total_num_bases_vs_min_read_length[sample] = (color, data['total_num_bases_vs_min_read_length'], marker)
 
+	# paramaters for saving each subplot as a png
+	expand_x = 1.4
+	expand_y = 1.28
 	if 'est_genome_size' in plots_requested:
 		ax = subplots.pop(0)
-		plot_estimated_genome_size(ax, estimated_genome_sizes, output_prefix)
+		ax_temp = plot_estimated_genome_size(ax, estimated_genome_sizes, output_prefix)
+		if save_png:
+                        temp_fig = ax_temp.get_figure()
+                        extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+                        ax_png_file = "./" + output_prefix + "/png/plot_estimated_genome_size.png"
+		        temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'read_length_dist' in plots_requested:
                 ax = subplots.pop(0)
-		plot_read_length_distribution(ax, per_read_read_length, output_prefix)
+		ax_temp = plot_read_length_distribution(ax, per_read_read_length, output_prefix)
+                if save_png:
+                        temp_fig = ax_temp.get_figure()
+                        extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+                        ax_png_file = "./" + output_prefix + "/png/plot_read_length_distribution.png"
+                        temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'start_pos_per_read_dist' in plots_requested:
 		ax = subplots.pop(0)
-	        plot_num_overlaps_per_read_distribution(ax, per_read_overlap_count, output_prefix) 
+	        ax_temp = plot_num_overlaps_per_read_distribution(ax, per_read_overlap_count, output_prefix) 
+		if save_png:
+                        temp_fig = ax_temp.get_figure()
+                        extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+                        ax_png_file = "./" + output_prefix + "/png/plot_start_pos_per_read_dist.png"
+                        temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'est_cov_dist' in plots_requested:
 		ax = subplots.pop(0)
-       	 	plot_estimated_coverage(ax, per_read_estimated_coverage, output_prefix)
-        if 'per_read_GC_content_dist' in plots_requested:
+       	 	ax_temp = plot_estimated_coverage(ax, per_read_estimated_coverage, output_prefix)
+                if save_png:
+                        temp_fig = ax_temp.get_figure()
+                        extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+                        ax_png_file = "./" + output_prefix + "/png/plot_estimated_coverage.png"
+                        temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
+	if 'per_read_GC_content_dist' in plots_requested:
                 ax = subplots.pop(0)
-                plot_per_read_GC_content(ax, per_read_GC_content, output_prefix)
+                ax_temp = plot_per_read_GC_content(ax, per_read_GC_content, output_prefix)
+                if save_png:
+                        temp_fig = ax_temp.get_figure()
+                        extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+                        ax_png_file =  "./" + output_prefix + "/png/plot_per_read_GC_content.png"
+                        temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'est_cov_vs_read_length' in plots_requested:
         	for sample in read_lengths_estimated_cov:
                 	ax = subplots.pop(0)
-			plot_estimated_coverage_vs_read_length(ax, read_lengths_estimated_cov, sample, output_prefix)
+			ax_temp = plot_estimated_coverage_vs_read_length(ax, read_lengths_estimated_cov, sample, output_prefix)
+			if save_png:
+		        	temp_fig = ax_temp.get_figure()
+                		extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+				ax_png_file = "./" + output_prefix + "/png/plot_estimated_coverage_vs_read_length_" + sample +".png" 
+                        	temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'total_num_bases_vs_min_read_length' in plots_requested:
 		ax = subplots.pop(0)
-		plot_total_num_bases_vs_min_read_length(ax, total_num_bases_vs_min_read_length, output_prefix)
-
+		ax_temp = plot_total_num_bases_vs_min_read_length(ax, total_num_bases_vs_min_read_length, output_prefix)
+		if save_png:
+			temp_fig = ax_temp.get_figure()
+			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+			ax_png_file = "./" + output_prefix + "/png/plot_total_num_bases_vs_min_read_length.png"
+                        temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 
 	#	plot_mean_overlap_accuracies_per_read(ax, overlap_accuracies, output_prefix)
 	#plot_num_matching_residues(ax8, num_matching_residues, output_prefix)
@@ -229,6 +276,7 @@ def plot_read_length_distribution(ax, data, output_prefix):
 	ax.get_xaxis().get_major_formatter().set_scientific(False)
 	ax.get_xaxis().get_major_formatter().set_useOffset(False)
         ax.legend(loc='upper right')
+	return ax
 
 def plot_average_overlaps_vs_coverage_distribution(ax, data, output_prefix):
         print "\n\n\n\n"
@@ -258,6 +306,7 @@ def plot_average_overlaps_vs_coverage_distribution(ax, data, output_prefix):
 	ax.set_ylabel('Average number of overlaps')
 	ax.grid(True, linestyle='-', linewidth=0.3)
         ax.legend(loc='upper right')
+	return ax
 
 def plot_num_overlaps_per_read_distribution(ax, data, output_prefix):
         print "\n\n\n\n"
@@ -295,6 +344,7 @@ def plot_num_overlaps_per_read_distribution(ax, data, output_prefix):
         ax.grid(True, linestyle='-', linewidth=0.3)
         ax.legend(loc='upper right')
 	ax.set_xlim(0, float(x_lim))
+	return ax
 
 def plot_estimated_coverage(ax, data, output_prefix):
 	print "\n\n\n\n"
@@ -334,6 +384,7 @@ def plot_estimated_coverage(ax, data, output_prefix):
         ax.set_ylabel('Frequency')   
 	ax.set_xlim(0, max_cov)
 	ax.legend(loc='upper right')
+	return ax
 
 def plot_estimated_coverage_vs_read_length(ax, data, sample, output_prefix):
         print "\n\n\n\n"
@@ -356,6 +407,7 @@ def plot_estimated_coverage_vs_read_length(ax, data, sample, output_prefix):
         ax.set_ylabel('Estimated coverage')
         ax.legend(loc='upper right')
 	#ax.set_yscale('log')
+	return ax
 
 def plot_num_matching_residues(ax, data, output_prefix):
         print "\n\n\n\n"
@@ -382,6 +434,7 @@ def plot_num_matching_residues(ax, data, output_prefix):
         ax.grid(True, linestyle='-', linewidth=0.3)
         ax.set_xlabel('Number of matching residues')
         ax.set_ylabel('Frequency')
+	return ax
 
 def plot_per_read_GC_content(ax, data, output_prefix):
         print "\n\n\n\n"
@@ -405,6 +458,7 @@ def plot_per_read_GC_content(ax, data, output_prefix):
         ax.set_ylabel('Proportion')
         ax.grid(True, linestyle='-', linewidth=0.3)
         ax.legend(loc='upper right')
+	return ax
 
 def plot_estimated_genome_size(ax, data, output_prefix):
         print "\n\n\n\n"
@@ -448,6 +502,7 @@ def plot_estimated_genome_size(ax, data, output_prefix):
 	ax.set_ylabel(' \n \n ')
         ax.grid(True, linestyle='-', linewidth=0.3)
         ax.legend(loc='upper right')
+	return ax
 
 def plot_mean_overlap_accuracies_per_read(ax, data, output_prefix):
         print "\n\n\n\n"
@@ -469,6 +524,7 @@ def plot_mean_overlap_accuracies_per_read(ax, data, output_prefix):
         ax.set_xlabel('Read length')
         ax.set_ylabel('Mean accuracy')
         ax.legend(loc='upper right')	
+	return ax
 
 def plot_total_num_bases_vs_min_read_length(ax, data, output_prefix):
         for sample in data:
@@ -487,6 +543,7 @@ def plot_total_num_bases_vs_min_read_length(ax, data, output_prefix):
         ax.set_xlabel('Minimum read length (bp)')
         ax.set_ylabel('Total number of bases (bp)')
         ax.legend(loc='upper right')
+	return ax
 
 if __name__ == "__main__":
     main()
