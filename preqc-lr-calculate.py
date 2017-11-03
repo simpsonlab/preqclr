@@ -292,6 +292,7 @@ def calculate_read_length(fasta, output_prefix, data):
     	# --------------------------------------------------------
     	# PART 1: Add to the data set
     	# --------------------------------------------------------
+	read_lengths.sort()
     	data['per_read_read_length'] = read_lengths
 
 def calculate_num_overlaps_per_read(fasta, output_prefix, data):
@@ -658,31 +659,24 @@ def calculate_total_num_bases_vs_min_read_length(fasta, output_prefix, data):
 		else:
 			read_lengths[l] = 1
 
-	# get 100th, 90th, 80th, 70th, 60th, ..., 0th percentile
 	min_read_lengths = list()
 
         unique_lengths = read_lengths.keys()
-	percentile = 90
-	while percentile > 0:
-		cutoff = np.percentile(unique_lengths, percentile)
-		min_read_lengths.append(int(cutoff))
-		percentile-=5
-
-	total_num_bases_vs_min_read_length = dict()
-        total_num_bases = 0
-	while not len(min_read_lengths) == 0:
-		# starting from the maximum read length cut off
-		cutoff = min_read_lengths.pop(0)
+	unique_lengths.sort() 							# sort read lengths
+	unique_lengths_desc = sorted(unique_lengths, key=int, reverse=True)	# sort read lengths in descending order (from largest to smallest)
+	total_num_bases_vs_min_read_length = list()
+        longest_read_length = unique_lengths_desc.pop(0)
+	num_reads_w_length = read_lengths[longest_read_length]
+	total_num_bases = longest_read_length*num_reads_w_length
+	read_length = longest_read_length
+	while not len(unique_lengths_desc) == 0:
 		# starting from the largest read length value then going down ...
-		unique_lengths.sort()
-		l = unique_lengths.pop(len(unique_lengths)-1)
-		while l > cutoff:
-			num_reads_w_length = read_lengths[l]
-			total_num_bases+=l*num_reads_w_length
-			l = unique_lengths.pop(len(unique_lengths)-1)
-		total_num_bases_vs_min_read_length[cutoff] = total_num_bases
+		print str(read_length) + " " + str(total_num_bases)
+	        total_num_bases_vs_min_read_length.append((read_length, total_num_bases))
+                read_length = unique_lengths_desc.pop(0)
+		num_reads_w_length = read_lengths[read_length]
+		total_num_bases+=read_length*num_reads_w_length
 
-	print total_num_bases_vs_min_read_length	
 
         # --------------------------------------------------------
         # PART 1: Write to csv if requested
