@@ -98,7 +98,6 @@ def main():
     	if args.store_csv and not os.path.exists(csv_dir):
 		os.makedirs(csv_dir)
 
-    	# --------------------------------------------------------
     	# PART 4: Create the preqclr report data
     	# --------------------------------------------------------
     	if paf_given:
@@ -110,13 +109,13 @@ def main():
 	print "Total time: " + str(total_time) + " seconds"
 
 class fasta_file:
-    def __init__(self, fa_filename, read_seqs, num_reads, mean_read_length, data_type, paf = ''):
+    def __init__(self, fa_filename, read_seqs, num_reads, mean_read_length, data_type, paf_records):
         self.fa_filename = fa_filename
         self.read_seqs = read_seqs
         self.num_reads = num_reads
         self.mean_read_length = mean_read_length
         self.data_type = data_type
-	self.paf = paf
+	self.paf_records = paf_records
 
     def get_fa_filename(self):
         return self.fa_filename
@@ -133,11 +132,8 @@ class fasta_file:
     def get_data_type(self):
         return self.data_type
 
-    def get_paf(self):
-        if os.path.exists(self.paf) and os.path.getsize(self.paf) > 0 and os.access(self.paf, os.R_OK):
-		return self.paf
-	else:
-                raise InputFileError('PAF')
+    def get_paf_records(self):
+	return self.paf_records
 
 class Error(Exception):
 	"""Base class for other exceptions"""
@@ -150,11 +146,6 @@ class InputFileError(Error):
 		self.msg =  self.filetype + " does not exist, or exists but it is empty or not readable"
 
 def reduce_represent(read_seq):
-	#reduced_rep = read_seq.replace('A','00')
-        #reduced_rep = reduced_rep.replace('C','01')
-        #reduced_rep = reduced_rep.replace('G', '10')
-        #reduced_rep = reduced_rep.replace('T', '11')
-        #int_rep = int( reduced_rep , 2)
         count_C = read_seq.count('C')
         count_G = read_seq.count('G')
         count_A = read_seq.count('A')
@@ -212,7 +203,13 @@ def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
     	if not paf_given:
 		paf = create_overlaps_file(fa_filename, output_prefix, data_type)
 
-    	fasta = fasta_file(fa_filename, fa_sequences, num_reads, mean_read_length, data_type, paf)	
+	start = time.clock()
+	paf_records = parse_paf(paf)
+        end = time.clock()
+        total_time = end - start
+        print "Time elapsed: " + str(total_time) + " seconds"
+
+    	fasta = fasta_file(fa_filename, fa_sequences, num_reads, mean_read_length, data_type, paf_records)	
 
     	# add the fasta file information to data
     	data['num_reads'] = num_reads
@@ -240,11 +237,6 @@ def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
 
         start = time.clock()
     	calculate_GC_content_per_read(fasta, output_prefix, data)
-        end = time.clock()
-        print "Time elapsed: " + str(end - start) + " seconds"
-
-        start = time.clock()
-    	calculate_expected_minimum_fractional_overlaps_vs_read_length(fasta, output_prefix, data)
         end = time.clock()
         print "Time elapsed: " + str(end - start) + " seconds"
 
@@ -308,34 +300,18 @@ def calculate_num_overlaps_per_read(fasta, output_prefix, data):
     	reads = fasta.get_read_seqs()
     	mean_read_length = fasta.get_mean_read_length()
     	num_reads = fasta.get_num_reads()
-
-    	# get overlaps file created with all reads
-    	overlaps_filename = fasta.get_paf()
+    	paf_records = fasta.get_paf_records()
 
     	# --------------------------------------------------------
-    	# PART 1: Get the num of overlaps per read
+    	# PART 1: Number of overlaps already calculated ...
     	# --------------------------------------------------------
-    	# overlaps is the opened PAF file
-    	# num_overlaps_per_read will, in the end, hold the total number of overlaps
-    	num_overlaps_per_read = dict()
-    	with open(overlaps_filename, 'r') as overlaps:
-    		for line in overlaps:
-        		query_read_id = line.split('\t')[0]
-        		target_read_id = line.split('\t')[5]
-
-        		# do not count overlaps with self
-        		if target_read_id != query_read_id:
-            			if query_read_id in num_overlaps_per_read:
-                			num_overlaps_per_read[query_read_id] += 1
-            			else:
-                			num_overlaps_per_read[query_read_id] = 1
- 
-    	# --------------------------------------------------------
-    	# PART 2: Divide the num overlaps by the read length
-    	# --------------------------------------------------------
-    	for read_id in num_overlaps_per_read:
-        	read_length = float(reads[read_id][1])
-        	num_overlaps = float(num_overlaps_per_read[read_id])
+        # --------------------------------------------------------
+        # PART 2: Divide the num overlaps by the read length
+        # --------------------------------------------------------
+	num_overlaps_per_read = dict() 
+   	for read_id in paf_records:
+        	read_length = float(paf_records[read_id].get_read_length())
+        	num_overlaps = float(paf_records[read_id].get_total_num_overlaps())
         	num_overlaps_per_read[read_id] = num_overlaps / read_length 
 
         # --------------------------------------------------------
@@ -350,6 +326,96 @@ def calculate_num_overlaps_per_read(fasta, output_prefix, data):
     	# --------------------------------------------------------
     	data['per_read_overlap_count'] = num_overlaps_per_read
 
+class read:
+	def __init__(self, read_id, read_length, total_len_overlaps, total_num_overlaps):
+        	self.read_id = read_id
+        	self.read_length = read_length 
+        	self.total_len_overlaps = total_len_overlaps
+        	self.total_num_overlaps = total_num_overlaps
+
+	def update_total_len_overlaps(self, total_len_overlaps):
+		self.total_len_overlaps = total_len_overlaps
+
+	def update_total_num_overlaps(self):
+		self.total_num_overlaps+=1
+
+	def get_total_len_overlaps(self):
+		return self.total_len_overlaps
+
+	def get_total_num_overlaps(self):
+		return self.total_num_overlaps
+
+	def get_read_length(self):
+		return self.read_length
+
+def parse_paf(overlaps_filename):
+        print "\n\n\n\n"
+        print "Parse PAF"
+        print "___________________________________________"
+	
+        paf_records = dict()
+        with open(overlaps_filename, "r") as overlaps:
+                for line in overlaps:
+			# get needed information on overlap instance
+                        query_read_id = line.split('\t')[0]
+                        target_read_id = line.split('\t')[5]
+                        query_start_pos = int(line.split('\t')[2])
+                        query_end_pos = int(line.split('\t')[3])
+                        target_start_pos = int(line.split('\t')[7])
+                        target_end_pos = int(line.split('\t')[8])
+                        query_length = int(line.split('\t')[1])
+                        target_length = int(line.split('\t')[6])
+                        strand = line.split('\t')[4]
+                        num_matches = int(line.split('\t')[9])
+
+			# calculate overlap length and account for soft clipping
+                        if not (query_read_id == target_read_id):
+                                query_prefix_len = query_start_pos
+                                query_suffix_len = query_length - query_end_pos
+
+                                target_prefix_len = target_start_pos
+                                target_suffix_len = target_length - target_end_pos
+
+                                # calculate length of overlap
+                                overlap_length = query_end_pos - query_start_pos
+
+                                left_clip = 0
+                                right_clip = 0
+                                if not (query_start_pos == 0) and not (target_start_pos == 0) :
+                                        if strand == "+":
+                                                left_clip = min(query_prefix_len, target_prefix_len)
+                                        else:
+                                                left_clip = min(query_prefix_len, target_suffix_len)
+                                if not (query_end_pos == 0) and not (target_end_pos == 0) :
+                                        if strand == "+":
+                                                right_clip = min(query_suffix_len, target_suffix_len)
+                                        else:
+                                                right_clip = min(query_suffix_len, target_prefix_len)
+                                overlap_length += left_clip + right_clip
+
+				# add sum overlaps 
+                                if query_read_id in paf_records:
+                                        old_overlap_len = paf_records[query_read_id].get_total_len_overlaps()
+					new_overlap_len = old_overlap_len + overlap_length
+					paf_records[query_read_id].update_total_len_overlaps(new_overlap_len)
+					old_overlap_num = paf_records[query_read_id].get_total_num_overlaps()
+					paf_records[query_read_id].update_total_num_overlaps()
+                                else:
+					new_read = read(query_read_id, query_length, overlap_length, 1)
+					paf_records[query_read_id] = new_read
+
+                                if target_read_id in paf_records:
+                                        old_overlap_len = paf_records[target_read_id].get_total_len_overlaps()
+                                        new_overlap_len = old_overlap_len + overlap_length
+                                        paf_records[target_read_id].update_total_len_overlaps(new_overlap_len)
+                                        old_overlap_num = paf_records[target_read_id].get_total_num_overlaps()
+                                        paf_records[target_read_id].update_total_num_overlaps()
+                                else:
+                                        new_read = read(target_read_id, target_length, overlap_length, 1)
+                                        paf_records[target_read_id] = new_read	
+
+	return paf_records
+
 def calculate_estimated_coverage(fasta, output_prefix, data):
     	print "\n\n\n\n"
     	print "Calculating average coverage per read"
@@ -363,100 +429,20 @@ def calculate_estimated_coverage(fasta, output_prefix, data):
     	reads = fasta.get_read_seqs()
     	mean_read_length = fasta.get_mean_read_length()
     	total_num_reads = fasta.get_num_reads()
-    	overlaps_filename = fasta.get_paf()
+	paf_records = fasta.get_paf_records()
 
     	# --------------------------------------------------------
-    	# PART 1: Get the sum of overlap lengths for each read
+    	# PART 1: Calculate coverage for each read
     	# --------------------------------------------------------
-    	sum_overlap_lengths = dict()
-    	overlap_accuracy = dict()			# key = read id, values = (sum_overlap_length, sum_matches )
-    	with open(overlaps_filename, "r") as overlaps:
-    		for line in overlaps:
-        		query_read_id = line.split('\t')[0]
-        		target_read_id = line.split('\t')[5]
-        		query_start_pos = int(line.split('\t')[2])
-        		query_end_pos = int(line.split('\t')[3])
-        		target_start_pos = int(line.split('\t')[7])
-        		target_end_pos = int(line.split('\t')[8])
-        		query_length = int(line.split('\t')[1])
-        		target_length = int(line.split('\t')[6])
-        		strand = line.split('\t')[4]
-			num_matches = int(line.split('\t')[9])
-        		if not (query_read_id == target_read_id):
-                		query_prefix_len = query_start_pos
-                		query_suffix_len = query_length - query_end_pos
-
-                		target_prefix_len = target_start_pos
-                		target_suffix_len = target_length - target_end_pos
-
-                		# calculate length of overlap
-               	 		overlap_length = query_end_pos - query_start_pos
-
-                		left_clip = 0
-                		right_clip = 0
-                		if not (query_start_pos == 0) and not (target_start_pos == 0) :
-                        		if strand == "+":
-                                		left_clip = min(query_prefix_len, target_prefix_len)
-                        		else:
-                                		left_clip = min(query_prefix_len, target_suffix_len)
-                		if not (query_end_pos == 0) and not (target_end_pos == 0) :
-                        		if strand == "+":
-                                		right_clip = min(query_suffix_len, target_suffix_len)
-                        		else:
-                                		right_clip = min(query_suffix_len, target_prefix_len)
-                		overlap_length += left_clip + right_clip
+	covs = list()
+	for read_id in paf_records:
+		total_len_overlaps = float(paf_records[read_id].get_total_len_overlaps())	
+		read_len = float(paf_records[read_id].get_read_length())
+		read_cov =  round ( total_len_overlaps / read_len ) 
+		covs.append((read_cov, read_len))
 
     	# --------------------------------------------------------
-    	# PART 3: add to the current recorded sum overlap length
-    	# --------------------------------------------------------
-                		if query_read_id in sum_overlap_lengths:
-                        		sum_overlap_lengths[query_read_id]+=overlap_length
-					current_overlap_length = overlap_accuracy[query_read_id][0]
-					new_overlap_length = current_overlap_length + overlap_length
-					current_num_matches = overlap_accuracy[query_read_id][1]
-					new_num_matches = current_num_matches + num_matches
-					overlap_accuracy[query_read_id] = (new_overlap_length, new_num_matches)
-                		else:
-                        		sum_overlap_lengths[query_read_id]=overlap_length
-					overlap_accuracy[query_read_id] = (overlap_length, num_matches)
-                		if target_read_id in sum_overlap_lengths:
-                        		sum_overlap_lengths[target_read_id]+=overlap_length
-					current_overlap_length = overlap_accuracy[target_read_id][0]
-                        		new_overlap_length = current_overlap_length + overlap_length
-                        		current_num_matches = overlap_accuracy[target_read_id][1]
-                        		new_num_matches = current_num_matches + num_matches
-                        		overlap_accuracy[target_read_id] = (new_overlap_length, new_num_matches)
-                		else:
-                        		sum_overlap_lengths[target_read_id]=overlap_length
-					overlap_accuracy[target_read_id] = (float(overlap_length), float(num_matches))
-
-    	# --------------------------------------------------------
-    	# PART 4: for each coverage level count num reads w/ cov
-    	# --------------------------------------------------------
-    	# This part is also recording which reads fall under each coverage level,
-    	# this part is also generating data for scatter plot with read length vs estimated coverage per read.
-    	# per_cov_read_count will hold the read counts for each coverage level
-    	# data_seqs will hold the list of read ids for each coverage level
-    	# read_length_and_estimated_cov will hold the data points for the scatter plot for read length vs estimated coverage plot
-    	per_cov_read_count = dict()         	# key = avg coverage, value = number of reads with this avg coverage
-    	covs = list()
-    	accuracies = list()
-    	read_length_and_estimated_cov = list()    	# list of tuples (read_length, estimated_coverage)
-    	for read_id in sum_overlap_lengths:
-        	num_bases = float(reads[read_id][1])
-        	total_overlaps_length = float(sum_overlap_lengths[read_id])
-        	cov = int(round(float(total_overlaps_length) / float(num_bases)))
-		accuracy = (overlap_accuracy[read_id][1])/float(overlap_accuracy[read_id][0])
-		covs.append((cov, num_bases))
-		accuracies.append((accuracy, num_bases))
-    		if cov in per_cov_read_count:
-        		per_cov_read_count[cov]+=1
-		else:
-        		per_cov_read_count[cov]=1
-        	read_length_and_estimated_cov.append((num_bases, cov))
-
-    	# --------------------------------------------------------
-    	# PART 5: Filter outliers
+    	# PART 2: Filter outliers
     	# --------------------------------------------------------
     	print "\n\n"
     	print "Pre-Filter"
@@ -551,10 +537,9 @@ def calculate_estimated_coverage(fasta, output_prefix, data):
     	# --------------------------------------------------------
     	data['estimated_coverage_stats_pre_filter'] = pre_filter
     	data['estimated_coverage_stats_post_filter'] = post_filter
-    	data['per_read_estimated_coverage'] = ([x[0] for x in covs], upperbound, n, q25, q75)
-    	data['read_lengths_estimated_cov'] = read_length_and_estimated_cov	
+    	data['estimated_cov_filters'] = (lowerbound, upperbound)
+    	data['per_read_estimated_cov_and_read_length'] = covs	
     	data['estimated_genome_size'] = estimated_genome_size
-    	data['overlap_accuracies'] = accuracies
     	data['estimated_num_islands'] = estimated_num_islands
 
 def extract_from_count_rep(count_rep, nt):
@@ -605,36 +590,6 @@ def calculate_GC_content_per_read(fasta, output_prefix, data):
         # --------------------------------------------------------
     	data["read_counts_per_GC_content"] = read_counts_per_GC_content			
 
-def calculate_expected_minimum_fractional_overlaps_vs_read_length(fasta, output_prefix, data):
-    	# get the distribution of matching residues
-    	# get the PAF file with the max number of 
-    	print "\n\n\n\n"
-    	print "Calculating num of matches per overlap distribution "
-    	print "___________________________________________"
-
-    	# --------------------------------------------------------
-    	# PART 0: Get all the information needed from fasta
-    	# --------------------------------------------------------
-    	fa_filename = fasta.get_fa_filename()
-    	data_type = fasta.get_data_type()
-    	reads = fasta.get_read_seqs()
-    	mean_read_length = fasta.get_mean_read_length()
-    	total_num_reads = fasta.get_num_reads()
-
-    	# --------------------------------------------------------
-    	# PART 1: get the PAF file calculated w all reads
-    	# --------------------------------------------------------
-    	# we get this by calculating the max_coverage
-    	overlaps_filename = fasta.get_paf()
-    	print overlaps_filename
-    	overlaps = open(overlaps_filename, "r")
-    	num = list()
-    	for line in overlaps:
-       		num_matching_residues = int(line.split('\t')[9])
-		num.append(num_matching_residues)
-
-    	data['num_matching_residues'] = num
-
 def calculate_total_num_bases_vs_min_read_length(fasta, output_prefix, data):
     	print "\n\n\n\n"
     	print "Calculating total number of bases as a function of min read length"
@@ -684,7 +639,6 @@ def calculate_total_num_bases_vs_min_read_length(fasta, output_prefix, data):
         if store_csv:
                 csv_filename = 'total_num_bases_vs_min_read_length.csv'
                 write_to_csv( csv_filename, output_prefix, total_num_bases_vs_min_read_length)
-
 
 	data['total_num_bases_vs_min_read_length'] = total_num_bases_vs_min_read_length
 
