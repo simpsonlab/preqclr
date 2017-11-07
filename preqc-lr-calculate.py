@@ -24,93 +24,112 @@ paf_given=False
 store_csv=False
 
 def main():
-    start = time.clock()
-    # --------------------------------------------------------
-    # PART 0: Parse the input
-    # --------------------------------------------------------
-    parser = argparse.ArgumentParser(prog='preqc-lr',description='Calculate Pre-QC Long Read report')
-    parser.add_argument('-i', '--input', action="store", required=True, 
-    dest="fa_filename", help="Fasta, fastq, fasta.gz, or fastq.gz files containing reads.")
-    parser.add_argument('-t', '--type', action="store", required=True, 
-    dest="data_type", choices=['pb', 'ont'], help="Either pacbio (pb) or oxford nanopore technology data (ont).")
-    parser.add_argument('-n', '--sample_name', action="store", required=True, 
-    dest="sample_name", help="Sample name; you can use the name of species for example. This will be used as output prefix.")
-    parser.add_argument('-p', '--paf', action="store", required=False, 
-    dest="paf", help="Minimap2 pairwise alignment file (PAF). This is produced using 'minimap2 -x ava-ont sample.fastq sample.fastq'.")
-    parser.add_argument('--csv', action="store_true", required=False,
-    dest="store_csv", default=False, help="Use flag to save comma separated values (CSV) files for each plot.")
-    parser.add_argument('-v', '--version', action='version', version='%(prog)s 0.9')
-    args = parser.parse_args()
-
-    # --------------------------------------------------------
-    # PART 1: Check input integrity
-    # --------------------------------------------------------
-    # check sequences input
-    if not os.path.exists(args.fa_filename) or not os.path.getsize(args.fa_filename) > 0 or not os.access(args.fa_filename, os.R_OK):
-        print "Fasta/fastq file does not exist, is empty or is not readable."
-        raise InputFileError('Fasta/fastq')
+	start = time.clock()	
+	# --------------------------------------------------------
+	# PART 0: Parse the input
+	# --------------------------------------------------------
+	parser = argparse.ArgumentParser(prog='preqc-lr',description='Calculate Pre-QC Long Read report')
+	parser.add_argument('-i', '--input', action="store", required=True, 
+	dest="fa_filename", help="Fasta, fastq, fasta.gz, or fastq.gz files containing reads.")
+	parser.add_argument('-t', '--type', action="store", required=True, 
+	dest="data_type", choices=['pb', 'ont'], help="Either pacbio (pb) or oxford nanopore technology data (ont).")
+	parser.add_argument('-n', '--sample_name', action="store", required=True, 
+	dest="sample_name", help="Sample name; you can use the name of species for example. This will be used as output prefix.")
+	parser.add_argument('-p', '--paf', action="store", required=False, 
+	dest="paf", help="Minimap2 pairwise alignment file (PAF). This is produced using 'minimap2 -x ava-ont sample.fastq sample.fastq'.")
+	parser.add_argument('--csv', action="store_true", required=False,
+	dest="store_csv", default=False, help="Use flag to save comma separated values (CSV) files for each plot.")
+	parser.add_argument('-v', '--version', action='version', version='%(prog)s 0.9')
+	args = parser.parse_args()
+	
+	print "========================================================"
+	print "RUNNING PREQC-LR CALCULATE" 
+	print "========================================================"
+	print "========================================================"
+	print "PROCESSING INPUT"
+	print "========================================================"
+	# --------------------------------------------------------
+	# PART 1: Check input integrity
+	# --------------------------------------------------------
+	# check sequences input
+	if not os.path.exists(args.fa_filename) or not os.path.getsize(args.fa_filename) > 0 or not os.access(args.fa_filename, os.R_OK):
+		print "Fasta/fastq file does not exist, is empty or is not readable."
+		raise InputFileError('Fasta/fastq')
     
-    # check output directory, report if already exists, see if user would like to change output directory
-    output_prefix = args.sample_name
-    working_dir = './' + output_prefix
-    while os.path.exists(working_dir):
-        use_working_dir = ''
-    while not use_working_dir == "n" and not use_working_dir == "y":
-        print "Output directory \'" + working_dir + "\' already exists. Do you still want to use this directory? [y/n]"
-        use_working_dir = raw_input()
-        if not use_working_dir == "n" and not use_working_dir == "y":
-            print "Only 'y' or 'n' as response."
-        if use_working_dir == "n":
-            print "Please input new output_prefix:"
-            output_prefix = raw_input()
-        else:
-            working_dir = './' +  output_prefix
-            print "Output directory: " + working_dir
-            break
+	# check output directory, report if already exists, see if user would like to change output directory
+	output_prefix = args.sample_name
+	working_dir = './' + output_prefix
+	use_working_dir = ''
+	while os.path.exists(working_dir) or (not use_working_dir == "n" and not use_working_dir == "y"):
+		print "Output directory \'" + working_dir + "\' already exists. Do you still want to use this directory? [y/n]"
+		use_working_dir = raw_input()
+		if not use_working_dir == "n" and not use_working_dir == "y":
+			print "Only 'y' or 'n' as response."
+		if use_working_dir == "n":
+			print "Please input new output_prefix:"
+			output_prefix = raw_input()
+			working_dir = './' +  output_prefix
+		else:
+			working_dir = './' +  output_prefix
+			print "Output directory: " + working_dir
+			break
 
-    # check paf if given
-    global paf_given
-    if args.paf:
-        if not os.path.exists(args.paf) or not os.path.getsize(args.paf) > 0 or not os.access(args.paf, os.R_OK):
-                raise InputFileError('PAF')
-        else:   
-            paf_given = True    
+	# check paf if given
+	global paf_given
+	if args.paf:
+		if not os.path.exists(args.paf) or not os.path.getsize(args.paf) > 0 or not os.access(args.paf, os.R_OK):
+			raise InputFileError('PAF')
+		else:   
+			paf_given = True    
 
-    global store_csv
-    if args.store_csv:
-        store_csv=True
+	global store_csv
+	if args.store_csv:
+		store_csv=True
 
-    # --------------------------------------------------------
-    # PART 2: Initiate json object, and record input info
-    # --------------------------------------------------------
-    data = {}
-    data['sample_name'] = args.sample_name
-    data['data_type'] = args.data_type
-    data['fa_filename'] = args.fa_filename
-    data['csv_storage'] = args.store_csv
-    if paf_given:
-        data['paf'] = args.paf
+	# --------------------------------------------------------
+	# PART 2: Initiate json object, and record input info
+	# --------------------------------------------------------
+	data = {}
+	data['sample_name'] = args.sample_name
+	data['data_type'] = args.data_type
+	data['fa_filename'] = args.fa_filename
+	data['csv_storage'] = args.store_csv
+	if paf_given:
+		data['paf'] = args.paf
+	print "[ Input ]"
+	print "Sample name: " + args.sample_name
+	print "Data type: " + args.data_type
+	print "FASTA/Q: " + args.fa_filename
+	print "Storing csv: " + str(args.store_csv)
+	if paf_given:
+		print "PAF: " + str(args.paf)
+	else:
+		print "PAF: None given, will run minimap2."
 
-    # --------------------------------------------------------
-    # PART 3: Create work dir, and csv dir if requested
-    # --------------------------------------------------------
-    csv_dir = './' + output_prefix + '/csv'
-    work_dir = working_dir
-    if not os.path.exists(work_dir):
-        os.makedirs(work_dir)
-    if args.store_csv and not os.path.exists(csv_dir):
-        os.makedirs(csv_dir)
+	# --------------------------------------------------------
+	# PART 3: Create work dir, and csv dir if requested
+	# --------------------------------------------------------
+	print "[ Output ]"
+	csv_dir = './' + output_prefix + '/csv'
+	work_dir = working_dir
+	if not os.path.exists(work_dir):
+		os.makedirs(work_dir)
+	print "Output directory: " + work_dir
+	if args.store_csv and not os.path.exists(csv_dir):
+		os.makedirs(csv_dir)
+	if args.store_csv:
+		print "Storing csv in: " + csv_dir
 
-    # --------------------------------------------------------
-    # PART 4: Create the preqclr report data
-    # --------------------------------------------------------
-    if paf_given:
-        calculate_report(output_prefix, args.fa_filename, args.data_type, data, args.paf) 
-    else:
-        calculate_report(output_prefix, args.fa_filename, args.data_type, data)
-    end = time.clock()
-    total_time = end - start
-    print "Total time: " + str(total_time) + " seconds"
+	# --------------------------------------------------------
+	# PART 4: Create the preqclr report data
+	# --------------------------------------------------------
+	if paf_given:
+		calculate_report(output_prefix, args.fa_filename, args.data_type, data, args.paf) 
+	else:
+		calculate_report(output_prefix, args.fa_filename, args.data_type, data)
+	end = time.clock()
+	total_time = end - start
+	print "Total time: " + str(total_time) + " seconds"
 
 def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
     # ========================================================
@@ -124,109 +143,108 @@ def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
     #           create plots.
     # ========================================================
 
-    print '\n\n\n\n'
-    print "========================================================"
-    print "PRE PROCESS INPUT"
-    print "========================================================"
-    # --------------------------------------------------------
-    # PART 0: Detect the file type, parse file, save to dict
-    # --------------------------------------------------------
-    start = time.clock()
-    file_type = detect_filetype(fa_filename)
-    fa_sequences = parse_fa(fa_filename)
-    end = time.clock()
-    total_time = end - start
-    print "Time elapsed: " + str(total_time) + " seconds"
+	print '\n\n\n\n'
+	print "========================================================"
+	print "PRE PROCESS INPUT"
+	print "========================================================"
+	# --------------------------------------------------------
+	# PART 0: Detect the file type, parse file, save to dict
+	# --------------------------------------------------------
+	start = time.clock()
+	file_type = detect_filetype(fa_filename)
+	fa_sequences = parse_fa(fa_filename)
+	end = time.clock()
+	total_time = end - start
+	print "Time elapsed: " + str(total_time) + " seconds"
 
     # --------------------------------------------------------
     # PART 1: Create all necessary info for fasta object
     # --------------------------------------------------------
     # count total number of bases, and mean read length
-    total_num_bases = 0
-    for read_id in fa_sequences:
-        seq_length = fa_sequences[read_id][1]
-        total_num_bases+=seq_length
-    mean_read_length = float(total_num_bases)/float(len(fa_sequences))
-    num_reads = len(fa_sequences)
+	total_num_bases = 0
+	for read_id in fa_sequences:
+		seq_length = fa_sequences[read_id][1]
+		total_num_bases+=seq_length
+	mean_read_length = float(total_num_bases)/float(len(fa_sequences))
+	num_reads = len(fa_sequences)
 
-    # --------------------------------------------------------
-    # PART 2: Create PAF file if not given
-    # --------------------------------------------------------
-    global paf_given
-    if not paf_given:
-        print "Running minimap2 to achieve overlaps"
-        start = time.clock()
-        paf = create_overlaps_file(fa_filename, output_prefix, data_type)
-        end = time.clock()
+	# --------------------------------------------------------
+	# PART 2: Create PAF file if not given
+	# --------------------------------------------------------
+	global paf_given
+	if not paf_given:
+		print "Running minimap2 to achieve overlaps"
+		start = time.clock()
+		paf = create_overlaps_file(fa_filename, output_prefix, data_type)
+		end = time.clock()
         total_time = end - start
         print "Time elapsed: " + str(total_time) + " seconds"
 
     # --------------------------------------------------------
     # PART 3: Parse PAF file, extract only necessary info
     # --------------------------------------------------------
-    start = time.clock()
-    paf_records = parse_paf(paf)
-    end = time.clock()
-    total_time = end - start
-    print "Time elapsed: " + str(total_time) + " seconds"
+	start = time.clock()
+	paf_records = parse_paf(paf)
+	end = time.clock()
+	total_time = end - start
+	print "Time elapsed: " + str(total_time) + " seconds"
 
-    # store all info about fasta file and PAF file into object
-    fasta = fasta_file(fa_filename, fa_sequences, num_reads, mean_read_length, data_type, paf_records)  
+	# store all info about fasta file and PAF file into object
+	fasta = fasta_file(fa_filename, fa_sequences, num_reads, mean_read_length, data_type, paf_records)  
 
-    # add the fasta file information to data
-    data['num_reads'] = num_reads
-    data['mean_read_length_no_filter'] = mean_read_length
-    data['total_num_bases'] = total_num_bases
-    data['paf'] = paf
+	# add the fasta file information to data
+	data['num_reads'] = num_reads
+	data['mean_read_length_no_filter'] = mean_read_length
+	data['total_num_bases'] = total_num_bases
+	data['paf'] = paf
 
 
-    print '\n\n\n\n'
-    print "========================================================"
-    print "CALCULATE INFO"
-    print "========================================================"
-    # --------------------------------------------------------
-    # PART 4: Let the calculations begin...
-    # --------------------------------------------------------
-    start = time.clock()
-    calculate_read_length(fasta, output_prefix, data)
-    end = time.clock()
-    print "Time elapsed: " + str(end - start) + " seconds"
+	print '\n\n\n\n'
+	print "========================================================"
+	print "CALCULATE INFO"
+	print "========================================================"
+	# --------------------------------------------------------
+	# PART 4: Let the calculations begin...
+	# --------------------------------------------------------
+	start = time.clock()
+	calculate_read_length(fasta, output_prefix, data)
+	end = time.clock()
+	print "Time elapsed: " + str(end - start) + " seconds"
 
-    start = time.clock()
-    calculate_num_overlaps_per_read(fasta, output_prefix, data)
-    end = time.clock()
-    print "Time elapsed: " + str(end - start) + " seconds"
+	start = time.clock()
+	calculate_num_overlaps_per_read(fasta, output_prefix, data)
+	end = time.clock()
+	print "Time elapsed: " + str(end - start) + " seconds"
 
-    start = time.clock()
-    calculate_estimated_coverage(fasta, output_prefix, data)
-    end = time.clock()
-    print "Time elapsed: " + str(end - start) + " seconds"
+	start = time.clock()
+	calculate_estimated_coverage(fasta, output_prefix, data)
+	end = time.clock()
+	print "Time elapsed: " + str(end - start) + " seconds"
 
-    start = time.clock()
-    calculate_GC_content_per_read(fasta, output_prefix, data)
-    end = time.clock()
-    print "Time elapsed: " + str(end - start) + " seconds"
+	start = time.clock()
+	calculate_GC_content_per_read(fasta, output_prefix, data)
+	end = time.clock()
+	print "Time elapsed: " + str(end - start) + " seconds"
+	
+	start = time.clock()
+	calculate_total_num_bases_vs_min_read_length(fasta, output_prefix, data)
+	end = time.clock()
+	print "Time elapsed: " + str(end - start) + " seconds"
 
-    start = time.clock()
-    calculate_total_num_bases_vs_min_read_length(fasta, output_prefix, data)
-    end = time.clock()
-    print "Time elapsed: " + str(end - start) + " seconds"
-
-    print '\n\n\n\n'
-    print "========================================================"
-    print "STORE INFO"
-    print "========================================================"
-    # --------------------------------------------------------
-    # PART 3: After all calculations are done, store in json
-    # --------------------------------------------------------
-    preqclr_data = './' + output_prefix + '.preqclr'
-    with open(preqclr_data, 'w') as outfile:  
-        json.dump(data, outfile, indent=4)
-    print "Preqc-lr output stored in: " + preqclr_data
+	print '\n\n\n\n'
+	print "========================================================"
+	print "STORE INFO"
+	print "========================================================"
+	# --------------------------------------------------------
+	# PART 3: After all calculations are done, store in json
+	# --------------------------------------------------------
+	preqclr_data = './' + output_prefix + '.preqclr'
+	with open(preqclr_data, 'w') as outfile:  
+		json.dump(data, outfile, indent=4)
+	print "Preqc-lr output stored in: " + preqclr_data
 
 def calculate_read_length(fasta, output_prefix, data):
     # ========================================================
-    print "\n\n\n\n"
     print "[ Calculating read length distribution ]"
     # --------------------------------------------------------
     # Input:    Dictionary of reads
@@ -256,7 +274,6 @@ def calculate_read_length(fasta, output_prefix, data):
 
 def calculate_num_overlaps_per_read(fasta, output_prefix, data):
     # ========================================================
-    print "\n\n\n\n"
     print "[ Calculating number of overlaps per read ]"
     # --------------------------------------------------------
     # Input: FASTA/Q filename
@@ -299,7 +316,6 @@ def calculate_num_overlaps_per_read(fasta, output_prefix, data):
 
 def calculate_estimated_coverage(fasta, output_prefix, data):
     # ========================================================
-    print "\n\n\n\n"
     print "[ Calculating estimated coverage per read, and estimated genome size ]"
     # --------------------------------------------------------
     # Uses for each read, length and length of all overlaps,
@@ -435,7 +451,6 @@ def calculate_estimated_coverage(fasta, output_prefix, data):
 
 def calculate_GC_content_per_read(fasta, output_prefix, data):
     # ========================================================
-    print "\n\n\n\n"
     print "[ Calculating GC-content per read ]"
     # --------------------------------------------------------
     # Uses for reduced representation of each read to sum 
@@ -478,7 +493,6 @@ def calculate_GC_content_per_read(fasta, output_prefix, data):
 
 def calculate_total_num_bases_vs_min_read_length(fasta, output_prefix, data):
     # ========================================================
-    print "\n\n\n\n"
     print "[ Calculating total number of bases as a function of min read length ]"
     # --------------------------------------------------------
     # Uses for reduced representation of each read to sum 
@@ -580,25 +594,25 @@ class fasta_file:
 
 class read:
     def __init__(self, read_id, read_length, total_len_overlaps, total_num_overlaps):
-            self.read_id = read_id
-            self.read_length = read_length 
-            self.total_len_overlaps = total_len_overlaps
-            self.total_num_overlaps = total_num_overlaps
+	self.read_id = read_id
+	self.read_length = read_length 
+	self.total_len_overlaps = total_len_overlaps
+	self.total_num_overlaps = total_num_overlaps
 
     def update_total_len_overlaps(self, total_len_overlaps):
-    self.total_len_overlaps = total_len_overlaps
+    	self.total_len_overlaps = total_len_overlaps
 
     def update_total_num_overlaps(self):
-    self.total_num_overlaps+=1
+    	self.total_num_overlaps+=1
 
     def get_total_len_overlaps(self):
-    return self.total_len_overlaps
+    	return self.total_len_overlaps
 
     def get_total_num_overlaps(self):
-    return self.total_num_overlaps
+    	return self.total_num_overlaps
 
     def get_read_length(self):
-    return self.read_length
+    	return self.read_length
 
 def reduce_represent(read_seq):
     # ========================================================
@@ -651,13 +665,13 @@ def detect_filetype(fa_filename):
     path = fa_filename
     for ext in ['fastq.gz', 'fasta.gz', 'fastq', 'fasta']:
         if path.endswith(ext):
-        return ext
+        	return ext
     print "Must be either fasta, fastq, fasta.gz, fastq.gz"
     sys.exit(1)
 
 def parse_fa(fa_filename):
     # ========================================================
-    # Parses FASTA/Q file: 
+	print "[ Parse FASTA/Q file ]"
     # --------------------------------------------------------
     # Detects file type then reduces seq info to only needed 
     # information
@@ -666,38 +680,36 @@ def parse_fa(fa_filename):
     #           key = read_id
     #           value = (reduced rep. of seq, read length)
     # ========================================================
-    print "\n\n\n\n"
-    print "[ Parse FASTA/Q file ]"
     
-    file_type = detect_filetype(fa_filename)
-    fa_sequences = dict(list())
-    if ".gz" in file_type:
-        with gzip.open(fa_filename, "rt") as handle:
-        print "unzipped fine!"
-        if "fasta.gz" in file_type:
-            for record in SeqIO.parse(handle, "fasta"):
-                read_id, read_seq = record.id, record.seq
-                fa_sequences[read_id] = reduce_represent(read_seq)
-        elif "fastq.gz" in file_type:
-            for record in SeqIO.parse(handle, "fastq"):
-                read_id, read_seq = record.id, str(record.seq)
-                fa_sequences[read_id] = reduce_represent(read_seq)
-        else:
-            with open(fa_filename, "rt") as handle:
-                if "fasta" in file_type:
-                    for record in SeqIO.parse(handle, "fasta"):
-                            read_id, read_seq = record.id, str(record.seq)
-                            fa_sequences[read_id] = reduce_represent(read_seq)
-                elif "fastq" in file_type:
-                    for record in SeqIO.parse(handle, "fastq"):
-                            read_id, read_seq = record.id, record.seq
-                            fa_sequences[read_id] = reduce_represent(read_seq)
+	file_type = detect_filetype(fa_filename)
+	fa_sequences = dict(list())
+	if ".gz" in file_type:
+		with gzip.open(fa_filename, "rt") as handle:
+			print "unzipped fine!"
+			if "fasta.gz" in file_type:
+				for record in SeqIO.parse(handle, "fasta"):
+					read_id, read_seq = record.id, record.seq
+					fa_sequences[read_id] = reduce_represent(read_seq)
+			elif "fastq.gz" in file_type:
+				for record in SeqIO.parse(handle, "fastq"):
+					read_id, read_seq = record.id, str(record.seq)
+					fa_sequences[read_id] = reduce_represent(read_seq)
+	else:
+		with open(fa_filename, "rt") as handle:
+			if "fasta" in file_type:
+				for record in SeqIO.parse(handle, "fasta"):
+					read_id, read_seq = record.id, str(record.seq)
+					fa_sequences[read_id] = reduce_represent(read_seq)
+			elif "fastq" in file_type:
+				for record in SeqIO.parse(handle, "fastq"):
+					read_id, read_seq = record.id, record.seq
+					fa_sequences[read_id] = reduce_represent(read_seq)
 
-    return fa_sequences
+	return fa_sequences
 
 def parse_paf(overlaps_filename):
     # ========================================================
-    # Parses PAF:
+    print "[ Parse PAF file ]"
     # --------------------------------------------------------
     # Gets for each read, length, length of all overlaps (OLs), 
     # and number of OLs.
@@ -707,8 +719,6 @@ def parse_paf(overlaps_filename):
     #           value = read(read_id, length, total OLs length, 
     #                 number of OLs)
     # ========================================================
-    print "\n\n\n\n"
-    print "[ Parse FASTA/Q file ]"
     
     paf_records = dict()
     with open(overlaps_filename, "r") as overlaps:
@@ -795,38 +805,37 @@ def write_to_csv(csv_filename, output_prefix, data):
                 writer.writerow([key, value])
  
 def create_overlaps_file(fa_filename, output_prefix, data_type):
-    # ========================================================
-    # Runs minimap2 to get long read overlaps
-    # --------------------------------------------------------
-    # Input:    FASTA/Q filename and data type {ont, pb}
-    # Output:   PAF file which holds all info about overlaps
-    # ========================================================
-    overlaps_filename = "./" + output_prefix + "/" + output_prefix + "_overlaps.paf"
+	# ========================================================
+	# Runs minimap2 to get long read overlaps
+	# --------------------------------------------------------
+	# Input:    FASTA/Q filename and data type {ont, pb}
+	# Output:   PAF file which holds all info about overlaps
+	# ========================================================
+	overlaps_filename = "./" + output_prefix + "/" + output_prefix + "_overlaps.paf"
 
-    # create overlaps file if it doesn't already exist
-    if not (os.path.exists(overlaps_filename) and os.path.getsize(overlaps_filename) > 0):
-        if data_type == "ont":
-                minimap2_command = "minimap2 -x ava-ont " + fa_filename + " " + fa_filename + " > " + overlaps_filename
-    print minimap2_command
-            subprocess.call(minimap2_command, shell=True)
-        elif data_type == "pb": 
-                minimap2_command = "minimap2 -x ava-pb " + fa_filename + " " + fa_filename + " > " + overlaps_filename
-                subprocess.call(minimap2_command, shell=True)
-        else:
-                print "Error: Long read sequencing data not recognized. Either ONT or PB data only."
-                sys.exit()
+	# create overlaps file if it doesn't already exist
+	if not (os.path.exists(overlaps_filename) and os.path.getsize(overlaps_filename) > 0):
+		if data_type == "ont":
+			minimap2_command = "minimap2 -x ava-ont " + fa_filename + " " + fa_filename + " > " + overlaps_filename
+			print minimap2_command
+			subprocess.call(minimap2_command, shell=True)
+		elif data_type == "pb": 
+			minimap2_command = "minimap2 -x ava-pb " + fa_filename + " " + fa_filename + " > " + overlaps_filename
+			subprocess.call(minimap2_command, shell=True)
+		else:
+			print "Error: Long read sequencing data not recognized. Either ONT or PB data only."
+			sys.exit()
 
-    return overlaps_filename
+	return overlaps_filename
 
 class Error(Exception):
     """Base class for other exceptions"""
     pass
 
 class InputFileError(Error):
-    """Raised if PAF does not exist, or exists but it is empty or not readable"""
-    def __init__(self, filetype):
-    self.filetype = filetype
-    self.msg =  self.filetype + " does not exist, or exists but it is empty or not readable"
+	"""Raised if PAF does not exist, or exists but it is empty or not readable"""
+	def __init__(self, filetype):
+		self.filetype = filetype
 
 if __name__ == "__main__":
-    main()
+	main()
