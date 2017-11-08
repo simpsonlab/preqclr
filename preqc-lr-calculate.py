@@ -46,7 +46,7 @@ def main():
 	print "RUNNING PREQC-LR CALCULATE" 
 	print "========================================================"
 	print "========================================================"
-	print "PROCESSING INPUT"
+	print "CHECKING INPUT"
 	print "========================================================"
 	# --------------------------------------------------------
 	# PART 1: Check input integrity
@@ -65,7 +65,7 @@ def main():
 		use_working_dir = raw_input()
 		if not use_working_dir == "n" and not use_working_dir == "y":
 			print "[-] Only 'y' or 'n' as response."
-		if use_working_dir == "n":
+		elif use_working_dir == "n":
 			print "[-] Please input new output_prefix:"
 			output_prefix = raw_input()
 			working_dir = './' +  output_prefix
@@ -145,7 +145,7 @@ def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
     # ========================================================
 
 	print "========================================================"
-	print "PRE PROCESS INPUT"
+	print "PRE-PROCESS INPUT"
 	print "========================================================"
 	# --------------------------------------------------------
 	# PART 0: Detect the file type, parse file, save to dict
@@ -377,14 +377,14 @@ def calculate_estimated_coverage(fasta, output_prefix, data):
     print "[+] Post-filter stats: "
     max_cov = max(filtered_covs, key=itemgetter(0))[0]
     min_cov = min(filtered_covs, key=itemgetter(0))[0]
-    print "[-] Max coverage: " + str(max_cov)
-    print "[-] Min coverage: " + str(min_cov)
+    print "[-] 	Max coverage: " + str(max_cov)
+    print "[-] 	Min coverage: " + str(min_cov)
     mean_cov = float(np.mean([x[0] for x in filtered_covs]))
     median_cov = float(np.median([x[0] for x in filtered_covs]))
     mean_read_length = float(np.mean([x[1] for x in filtered_covs]))
     median_read_length = float(np.median([x[1] for x in filtered_covs]))
-    print "[+] Cov (mean, median): (" + str(mean_cov) + "," + str(median_cov) + ")"
-    print "[+] Read length (mean, median): (" + str(mean_read_length) + "," + str(median_read_length) + ")"
+    print "[-] 	Cov (mean, median): (" + str(mean_cov) + "," + str(median_cov) + ")"
+    print "[-]	Read length (mean, median): (" + str(mean_read_length) + "," + str(median_read_length) + ")"
     num_reads = float(len(filtered_covs))
     q75, q25 = np.percentile([x[0] for x in filtered_covs], [75 ,25])
     post_filter = (num_reads, max_cov, min_cov, median_cov, mean_read_length, upperbound, lowerbound)
@@ -688,81 +688,81 @@ def parse_fa(fa_filename):
 	return fa_sequences
 
 def parse_paf(overlaps_filename):
-    # ========================================================
-    print "[ Parse PAF file ]"
-    # --------------------------------------------------------
-    # Gets for each read, length, length of all overlaps (OLs), 
-    # and number of OLs.
-    # Input:    minimap2 output PAF file
-    # Output:   Dictionary with overlap info:
-    #           key = read_id
-    #           value = read(read_id, length, total OLs length, 
-    #                 number of OLs)
-    # ========================================================
+	# ========================================================
+	print "[ Parse PAF file ]"
+	# --------------------------------------------------------
+	# Gets for each read, length, length of all overlaps (OLs), 
+	# and number of OLs.
+	# Input:    minimap2 output PAF file
+	# Output:   Dictionary with overlap info:
+	#           key = read_id
+	#           value = read(read_id, length, total OLs length, 
+	#                 number of OLs)
+	# ========================================================
     
-    paf_records = dict()
-    with open(overlaps_filename, "r") as overlaps:
-            for line in overlaps:
-                # get information for each overlap
-                query_read_id = line.split('\t')[0]
-                target_read_id = line.split('\t')[5]
-                query_start_pos = int(line.split('\t')[2])
-                query_end_pos = int(line.split('\t')[3])
-                target_start_pos = int(line.split('\t')[7])
-                target_end_pos = int(line.split('\t')[8])
-                query_length = int(line.split('\t')[1])
-                target_length = int(line.split('\t')[6])
-                strand = line.split('\t')[4]
-                #num_matches = int(line.split('\t')[9])
+	paf_records = dict()
+	with open(overlaps_filename, "r") as overlaps:
+		for line in overlaps:
+			# get information for each overlap
+			ol = line.split('\t')
+			query_read_id = ol.pop(0)
+			query_length = int(ol.pop(0))
+			query_start_pos = int(ol.pop(0))
+			query_end_pos = int(ol.pop(0))
+			strand = ol.pop(0)
+			target_read_id = ol.pop(0)
+			target_length = int(ol.pop(0))
+			target_start_pos = int(ol.pop(0))
+			target_end_pos = int(ol.pop(0))
 
-                # calculate overlap length and account for soft clipping
-                if not (query_read_id == target_read_id):
-                        query_prefix_len = query_start_pos
-                        query_suffix_len = query_length - query_end_pos
+			# calculate overlap length and account for soft clipping
+			if not (query_read_id == target_read_id):
+				query_prefix_len = query_start_pos
+				query_suffix_len = query_length - query_end_pos
 
-                        target_prefix_len = target_start_pos
-                        target_suffix_len = target_length - target_end_pos
+				target_prefix_len = target_start_pos
+				target_suffix_len = target_length - target_end_pos
 
-                        # calculate length of overlap
-                        overlap_length = query_end_pos - query_start_pos
+				# calculate length of overlap
+				overlap_length = query_end_pos - query_start_pos
 
-                        # minimap2 might be performing softclipping
-                        left_clip = 0
-                        right_clip = 0
-                        if not (query_start_pos == 0) and not (target_start_pos == 0) :
-                                if strand == "+":
-                                        left_clip = min(query_prefix_len, target_prefix_len)
-                                else:
-                                        left_clip = min(query_prefix_len, target_suffix_len)
-                        if not (query_end_pos == 0) and not (target_end_pos == 0) :
-                                if strand == "+":
-                                        right_clip = min(query_suffix_len, target_suffix_len)
-                                else:
-                                        right_clip = min(query_suffix_len, target_prefix_len)
-                        overlap_length += left_clip + right_clip
+				# minimap2 might be performing softclipping
+				left_clip = 0
+				right_clip = 0
+				if not (query_start_pos == 0) and not (target_start_pos == 0) :
+					if strand == "+":
+						left_clip = min(query_prefix_len, target_prefix_len)
+					else:
+						left_clip = min(query_prefix_len, target_suffix_len)
+				if not (query_end_pos == 0) and not (target_end_pos == 0) :
+					if strand == "+":
+						right_clip = min(query_suffix_len, target_suffix_len)
+					else:
+						right_clip = min(query_suffix_len, target_prefix_len)
+						overlap_length += left_clip + right_clip
 
-                        # add sum overlaps, increment overlap counter
-                        if query_read_id in paf_records:
-                            old_overlap_len = paf_records[query_read_id].get_total_len_overlaps()
-                            new_overlap_len = old_overlap_len + overlap_length
-                            paf_records[query_read_id].update_total_len_overlaps(new_overlap_len)
-                            old_overlap_num = paf_records[query_read_id].get_total_num_overlaps()
-                            paf_records[query_read_id].update_total_num_overlaps()
-                        else:
-                            new_read = read(query_read_id, query_length, overlap_length, 1)
-                            paf_records[query_read_id] = new_read
+				# add sum overlaps, increment overlap counter
+				if query_read_id in paf_records:
+					old_overlap_len = paf_records[query_read_id].get_total_len_overlaps()
+					new_overlap_len = old_overlap_len + overlap_length
+					paf_records[query_read_id].update_total_len_overlaps(new_overlap_len)
+					old_overlap_num = paf_records[query_read_id].get_total_num_overlaps()
+					paf_records[query_read_id].update_total_num_overlaps()
+				else:
+					new_read = read(query_read_id, query_length, overlap_length, 1)
+					paf_records[query_read_id] = new_read
 
-                        if target_read_id in paf_records:
-                            old_overlap_len = paf_records[target_read_id].get_total_len_overlaps()
-                            new_overlap_len = old_overlap_len + overlap_length
-                            paf_records[target_read_id].update_total_len_overlaps(new_overlap_len)
-                            old_overlap_num = paf_records[target_read_id].get_total_num_overlaps()
-                            paf_records[target_read_id].update_total_num_overlaps()
-                        else:
-                            new_read = read(target_read_id, target_length, overlap_length, 1)
-                            paf_records[target_read_id] = new_read  
+				if target_read_id in paf_records:
+					old_overlap_len = paf_records[target_read_id].get_total_len_overlaps()
+					new_overlap_len = old_overlap_len + overlap_length
+					paf_records[target_read_id].update_total_len_overlaps(new_overlap_len)
+					old_overlap_num = paf_records[target_read_id].get_total_num_overlaps()
+					paf_records[target_read_id].update_total_num_overlaps()
+				else:
+					new_read = read(target_read_id, target_length, overlap_length, 1)
+					paf_records[target_read_id] = new_read  
 
-    return paf_records
+	return paf_records
 
 def write_to_csv(csv_filename, output_prefix, data):
     # ========================================================
