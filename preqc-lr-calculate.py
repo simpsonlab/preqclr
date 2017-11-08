@@ -173,7 +173,6 @@ def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
 	# --------------------------------------------------------
 	global paf_given
 	if not paf_given:
-		print "Running minimap2 to achieve overlaps"
 		start = time.clock()
 		paf = create_overlaps_file(fa_filename, output_prefix, data_type)
 		end = time.clock()
@@ -349,47 +348,43 @@ def calculate_estimated_coverage(fasta, output_prefix, data):
     # --------------------------------------------------------
     # PART 2: Filter outliers
     # --------------------------------------------------------
-    print "[+] Pre-Filter"
+    print "[+] Pre-filter stats: "
     max_cov = max(covs, key=itemgetter(0))[0]
     min_cov = min(covs, key=itemgetter(0))[0]
-    print "[-] Max cov: " + str(max_cov)
-    print "[-] Min cov: " + str(min_cov)
+    print "[-] 	Max coverage: " + str(max_cov)
+    print "[-] 	Min coverage: " + str(min_cov)
     mean_cov = float(np.mean([x[0] for x in covs]))
     median_cov = float(np.median([x[0] for x in covs]))
-    mode_cov = stats.mode([x[0] for x in covs])
     mean_read_length = float(np.mean([x[1] for x in covs]))
     median_read_length = float(np.median([x[1] for x in covs]))
-    mode_read_length = stats.mode([x[1] for x in covs])
-    print "[-] Cov (mean, median, mode): (" + str(mean_cov) + "," + str(median_cov) + "," + str(mode_cov) + ")"
-    print "[-] Read length (mean, median, mode): (" + str(mean_read_length) + "," + str(median_read_length) + "," + str(mode_read_length) + ")"
+    print "[-] 	Cov (mean, median): (" + str(mean_cov) + "," + str(median_cov)  + ")"
+    print "[-] 	Read length (mean, median): (" + str(mean_read_length) + "," + str(median_read_length)  + ")"
     num_reads = float(len(covs))
     pre_filter = (num_reads, max_cov, min_cov, median_cov, mean_read_length) 
 
-    print "[+] Filters based on"
+    print "[+] Filter parameters: "
     q75, q25 = np.percentile([x[0] for x in covs], [75 ,25])
     IQR = float(q75) - float(q25)
     upperbound = q75 + IQR * 1.5
     lowerbound = q25 - IQR * 1.5
-    print "[-] Upperbound limit: " + str(upperbound)
-    print "[-] Lowerbound limit: " + str(lowerbound)
+    print "[-] 	Coverage upperbound limit: " + str(upperbound)
+    print "[-] 	Coverage lowerbound limit: " + str(lowerbound)
 
     # filtering
     temp = [i for i in covs if i[0] < upperbound]
     filtered_covs = [i for i in temp if i[0] > lowerbound]
 
-    print "[+] Post-Filter"
+    print "[+] Post-filter stats: "
     max_cov = max(filtered_covs, key=itemgetter(0))[0]
     min_cov = min(filtered_covs, key=itemgetter(0))[0]
-    print "[-] Max cov: " + str(max_cov)
-    print "[-] Min cov: " + str(min_cov)
+    print "[-] Max coverage: " + str(max_cov)
+    print "[-] Min coverage: " + str(min_cov)
     mean_cov = float(np.mean([x[0] for x in filtered_covs]))
     median_cov = float(np.median([x[0] for x in filtered_covs]))
-    mode_cov = stats.mode([x[0] for x in filtered_covs])
     mean_read_length = float(np.mean([x[1] for x in filtered_covs]))
     median_read_length = float(np.median([x[1] for x in filtered_covs]))
-    mode_read_length = stats.mode([x[1] for x in filtered_covs])
-    print "[+] Cov (mean, median, mode): (" + str(mean_cov) + "," + str(median_cov) + "," + str(mode_cov) + ")"
-    print "[+] Read length (mean, median, mode): (" + str(mean_read_length) + "," + str(median_read_length) + "," + str(mode_read_length) + ")"
+    print "[+] Cov (mean, median): (" + str(mean_cov) + "," + str(median_cov) + ")"
+    print "[+] Read length (mean, median): (" + str(mean_read_length) + "," + str(median_read_length) + ")"
     num_reads = float(len(filtered_covs))
     q75, q25 = np.percentile([x[0] for x in filtered_covs], [75 ,25])
     post_filter = (num_reads, max_cov, min_cov, median_cov, mean_read_length, upperbound, lowerbound)
@@ -602,45 +597,44 @@ class read:
     	return self.read_length
 
 def reduce_represent(read_seq):
-    # ========================================================
-    # Represents reads in a reduced form: 
-    # --------------------------------------------------------
-    # We only need information on counts of nucleotides ACGT
-    # Input:    FASTA/Q file
-    # Output:   Dictionary of sequences:
-    #           key = read_id
-    #           value = (reduced rep. of seq, read length)
-    # ========================================================
-    count_C = read_seq.count('C')
-    count_G = read_seq.count('G')
-    count_A = read_seq.count('A')
-    count_T = read_seq.count('T')
-    read_length = int(count_A) + int(count_C) + int(count_G) + int(count_T)
-    count_rep = "A" + str(count_A) + "C" + str(count_C) + "G" + str(count_G) + "T" + str(count_T)
-    return (count_rep, read_length)
+	# ========================================================
+	# Represents reads in a reduced form: 
+	# --------------------------------------------------------
+	# We only need information on counts of nucleotides CG
+	# Input:    FASTA/Q file
+	# Output:   Dictionary of sequences:
+	#           key = read_id
+	#           value = (reduced rep. of seq, read length)
+	# ========================================================
+	count_C = read_seq.count('C')
+	count_G = read_seq.count('G')
+    #count_A = read_seq.count('A')
+    #count_T = read_seq.count('T')
+	read_length = int(len(read_seq))
+    #count_rep = "A" + str(count_A) + "C" + str(count_C) + "G" + str(count_G) + "T" + str(count_T)
+	count_rep = "C" + str(count_C) + "G" + str(count_G)
+	return (count_rep, read_length)
 
 def translate_reduce_represent(count_rep, nt):
     # ========================================================
     # Translates the read in the reduced form: 
     # --------------------------------------------------------
-    # Retrieves the count for one of the nucleotides (nt) in
+    # Retrieves the count for G or C nucleotides (nt) in
     # a given read.
     # Input: Reduced representation of read, and one of the nt
-    #        {A, C, G, T}.
-    # Output: Number of occurences of nt in the read.
+    #        {C, G} you want counts for.
+    # Output: Number of occurences of indicated nt in read.
     # ========================================================
-    next_nt = ""
-    if nt == "A":
-        next_nt = "C"
-    elif nt == "C":
-        next_nt = "G"
-    elif nt == "G":
-        next_nt = "T"
-    else:
-        return count_rep.split("T")[1]
-    start = count_rep.index(nt) + 1
-    end = count_rep.index(next_nt, start)
-    return int(count_rep[start:end])
+	next_nt = ""
+	if nt == "C":
+		next_nt = "G"
+	elif nt == "G":
+		return count_rep.split("G")[1]
+	else:
+		print "ERROR: translating reduce representation of read. Nucleotide not recognized."
+	start = count_rep.index(nt) + 1
+	end = count_rep.index(next_nt, start)
+	return int(count_rep[start:end])
 
 def detect_filetype(fa_filename):
     # ========================================================
@@ -719,7 +713,7 @@ def parse_paf(overlaps_filename):
                 query_length = int(line.split('\t')[1])
                 target_length = int(line.split('\t')[6])
                 strand = line.split('\t')[4]
-                num_matches = int(line.split('\t')[9])
+                #num_matches = int(line.split('\t')[9])
 
                 # calculate overlap length and account for soft clipping
                 if not (query_read_id == target_read_id):
@@ -792,7 +786,7 @@ def write_to_csv(csv_filename, output_prefix, data):
  
 def create_overlaps_file(fa_filename, output_prefix, data_type):
 	# ========================================================
-	# Runs minimap2 to get long read overlaps
+	print "[ Running minimap2 to achieve all-vs-all overlaps ]"
 	# --------------------------------------------------------
 	# Input:    FASTA/Q filename and data type {ont, pb}
 	# Output:   PAF file which holds all info about overlaps
@@ -803,14 +797,17 @@ def create_overlaps_file(fa_filename, output_prefix, data_type):
 	if not (os.path.exists(overlaps_filename) and os.path.getsize(overlaps_filename) > 0):
 		if data_type == "ont":
 			minimap2_command = "minimap2 -x ava-ont " + fa_filename + " " + fa_filename + " > " + overlaps_filename
-			print minimap2_command
+			print "[x] " + minimap2_command
 			subprocess.call(minimap2_command, shell=True)
 		elif data_type == "pb": 
 			minimap2_command = "minimap2 -x ava-pb " + fa_filename + " " + fa_filename + " > " + overlaps_filename
+			print "[x] " + minimap2_command
 			subprocess.call(minimap2_command, shell=True)
 		else:
-			print "Error: Long read sequencing data not recognized. Either ONT or PB data only."
+			print "[!] Error: Long read sequencing data not recognized. Either ONT or PB data only."
 			sys.exit()
+	else:
+		print "[+] Non-empty PAF file already exists: " + overlaps_filename
 
 	return overlaps_filename
 
