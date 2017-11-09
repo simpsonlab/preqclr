@@ -18,11 +18,12 @@ try:
 	from scipy import stats
 	import time
 except ImportError:
-	print('Missing package(s)')
+	custom_print('Missing package(s)')
 
 paf_given=False
 store_csv=False
 verbose=False
+log=list()
 
 def main():
 	start = time.clock()	
@@ -44,22 +45,24 @@ def main():
 	parser.add_argument('-v', '--version', action='version', version='%(prog)s 0.9')
 	args = parser.parse_args()
 
+	# initialize list that will log all output
 	global verbose
+	global log
 	verbose = args.verbose
 
-	print "========================================================"
-	print "RUNNING PREQC-LR CALCULATE" 
-	print "========================================================"
-	print "========================================================"
-	print "CHECKING INPUT"
-	print "========================================================"
+	custom_print( "========================================================")
+	custom_print( "RUNNING PREQC-LR CALCULATE" ) 
+	custom_print( "========================================================")
+	custom_print( "========================================================")
+	custom_print( "CHECKING INPUT" )
+	custom_print( "========================================================")
 
 	# --------------------------------------------------------
 	# PART 1: Check input integrity
 	# --------------------------------------------------------
 	# check sequences input
 	if not os.path.exists(args.fa_filename) or not os.path.getsize(args.fa_filename) > 0 or not os.access(args.fa_filename, os.R_OK):
-		print "Fasta/fastq file does not exist, is empty or is not readable."
+		custom_print( "Fasta/fastq file does not exist, is empty or is not readable." )
 		raise InputFileError('Fasta/fastq')
 	
 	# check output directory, report if already exists, see if user would like to change output directory
@@ -67,17 +70,17 @@ def main():
 	working_dir = './' + output_prefix
 	use_working_dir = ''
 #	while os.path.exists(working_dir) or (not use_working_dir == "n" and not use_working_dir == "y"):
-#		print "[?] Output directory \'" + working_dir + "\' already exists. Do you still want to use this directory? [y/n]"
+#		custom_print( "[?] Output directory \'" + working_dir + "\' already exists. Do you still want to use this directory? [y/n]"
 #		use_working_dir = raw_input()
 #		if not use_working_dir == "n" and not use_working_dir == "y":
-#			print "[-] Only 'y' or 'n' as response."
+#			custom_print( "[-] Only 'y' or 'n' as response."
 #		elif use_working_dir == "n":
-#			print "[-] Please input new output_prefix:"
+#			custom_print( "[-] Please input new output_prefix:"
 #			output_prefix = raw_input()
 #			working_dir = './' +  output_prefix
 #		else:
 #			working_dir = './' +  output_prefix
-#			print "[-] Output directory: " + working_dir
+#			custom_print( "[-] Output directory: " + working_dir
 #			break
 
 	# check paf if given
@@ -102,29 +105,29 @@ def main():
 	data['csv_storage'] = args.store_csv
 	if paf_given:
 		data['paf'] = args.paf
-	print "[ Input ]"
-	print "[+] Sample name: " + args.sample_name
-	print "[+] Data type: " + args.data_type
-	print "[+] FASTA/Q: " + args.fa_filename
-	print "[+] Storing csv: " + str(args.store_csv)
+	custom_print( "[ Input ]" )
+	custom_print( "[+] Sample name: " + args.sample_name )
+	custom_print( "[+] Data type: " + args.data_type )
+	custom_print( "[+] FASTA/Q: " + args.fa_filename )
+	custom_print( "[+] Storing csv: " + str(args.store_csv) )
 	if paf_given:
-		print "[+] PAF: " + str(args.paf)
+		custom_print( "[+] PAF: " + str(args.paf) )
 	else:
- 		print "[+] PAF: None given, will run minimap2."
+ 		custom_print( "[+] PAF: None given, will run minimap2." )
 
 	# --------------------------------------------------------
 	# PART 3: Create work dir, and csv dir if requested
 	# --------------------------------------------------------
-	print "[ Output ]"
+	custom_print( "[ Output ]" )
 	csv_dir = './' + output_prefix + '/csv'
 	work_dir = working_dir
 	if not os.path.exists(work_dir):
 		os.makedirs(work_dir)
 	if args.store_csv and not os.path.exists(csv_dir):
 		os.makedirs(csv_dir)
-    print "[+] Output directory: " + work_dir
+	custom_print( "[+] Output directory: " + work_dir )
 	if args.store_csv:
-		print "[+] Storing csv in: " + csv_dir
+		custom_print( "[+] Storing csv in: " + csv_dir )
 
 	# --------------------------------------------------------
 	# PART 4: Create the preqclr report data
@@ -135,8 +138,17 @@ def main():
 		calculate_report(output_prefix, args.fa_filename, args.data_type, data)
 	end = time.clock()
 	total_time = end - start
-	print "[ Done ]"
-	print "[+] Total time: " + str(total_time) + " seconds"
+	custom_print( "[ Done ]" )
+	custom_print( "[+] Total time: " + str(total_time) + " seconds" )
+
+	# --------------------------------------------------------
+    # Final: Store log in file if user didn't specify verbose
+    # --------------------------------------------------------
+	if not verbose:
+		outfile = output_prefix + "_preqclr.log"
+		with open(outfile, 'wb') as f:
+			for o in log:
+				f.write(o + "\n")
 
 def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
 	# ========================================================
@@ -150,9 +162,9 @@ def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
 	#		   create plots.
 	# ========================================================
 
-	print "========================================================"
-	print "PRE-PROCESS INPUT"
-	print "========================================================"
+	custom_print( "========================================================" )
+	custom_print( "PRE-PROCESS INPUT" )
+	custom_print( "========================================================" )
 	# --------------------------------------------------------
 	# PART 0: Detect the file type, parse file, save to dict
 	# --------------------------------------------------------
@@ -161,7 +173,7 @@ def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
 	fa_sequences = parse_fa(fa_filename)
 	end = time.clock()
 	total_time = end - start
-	print "[+] Time elapsed: " + str(total_time) + " seconds"
+	custom_print( "[+] Time elapsed: " + str(total_time) + " seconds" )
 
 	# --------------------------------------------------------
 	# PART 1: Create all necessary info for fasta object
@@ -183,7 +195,7 @@ def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
 		paf = create_overlaps_file(fa_filename, output_prefix, data_type)
 		end = time.clock()
 		total_time = end - start
-		print "[+] Time elapsed: " + str(total_time) + " seconds"
+		custom_print( "[+] Time elapsed: " + str(total_time) + " seconds" ) 
 
 	# --------------------------------------------------------
 	# PART 3: Parse PAF file, extract only necessary info
@@ -192,7 +204,7 @@ def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
 	paf_records = parse_paf(paf)
 	end = time.clock()
 	total_time = end - start
-	print "[+] Time elapsed: " + str(total_time) + " seconds"
+	custom_print( "[+] Time elapsed: " + str(total_time) + " seconds" )
 
 	# store all info about fasta file and PAF file into object
 	fasta = fasta_file(fa_filename, fa_sequences, num_reads, mean_read_length, data_type, paf_records)  
@@ -204,51 +216,51 @@ def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
 	data['paf'] = paf
 
 
-	print "========================================================"
-	print "CALCULATE INFO"
-	print "========================================================"
+	custom_print( "========================================================" )
+	custom_print( "CALCULATE INFO" )
+	custom_print( "========================================================" )
 	# --------------------------------------------------------
 	# PART 4: Let the calculations begin...
 	# --------------------------------------------------------
 	start = time.clock()
 	calculate_read_length(fasta, output_prefix, data)
 	end = time.clock()
-	print "[+] Time elapsed: " + str(end - start) + " seconds"
+	custom_print( "[+] Time elapsed: " + str(end - start) + " seconds" )
 
 	start = time.clock()
 	calculate_num_overlaps_per_read(fasta, output_prefix, data)
 	end = time.clock()
-	print "[+] Time elapsed: " + str(end - start) + " seconds"
+	custom_print( "[+] Time elapsed: " + str(end - start) + " seconds" )
 
 	start = time.clock()
 	calculate_est_cov(fasta, output_prefix, data)
 	end = time.clock()
-	print "[+] Time elapsed: " + str(end - start) + " seconds"
+	custom_print( "[+] Time elapsed: " + str(end - start) + " seconds" )
 
 	start = time.clock()
 	calculate_GC_content_per_read(fasta, output_prefix, data)
 	end = time.clock()
-	print "[+] Time elapsed: " + str(end - start) + " seconds"
+	custom_print( "[+] Time elapsed: " + str(end - start) + " seconds" )
 	
 	start = time.clock()
 	calculate_total_num_bases_vs_min_read_length(fasta, output_prefix, data)
 	end = time.clock()
-	print "[+] Time elapsed: " + str(end - start) + " seconds"
+	custom_print( "[+] Time elapsed: " + str(end - start) + " seconds" )
 
-	print "========================================================"
-	print "STORE INFO"
-	print "========================================================"
+	custom_print( "========================================================" )
+	custom_print( "STORE INFO" )
+	custom_print( "========================================================" )
 	# --------------------------------------------------------
 	# PART 3: After all calculations are done, store in json
 	# --------------------------------------------------------
 	preqclr_data = './' + output_prefix + '.preqclr'
 	with open(preqclr_data, 'w') as outfile:  
 		json.dump(data, outfile, indent=4)
-	print "[+] Preqc-lr output stored in: " + preqclr_data
+	custom_print( "[+] Preqc-lr output stored in: " + preqclr_data )
 
 def calculate_read_length(fasta, output_prefix, data):
 	# ========================================================
-	print "[ Calculating read length distribution ]"
+	custom_print( "[ Calculating read length distribution ]" )
 	# --------------------------------------------------------
 	# Input:	Dictionary of reads
 	# Output:   List of read lengths
@@ -277,7 +289,7 @@ def calculate_read_length(fasta, output_prefix, data):
 
 def calculate_num_overlaps_per_read(fasta, output_prefix, data):
 	# ========================================================
-	print "[ Calculating number of overlaps per read ]"
+	custom_print( "[ Calculating number of overlaps per read ]" )
 	# --------------------------------------------------------
 	# Input: FASTA/Q filename
 	# Output: Either ['fastq.gz', 'fasta.gz', 'fastq', 'fasta']
@@ -319,7 +331,7 @@ def calculate_num_overlaps_per_read(fasta, output_prefix, data):
 
 def calculate_est_cov(fasta, output_prefix, data):
 	# ========================================================
-	print "[ Calculating est cov per read, and est genome size ]"
+	custom_print( "[ Calculating est cov per read, and est genome size ]" )
 	# --------------------------------------------------------
 	# Uses for each read, length and length of all overlaps,
 	# to calculate the est cov. It then performs
@@ -354,43 +366,43 @@ def calculate_est_cov(fasta, output_prefix, data):
 	# --------------------------------------------------------
 	# PART 2: Filter outliers
 	# --------------------------------------------------------
-	print "[+] Pre-filter stats: "
+	custom_print( "[+] Pre-filter stats: " )
 	max_cov = max(covs, key=itemgetter(0))[0]
 	min_cov = min(covs, key=itemgetter(0))[0]
-	print "[-] 	Max cov: " + str(max_cov)
-	print "[-] 	Min cov: " + str(min_cov)
+	custom_print( "[-] 	Max cov: " + str(max_cov) )
+	custom_print( "[-] 	Min cov: " + str(min_cov) )
 	mean_cov = float(np.mean([x[0] for x in covs]))
 	median_cov = float(np.median([x[0] for x in covs]))
 	mean_read_length = float(np.mean([x[1] for x in covs]))
 	median_read_length = float(np.median([x[1] for x in covs]))
-	print "[-] 	Cov (mean, median): (" + str(mean_cov) + "," + str(median_cov)  + ")"
-	print "[-] 	Read length (mean, median): (" + str(mean_read_length) + "," + str(median_read_length)  + ")"
+	custom_print( "[-] 	Cov (mean, median): (" + str(mean_cov) + "," + str(median_cov)  + ")" )
+	custom_print( "[-] 	Read length (mean, median): (" + str(mean_read_length) + "," + str(median_read_length)  + ")" )
 	num_reads = float(len(covs))
 	pre_filter = (num_reads, max_cov, min_cov, median_cov, mean_read_length) 
 
-	print "[+] Filter parameters: "
+	custom_print( "[+] Filter parameters: " )
 	q75, q25 = np.percentile([x[0] for x in covs], [75 ,25])
 	IQR = float(q75) - float(q25)
 	upperbound = q75 + IQR * 1.5
 	lowerbound = q25 - IQR * 1.5
-	print "[-] 	Coverage upperbound limit: " + str(upperbound)
-	print "[-] 	Coverage lowerbound limit: " + str(lowerbound)
+	custom_print( "[-] 	Coverage upperbound limit: " + str(upperbound) )
+	custom_print( "[-] 	Coverage lowerbound limit: " + str(lowerbound) )
 
 	# filtering
 	temp = [i for i in covs if i[0] < upperbound]
 	filtered_covs = [i for i in temp if i[0] > lowerbound]
 
-	print "[+] Post-filter stats: "
+	custom_print( "[+] Post-filter stats: " )
 	max_cov = max(filtered_covs, key=itemgetter(0))[0]
 	min_cov = min(filtered_covs, key=itemgetter(0))[0]
-	print "[-] 	Max cov: " + str(max_cov)
-	print "[-] 	Min cov: " + str(min_cov)
+	custom_print( "[-] 	Max cov: " + str(max_cov) )
+	custom_print( "[-] 	Min cov: " + str(min_cov) )
 	mean_cov = float(np.mean([x[0] for x in filtered_covs]))
 	median_cov = float(np.median([x[0] for x in filtered_covs]))
 	mean_read_length = float(np.mean([x[1] for x in filtered_covs]))
 	median_read_length = float(np.median([x[1] for x in filtered_covs]))
-	print "[-] 	Cov (mean, median): (" + str(mean_cov) + "," + str(median_cov) + ")"
-	print "[-]	Read length (mean, median): (" + str(mean_read_length) + "," + str(median_read_length) + ")"
+	custom_print( "[-] 	Cov (mean, median): (" + str(mean_cov) + "," + str(median_cov) + ")" )
+	custom_print( "[-]	Read length (mean, median): (" + str(mean_read_length) + "," + str(median_read_length) + ")" )
 	num_reads = float(len(filtered_covs))
 	q75, q25 = np.percentile([x[0] for x in filtered_covs], [75 ,25])
 	IQR = int( q75 - q25 )
@@ -409,17 +421,17 @@ def calculate_est_cov(fasta, output_prefix, data):
 	# --------------------------------------------------------
 	T = 100.0	   # amount of overlap in base pairs needed to detect overlap
 	theta = T / l   # expected minimum fractional overlap required between two clones
-	#print "T: " + str(T)
-	#print "Mean read length:" + str(l) 
-	#print "Theta: " + str(theta)
+	#custom_print( "T: " + str(T) )
+	#custom_print( "Mean read length:" + str(l) ) 
+	#custom_print( "Theta: " + str(theta) )
 	sigma = 1 - theta
 	g = est_genome_size
 	est_num_islands = ( ( g * c ) / l ) * math.exp(-(1 - theta) * c)
 	est_num_islands_1 = n/math.exp(sigma * c) - n/math.exp(2*sigma*c)
 	est_num_islands_2 = n / math.exp(sigma * c)
-	#print est_num_islands
-	#print est_num_islands_1
-	#print est_num_islands_2
+	#custom_print( est_num_islands )
+	#custom_print( est_num_islands_1 )
+	#custom_print( est_num_islands_2 )
 
 	# --------------------------------------------------------
 	# PART 5: Write to csv if requested
@@ -440,15 +452,15 @@ def calculate_est_cov(fasta, output_prefix, data):
 
 def calculate_GC_content_per_read(fasta, output_prefix, data):
 	# ========================================================
-	print "[ Calculating GC-content per read ]"
+	custom_print( "[ Calculating GC-content per read ]" )
 	# --------------------------------------------------------
 	# Uses for reduced representation of each read to sum 
 	# the number of Gs and Cs, then divides by total read
 	# length.
 	# Input:	Dict of reads
 	# Output:   Dictionary with GC content info:
-	#		   key = GC content level (0-100%)
-	#		   value = # of reads with GC content level
+	#		   	key = GC content level (0-100%)
+	#		   	value = # of reads with GC content level
 	# ========================================================
 
 	# --------------------------------------------------------
@@ -482,7 +494,7 @@ def calculate_GC_content_per_read(fasta, output_prefix, data):
 
 def calculate_total_num_bases_vs_min_read_length(fasta, output_prefix, data):
 	# ========================================================
-	print "[ Calculating total number of bases as a function of min read length ]"
+	custom_print( "[ Calculating total number of bases as a function of min read length ]" )
 	# --------------------------------------------------------
 	# Uses for reduced representation of each read to sum 
 	# the number of Gs and Cs, then divides by total read
@@ -636,7 +648,7 @@ def translate_reduce_represent(count_rep, nt):
 	elif nt == "G":
 		return count_rep.split("G")[1]
 	else:
-		print "ERROR: translating reduce representation of read. Nucleotide not recognized."
+		custom_print( "ERROR: translating reduce representation of read. Nucleotide not recognized." )
 	start = count_rep.index(nt) + 1
 	end = count_rep.index(next_nt, start)
 	return int(count_rep[start:end])
@@ -652,12 +664,12 @@ def detect_filetype(fa_filename):
 	for ext in ['fastq.gz', 'fasta.gz', 'fastq', 'fasta']:
 		if path.endswith(ext):
 			return ext
-	print "Must be either fasta, fastq, fasta.gz, fastq.gz"
+	custom_print( "Must be either fasta, fastq, fasta.gz, fastq.gz" )
 	sys.exit(1)
 
 def parse_fa(fa_filename):
 	# ========================================================
-	print "[ Parse FASTA/Q file ]"
+	custom_print( "[ Parse FASTA/Q file ]" )
 	# --------------------------------------------------------
 	# Detects file type then reduces seq info to only needed 
 	# information
@@ -694,7 +706,7 @@ def parse_fa(fa_filename):
 
 def parse_paf(overlaps_filename):
 	# ========================================================
-	print "[ Parse PAF file ]"
+	custom_print( "[ Parse PAF file ]" )
 	# --------------------------------------------------------
 	# Gets for each read, length, length of all overlaps (OLs), 
 	# and number of OLs.
@@ -791,7 +803,7 @@ def write_to_csv(csv_filename, output_prefix, data):
  
 def create_overlaps_file(fa_filename, output_prefix, data_type):
 	# ========================================================
-	print "[ Running minimap2 to achieve all-vs-all overlaps ]"
+	custom_print( "[ Running minimap2 to achieve all-vs-all overlaps ]" )
 	# --------------------------------------------------------
 	# Input:	FASTA/Q filename and data type {ont, pb}
 	# Output:   PAF file which holds all info about overlaps
@@ -802,17 +814,17 @@ def create_overlaps_file(fa_filename, output_prefix, data_type):
 	if not (os.path.exists(overlaps_filename) and os.path.getsize(overlaps_filename) > 0):
 		if data_type == "ont":
 			minimap2_command = "minimap2 -x ava-ont " + fa_filename + " " + fa_filename + " > " + overlaps_filename
-			print "[x] " + minimap2_command
+			custom_print( "[x] " + minimap2_command )
 			subprocess.call(minimap2_command, shell=True)
 		elif data_type == "pb": 
 			minimap2_command = "minimap2 -x ava-pb " + fa_filename + " " + fa_filename + " > " + overlaps_filename
-			print "[x] " + minimap2_command
+			custom_print( "[x] " + minimap2_command )
 			subprocess.call(minimap2_command, shell=True)
 		else:
-			print "[!] Error: Long read sequencing data not recognized. Either ONT or PB data only."
+			custom_print( "[!] Error: Long read sequencing data not recognized. Either ONT or PB data only." )
 			sys.exit()
 	else:
-		print "[+] Non-empty PAF file already exists: " + overlaps_filename
+		custom_print( "[+] Non-empty PAF file already exists: " + overlaps_filename )
 
 	return overlaps_filename
 
@@ -824,6 +836,14 @@ class InputFileError(Error):
 	"""Raised if PAF does not exist, or exists but it is empty or not readable"""
 	def __init__(self, filetype):
 		self.filetype = filetype
+
+def custom_print(s):
+	global verbose
+	global log
+	if verbose:
+		print s
+	else:
+		log.append(s)
 
 if __name__ == "__main__":
 	main()
