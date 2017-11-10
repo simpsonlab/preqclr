@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Welcome to preqc-lr’s documentation! &mdash; preqc-lr 0.1 documentation</title>
+  <title>preqc-lr &mdash; preqc-lr 0.1 documentation</title>
   
 
   
@@ -90,7 +90,15 @@
             
               <!-- Local TOC -->
               <div class="local-toc"><ul>
-<li><a class="reference internal" href="#">Welcome to preqc-lr’s documentation!</a></li>
+<li><a class="reference internal" href="#">preqc-lr</a></li>
+<li><a class="reference internal" href="#install">Install</a></li>
+<li><a class="reference internal" href="#what-is-preqc-lr">What is preqc-lr?</a><ul>
+<li><a class="reference internal" href="#calculate">Calculate</a></li>
+<li><a class="reference internal" href="#report">Report</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#quickstart">Quickstart</a></li>
+<li><a class="reference internal" href="#command-reference">Command reference</a></li>
 <li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
 </ul>
 </div>
@@ -136,7 +144,7 @@
     
       <li><a href="#">Docs</a> &raquo;</li>
         
-      <li>Welcome to preqc-lr’s documentation!</li>
+      <li>preqc-lr</li>
     
     
       <li class="wy-breadcrumbs-aside">
@@ -155,8 +163,66 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="welcome-to-preqc-lr-s-documentation">
-<h1>Welcome to preqc-lr’s documentation!<a class="headerlink" href="#welcome-to-preqc-lr-s-documentation" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="preqc-lr">
+<h1>preqc-lr<a class="headerlink" href="#preqc-lr" title="Permalink to this headline">¶</a></h1>
+<p>preqc-lr is a software tool that performs quality control checks to long read sequencing data.</p>
+</div>
+<div class="section" id="install">
+<h1>Install<a class="headerlink" href="#install" title="Permalink to this headline">¶</a></h1>
+<dl class="docutils">
+<dt>To install the latest version: ::</dt>
+<dd>git clone <a class="reference external" href="https://github.com/simpsonlab/preqc-lr.git">https://github.com/simpsonlab/preqc-lr.git</a></dd>
+</dl>
+</div>
+<div class="section" id="what-is-preqc-lr">
+<h1>What is preqc-lr?<a class="headerlink" href="#what-is-preqc-lr" title="Permalink to this headline">¶</a></h1>
+<p>With the emergence of new long read sequencing technology such as Pacbio Single Molecule, Real-Time (SMRT) Sequencing technology and Oxford Nanopore Technologies (ONT), there is a need for a method that assesses sequencing quality prior to analyses. With preqc-lr we enable users to visualize metrics of quality.</p>
+<p>There are two components to preqc-lr:
+1. calculate
+2. report</p>
+<div class="section" id="calculate">
+<h2>Calculate<a class="headerlink" href="#calculate" title="Permalink to this headline">¶</a></h2>
+<p>The first tool will calculate all the datasets needed to create plots using overlap information provided by minimap2.</p>
+</div>
+<div class="section" id="report">
+<h2>Report<a class="headerlink" href="#report" title="Permalink to this headline">¶</a></h2>
+<dl class="docutils">
+<dt>The second tool reads the calculated output and generates a pdf with the following plots:</dt>
+<dd><ol class="first last arabic simple">
+<li>Estimated genome size</li>
+<li>Read length distribution</li>
+<li>Estimated coverage distribution</li>
+<li>Per read GC content distribution</li>
+<li>Estimated coverage vs read length scatter plot</li>
+<li>Total number of bases as a function of minimum read length</li>
+</ol>
+</dd>
+</dl>
+</div>
+</div>
+<div class="section" id="quickstart">
+<h1>Quickstart<a class="headerlink" href="#quickstart" title="Permalink to this headline">¶</a></h1>
+<dl class="docutils">
+<dt>First run preqc-lr-calculate: ::</dt>
+<dd><dl class="first last docutils">
+<dt>python preqc-lr-calculate.py </dt>
+<dd>-i [FASTA/Q] -t {pb, ont} -n [sample_name] –csv –verbose –paf [paf file]</dd>
+</dl>
+</dd>
+</dl>
+<p>This will produce a json format file: <code class="docutils literal"><span class="pre">[sample_name].preqclr</span></code></p>
+<dl class="docutils">
+<dt>Then run preqc-lr-report: ::</dt>
+<dd><dl class="first last docutils">
+<dt>python preqc-lr-report.py </dt>
+<dd>-i [sample_name].preqclr -o [output prefix] –list_plots –save_png</dd>
+</dl>
+</dd>
+</dl>
+<p>This will produce a pdf file: <code class="docutils literal"><span class="pre">[output_prefix].pdf</span></code></p>
+</div>
+<div class="section" id="command-reference">
+<h1>Command reference<a class="headerlink" href="#command-reference" title="Permalink to this headline">¶</a></h1>
 <div class="toctree-wrapper compound">
 </div>
 </div>
