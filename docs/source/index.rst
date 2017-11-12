@@ -49,6 +49,7 @@ First run preqc-lr-calculate ::
 This will produce a json format file: ``[sample_name].preqclr``
 
 Then run preqc-lr-report: ::
+
 	python preqc-lr-report.py \
 		-i [sample_name].preqclr \
 		-o [output prefix] \

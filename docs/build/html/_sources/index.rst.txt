@@ -10,6 +10,7 @@ preqc-lr is a software tool that performs quality control checks to long read se
 Install
 ====================================
 To install the latest version: ::
+
    git clone https://github.com/simpsonlab/preqc-lr.git
 
 What is preqc-lr?
@@ -48,6 +49,7 @@ First run preqc-lr-calculate ::
 This will produce a json format file: ``[sample_name].preqclr``
 
 Then run preqc-lr-report: ::
+
 	python preqc-lr-report.py \
 		-i [sample_name].preqclr \
 		-o [output prefix] \

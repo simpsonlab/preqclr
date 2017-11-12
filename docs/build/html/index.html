@@ -169,10 +169,10 @@
 </div>
 <div class="section" id="install">
 <h1>Install<a class="headerlink" href="#install" title="Permalink to this headline">¶</a></h1>
-<dl class="docutils">
-<dt>To install the latest version: ::</dt>
-<dd>git clone <a class="reference external" href="https://github.com/simpsonlab/preqc-lr.git">https://github.com/simpsonlab/preqc-lr.git</a></dd>
-</dl>
+<p>To install the latest version:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">git</span> <span class="n">clone</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">simpsonlab</span><span class="o">/</span><span class="n">preqc</span><span class="o">-</span><span class="n">lr</span><span class="o">.</span><span class="n">git</span>
+</pre></div>
+</div>
 </div>
 <div class="section" id="what-is-preqc-lr">
 <h1>What is preqc-lr?<a class="headerlink" href="#what-is-preqc-lr" title="Permalink to this headline">¶</a></h1>
@@ -212,14 +212,14 @@
 </pre></div>
 </div>
 <p>This will produce a json format file: <code class="docutils literal"><span class="pre">[sample_name].preqclr</span></code></p>
-<dl class="docutils">
-<dt>Then run preqc-lr-report: ::</dt>
-<dd><dl class="first last docutils">
-<dt>python preqc-lr-report.py </dt>
-<dd>-i [sample_name].preqclr -o [output prefix] –list_plots –save_png</dd>
-</dl>
-</dd>
-</dl>
+<p>Then run preqc-lr-report:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="n">preqc</span><span class="o">-</span><span class="n">lr</span><span class="o">-</span><span class="n">report</span><span class="o">.</span><span class="n">py</span> \
+        <span class="o">-</span><span class="n">i</span> <span class="p">[</span><span class="n">sample_name</span><span class="p">]</span><span class="o">.</span><span class="n">preqclr</span> \
+        <span class="o">-</span><span class="n">o</span> <span class="p">[</span><span class="n">output</span> <span class="n">prefix</span><span class="p">]</span> \
+        <span class="o">--</span><span class="n">list_plots</span> \
+        <span class="o">--</span><span class="n">save_png</span>
+</pre></div>
+</div>
 <p>This will produce a pdf file: <code class="docutils literal"><span class="pre">[output_prefix].pdf</span></code></p>
 </div>
 <div class="section" id="command-reference">
