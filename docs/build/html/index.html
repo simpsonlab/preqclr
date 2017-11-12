@@ -202,14 +202,15 @@
 </div>
 <div class="section" id="quickstart">
 <h1>Quickstart<a class="headerlink" href="#quickstart" title="Permalink to this headline">¶</a></h1>
-<dl class="docutils">
-<dt>First run preqc-lr-calculate: ::</dt>
-<dd><dl class="first last docutils">
-<dt>python preqc-lr-calculate.py </dt>
-<dd>-i [FASTA/Q] -t {pb, ont} -n [sample_name] –csv –verbose –paf [paf file]</dd>
-</dl>
-</dd>
-</dl>
+<p>First run preqc-lr-calculate</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">python</span> <span class="n">preqc</span><span class="o">-</span><span class="n">lr</span><span class="o">-</span><span class="n">calculate</span><span class="o">.</span><span class="n">py</span> \
+    <span class="o">-</span><span class="n">i</span> <span class="p">[</span><span class="n">FASTA</span><span class="o">/</span><span class="n">Q</span><span class="p">]</span> \
+    <span class="o">-</span><span class="n">t</span> <span class="p">{</span><span class="n">pb</span><span class="p">,</span> <span class="n">ont</span><span class="p">}</span> \
+    <span class="o">-</span><span class="n">n</span> <span class="p">[</span><span class="n">sample_name</span><span class="p">]</span> \
+    <span class="o">--</span><span class="n">csv</span> <span class="o">--</span><span class="n">verbose</span> \
+    <span class="o">--</span><span class="n">paf</span> <span class="p">[</span><span class="n">paf</span> <span class="n">file</span><span class="p">]</span>
+</pre></div>
+</div>
 <p>This will produce a json format file: <code class="docutils literal"><span class="pre">[sample_name].preqclr</span></code></p>
 <dl class="docutils">
 <dt>Then run preqc-lr-report: ::</dt>
