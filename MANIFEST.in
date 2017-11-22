@@ -1,0 +1,3 @@
+include LICENSE.txt
+include preqc-lr-calculate.py
+include preqc-lr-report.py
