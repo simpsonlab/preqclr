@@ -1,14 +1,16 @@
-# preqc-lr
-
 preqc-lr
 ====================================
 preqc-lr is a software tool that performs quality control checks to long read sequencing data.
 
 Install
 ====================================
-To install the latest version: ::
+To install from source:
 
-   git clone https://github.com/simpsonlab/preqc-lr.git
+```bash
+git clone https://github.com/simpsonlab/preqc-lr.git
+cd preqc-lr
+python setup.py install
+```
 
 What is preqc-lr?
 ====================================
