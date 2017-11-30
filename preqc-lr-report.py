@@ -16,10 +16,12 @@ try:
 	import collections
 	from mpl_toolkits.axes_grid1 import make_axes_locatable
 except ImportError:
-	custom_print('Missing package(s)')	
+	print('Missing package(s)')	
+	quit()
 
 plots_available = ['est_genome_size', 'read_length_dist', 'start_pos_per_read_dist', 'est_cov_dist', 'est_cov_vs_read_length', 'per_read_GC_content_dist', 'total_num_bases_vs_min_read_length']
 save_png=False
+max_percentile=90
 
 def main():
 	print "========================================================"
@@ -66,7 +68,7 @@ def main():
 		if len(args.preqc_file) > 6:
 			raise ValueError
 	except ValueError:
-		print "Warning: Large amount of ss may not display as well"
+		print "Warning: Large amount of samples may not display as well"
 
 	create_report(args.output_prefix, args.preqc_file, plots)
 
@@ -240,6 +242,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 def plot_read_length_distribution(ax, data, output_prefix):
 	print "[ Plotting read length distribution ]"
 
+	global max_percentile
 	read_lengths = data
 
 	# get the maximum read length across all the ss
@@ -251,7 +254,7 @@ def plot_read_length_distribution(ax, data, output_prefix):
 		s_max_read_length = max(s_read_lengths)
 		if s_max_read_length > max_read_length:
 			max_read_length = s_max_read_length
-			x_lim = np.percentile(s_read_lengths, 95)
+			x_lim = np.percentile(s_read_lengths, max_percentile)
 		binwidth = 1000.0
 		bins = np.arange(0, max_read_length + binwidth, binwidth)
 
@@ -361,7 +364,6 @@ def plot_est_cov(ax, data, est_cov_post_filter_info, output_prefix):
 		sd_est_cov_read_length = data[s][1]
 		sd_est_cov = [i[0] for i in data[s][1]]							# retrieving only coverage information from list of tuples
 		sd_est_cov_post_filter_info = est_cov_post_filter_info[s]			# tuple (lowerbound cov, upperbound cov, num reads, IQR covs)
-		print sd_est_cov_post_filter_info
 		sd_upperbound = sd_est_cov_post_filter_info[1]				# precalculated est. cov. upperbound 
 		sd_num_reads = sd_est_cov_post_filter_info[2]					# number of reads after filtering
 		sd_IQR = sd_est_cov_post_filter_info[3]						# IQR cov after filtering
@@ -379,14 +381,20 @@ def plot_est_cov(ax, data, est_cov_post_filter_info, output_prefix):
 		sd_est_cov = [i[0] for i in sd]
 		sd_est_cov_post_filter_info = est_cov_post_filter_info[s]
 		sd_upperbound = sd_est_cov_post_filter_info[1]
-		labels, values = zip(*collections.Counter(sd_est_cov).items())
-		ax.plot(labels, values, color=s_color, label=s_name)
+		x, y = zip(*collections.Counter(sd_est_cov).items())
+
+		# normalize
+		sy = sum(y)
+		ny = list()
+		for i in y:
+			ni = float(i)/float(sy)
+			ny.append(ni)
+		ax.plot(x, ny, color=s_color, label=s_name)
 
 	ax.set_title('Est. cov. distribution')
 	ax.grid(True, linestyle='-', linewidth=0.3)
-	#ax.set_xticks(np.arange(0, max_cov + binwidth, num_bins*5.0))
 	ax.set_xlabel('Est. cov.')
-	ax.set_ylabel('Frequency')   
+	ax.set_ylabel('Proportion')   
 	ax.set_xlim(0, max_cov)
 	ax.legend(loc='upper right')
 	return ax
@@ -427,7 +435,7 @@ def plot_per_read_est_cov_vs_read_length(ax, data, s, output_prefix):
 	cax = divider.append_axes("right", size="5%", pad=0.05)
 	ax.figure.colorbar(im, cax=cax)
 	ax.set_xlabel('Read length (bps)')
-	ax.set_ylabel('Estimated cov')
+	ax.set_ylabel('Est. cov')
 	ax.legend(loc='upper right')
 	return ax
 
@@ -569,7 +577,7 @@ def plot_total_num_bases_vs_min_read_length(ax, data, output_prefix):
 	# scatter plot with read length on x axis, and estimted cov for read on y axis
 	ax.set_title('Total number of bases')
 	ax.grid(True, linestyle='-', linewidth=0.3)
-	ax.set_xlabel('Minimum read length (bp)')
+	ax.set_xlabel('Min. read length (bp)')
 	ax.set_ylabel('Proportion')
 	ax.legend(loc='upper right')
 	ax.set_xlim(0, x_lim)
