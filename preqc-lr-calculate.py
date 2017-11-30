@@ -7,23 +7,20 @@
 try:
 	from Bio import SeqIO
 	import subprocess, math, argparse
-	import matplotlib as MPL
-	MPL.use('Agg')
 	import numpy as np
-	from matplotlib.backends.backend_pdf import PdfPages
-	import pylab as plt
 	import sys, os, csv
 	import json, gzip
 	from operator import itemgetter
-	from scipy import stats
 	import time
 except ImportError:
-	custom_print('Missing package(s)')
+	print('Missing package(s)')
+	quit()
 
 paf_given=False
 store_csv=False
 verbose=False
 log=list()
+est_genome=0
 
 def main():
 	start = time.clock()	
@@ -31,7 +28,7 @@ def main():
 	# PART 0: Parse the input
 	# --------------------------------------------------------
 	parser = argparse.ArgumentParser(prog='preqc-lr',description='Calculate Pre-QC Long Read report')
-	parser.add_argument('-i', '--input', action="store", required=True, 
+	parser.add_argument('-r', '--reads', action="store", required=True, 
 	dest="fa_filename", help="Fasta, fastq, fasta.gz, or fastq.gz files containing reads.")
 	parser.add_argument('-t', '--type', action="store", required=True, 
 	dest="data_type", choices=['pb', 'ont'], help="Either pacbio (pb) or oxford nanopore technology data (ont).")
@@ -41,6 +38,8 @@ def main():
 	dest="paf", help="Minimap2 pairwise alignment file (PAF). This is produced using 'minimap2 -x ava-ont sample.fastq sample.fastq'.")
 	parser.add_argument('--csv', action="store_true", required=False,
 	dest="store_csv", default=False, help="Use flag to save comma separated values (CSV) files for each plot.")
+	parser.add_argument('-g', '--gfa', action="store", required=True,
+		dest="gfa", help="Graph Fragment Assembly (GFA) file created by miniasm.")
 	parser.add_argument('--verbose', action="store_true", required=False, dest="verbose", help="Use to output preqc-lr progress.")
 	parser.add_argument('-v', '--version', action='version', version='%(prog)s 0.9')
 	args = parser.parse_args()
@@ -133,9 +132,9 @@ def main():
 	# PART 4: Create the preqclr report data
 	# --------------------------------------------------------
 	if paf_given:
-		calculate_report(output_prefix, args.fa_filename, args.data_type, data, args.paf) 
+		calculate_report(output_prefix, args.fa_filename, args.data_type, args.gfa, data, args.paf) 
 	else:
-		calculate_report(output_prefix, args.fa_filename, args.data_type, data)
+		calculate_report(output_prefix, args.fa_filename, args.data_type, args.gfa, data)
 	end = time.clock()
 	total_time = end - start
 	custom_print( "[ Done ]" )
@@ -144,13 +143,12 @@ def main():
 	# --------------------------------------------------------
 	# Final: Store log in file if user didn't specify verbose
 	# --------------------------------------------------------
-	if not verbose:
-		outfile = output_prefix + "_preqclr.log"
-		with open(outfile, 'wb') as f:
-			for o in log:
-				f.write(o + "\n")
+	outfile = output_prefix + "_preqclr.log"
+	with open(outfile, 'wb') as f:
+		for o in log:
+			f.write(o + "\n")
 
-def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
+def calculate_report(output_prefix, fa_filename, data_type, gfa, data, paf=''):
 	# ========================================================
 	# Preprocess and calls calculation functions:
 	# --------------------------------------------------------
@@ -217,7 +215,6 @@ def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
 	data['total_num_bases'] = total_num_bases
 	data['paf'] = paf
 
-
 	custom_print( "========================================================" )
 	custom_print( "CALCULATE INFO" )
 	custom_print( "========================================================" )
@@ -236,6 +233,11 @@ def calculate_report(output_prefix, fa_filename, data_type, data, paf=''):
 
 	start = time.clock()
 	calculate_est_cov(fasta, output_prefix, data)
+	end = time.clock()
+	custom_print( "[+] Time elapsed: " + str(end - start) + " seconds" )
+
+	start = time.clock()
+	calculate_n50(gfa, data)
 	end = time.clock()
 	custom_print( "[+] Time elapsed: " + str(end - start) + " seconds" )
 
@@ -362,8 +364,8 @@ def calculate_est_cov(fasta, output_prefix, data):
 	covs = list()
 	for read_id in paf_records:
 		total_len_overlaps = float(paf_records[read_id].get_total_len_overlaps())   
-#		read_len = float(paf_records[read_id].get_read_length())
-		read_len = float(reads[read_id][1])
+		read_len = float(paf_records[read_id].get_read_length())
+#		read_len = float(reads[read_id][1])
 		read_cov =  round ( total_len_overlaps / read_len ) 
 		covs.append((read_cov, read_len))
 
@@ -422,7 +424,7 @@ def calculate_est_cov(fasta, output_prefix, data):
 	print n
 	print l
 	print c
-	print est_genome_size
+	print "ESTIMATED_GENOME_SIZE:"+ str(est_genome_size)
 
 	# --------------------------------------------------------
 	# PART 4: Estimate number of islands
@@ -457,6 +459,9 @@ def calculate_est_cov(fasta, output_prefix, data):
 	data['per_read_est_cov_and_read_length'] = covs   
 	data['est_genome_size'] = est_genome_size
 	data['est_num_islands'] = est_num_islands
+
+	global est_genome
+	est_genome = est_genome_size	
 
 def calculate_GC_content_per_read(fasta, output_prefix, data):
 	# ========================================================
@@ -573,6 +578,73 @@ def calculate_total_num_bases_vs_min_read_length(fasta, output_prefix, data):
 	# --------------------------------------------------------
 	data['total_num_bases_vs_min_read_length'] = total_num_bases_vs_min_read_length
 
+def calculate_n50(gfa, data):
+	# ========================================================
+	custom_print( "[ Calculating NG(X) ]" )
+	# --------------------------------------------------------
+	# Uses GFA information to evaluate the assembly quality
+	# Input:	Graphical fragment assembly
+	# Output:	NG(X) values
+	# ========================================================
+	contig_lengths = list()
+	sum_lengths = 0
+	with open(gfa, "r") as file:
+		for line in file:
+			info = line.split("\t")
+			type = info.pop(0).rstrip()
+			if type == 'S':
+				ln_flag = info.pop(2)
+				length = int(ln_flag.split(':')[2].rstrip())
+				contig_lengths.append(length)	
+
+	# sort list of contig lengths in decreasing order
+	contig_lengths_sorted = sorted(contig_lengths, reverse = True)
+
+	# calculate NX and NGX values
+   	global est_genome
+	est_genome_size = est_genome
+	NX_p_val = dict()
+	NGX_p_val = dict()
+	x = 0
+	while x <= 100:
+		NX_p_val[str(x)] = 0 
+		NGX_p_val[str(x)] = 0
+		x+=1
+
+	for x in NX_p_val:
+		NGX_p_val[str(x)] = float(est_genome_size)*(float(x)/100.0)	
+		NX_p_val[str(x)] = float(sum(contig_lengths))*(float(x)/100.0)
+
+	NX = dict()
+	NGX = dict()
+	curr_sum = 0
+	start = 0
+	end = 0
+
+	for l in contig_lengths_sorted:
+		# add unused longest contig length to the curr sum
+		end+=l
+		# for all percentile values that are less than the curr sum
+		for x in NX_p_val:
+			p = NX_p_val[x] 
+			#print "L: " + str(l) +  "\t start: " + str(start) + "\t end: " + str(end) + "\t x: " + str(x) +"\t P: " + str(p)
+			if ( float(p) > float(start) ) and ( float(p) <= float(end) ) :
+				NX[str(x)] = l
+		for x in NGX_p_val:
+			p = NGX_p_val[x]
+			#print "L: " + str(l) +  "\t start: " + str(start) + "\t end: " + str(end) + "\t x: " + str(x) +"\t P: " + str(p)
+			if ( float(p) > float(start) ) and ( float(p) <= float(end) ):
+				NGX[str(x)] = l
+		start+=l
+
+	# if the genome size estimate is >>>>>> sum of contig lengths just assign all percentile values as last contig
+	if len(NGX) == 0:
+		for x in NGX_p_val:
+			p = NGX_p_val[x]
+			NGX[str(x)] = l
+
+	data["NGX_values"] = NGX
+	data["NX_values"] = NX
 
 class fasta_file:
 	def __init__(self, fa_filename, read_seqs, num_reads, mean_read_length, data_type, paf_records):
@@ -847,8 +919,7 @@ def custom_print(s):
 	global log
 	if verbose:
 		print s
-	else:
-		log.append(s)
+	log.append(s)
 
 if __name__ == "__main__":
 	main()
