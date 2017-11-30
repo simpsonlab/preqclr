@@ -19,7 +19,7 @@ except ImportError:
 	print('Missing package(s)')	
 	quit()
 
-plots_available = ['est_genome_size', 'read_length_dist', 'start_pos_per_read_dist', 'est_cov_dist', 'est_cov_vs_read_length', 'per_read_GC_content_dist', 'total_num_bases_vs_min_read_length']
+plots_available = ['ngx', 'nx', 'est_genome_size', 'read_length_dist', 'est_cov_dist', 'est_cov_vs_read_length', 'per_read_GC_content_dist', 'total_num_bases_vs_min_read_length']
 save_png=False
 max_percentile=90
 
@@ -81,15 +81,18 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 
 	num_ss = len(preqclr_file)
 	# calculate a
-	a = len(plots_requested)
+	a = len(plots_requested) - 1
 
 	# if est cov vs read length requested
 	if 'est_cov_vs_read_length' in plots_requested:
-		b = num_ss - 1
+		b = num_ss
 	else:
 		b = 0
 
+	print a
+	print b
 	num_plots = a + b
+	print num_plots
 
 	if num_ss > 7:
 		print "Too many samples."
@@ -129,7 +132,6 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 
 		subplots.extend((ax1, ax2, ax3, ax4, ax5, ax6))
 		figs.append(fig)
-
 		i+=6
 
 	# extract and save data from json file
@@ -227,12 +229,22 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
 			ax_png_file = "./" + output_prefix + "/png/plot_total_num_bases_vs_min_read_length.png"
 			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
-
-	ax = subplots.pop(0)
-	ax_temp = plot_assembly_quality_metrics(ax, nx_values, output_prefix, "NX")
-
-	ax = subplots.pop(0)
-	ax_temp = plot_assembly_quality_metrics(ax, ngx_values, output_prefix, "NGX")
+	if 'nx' in plots_requested:
+		ax = subplots.pop(0)
+		ax_temp = plot_assembly_quality_metrics(ax, nx_values, output_prefix, "NX")
+		if save_png:
+			temp_fig = ax_temp.get_figure()
+			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+			x_png_file = "./" + output_prefix + "/png/nx_plot.png"
+			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
+	if 'ngx' in plots_requested:
+		ax = subplots.pop(0)
+		ax_temp = plot_assembly_quality_metrics(ax, nx_values, output_prefix, "NGX")
+		if save_png:
+			temp_fig = ax_temp.get_figure()
+			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+			x_png_file = "./" + output_prefix + "/png/ngx_plot.png"
+			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 
 	for f in figs:
 		f.savefig(pp, format='pdf', dpi=1000)
