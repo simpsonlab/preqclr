@@ -68,11 +68,12 @@ Command reference
    :maxdepth: 2
    :caption: Contents:
 
-
+   quickstart
 
 Indices and tables
 ==================
 
+* :ref:`Download example dataset`
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
