@@ -19,7 +19,7 @@ except ImportError:
 	print('Missing package(s)')	
 	quit()
 
-plots_available = ['ngx', 'nx', 'est_genome_size', 'read_length_dist', 'est_cov_dist', 'est_cov_vs_read_length', 'per_read_GC_content_dist', 'total_num_bases_vs_min_read_length']
+plots_available = ['ngx', 'est_genome_size', 'read_length_dist', 'est_cov_dist', 'est_cov_vs_read_length', 'per_read_GC_content_dist', 'total_num_bases_vs_min_read_length']
 save_png=False
 max_percentile=90
 log=list()
@@ -35,11 +35,12 @@ def main():
 	# --------------------------------------------------------
 	parser = argparse.ArgumentParser(description='Display Pre-QC Long Read report')
 	parser.add_argument('-i', '--input', action="store", required=True, dest="preqc_file", nargs='+', help="preqclr file(s)")
-	parser.add_argument('-o', '--output', action="store", dest="output_prefix", default="preqc-lr-output", help="Prefix for output pdf")
+	parser.add_argument('-o', '--output', action="store", dest="output_prefix", help="Prefix for output pdf")
 	parser.add_argument('--plot', action="store", required=False, dest="plots_requested", nargs='+', choices=plots_available, help="List of plots wanted by name.")
 	parser.add_argument('--list_plots', action="store_true", dest="list_plots", default=False, help="Use to see the plots available")
 	parser.add_argument('--save_png', action="store_true", dest="save_png", default=False, help= "Use to save png for each plot.")
 	parser.add_argument('--verbose', action="store_true", dest="verbose", help= "Use to print progress to stdout.")
+	parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.1')
 	args = parser.parse_args()
 
 	# list plots if requested
@@ -51,6 +52,15 @@ def main():
 			i+=1 
 		print "Use --plot and names to choose which plots to create."
 		sys.exit(0)
+
+	# change output_prefix to prefix of preqclr file if not specified
+	if not args.output_prefix and len(args.preqc_file) == 1:
+		basename=os.path.basename(args.preqc_file[0])
+		output_prefix=os.path.splitext(basename)[0]
+	elif not args.output_prefix and len(args.preqc_file) > 1:
+		output_prefix="preqc-lr-output"
+	else:
+		output_prefix=args.output_prefix
 
 	# save global variable verbose flag
 	if args.verbose:
@@ -76,13 +86,13 @@ def main():
 	if len(args.preqc_file) > 6:
 		print "Warning: Large amount of samples may not display as well"
 
-	create_report(args.output_prefix, args.preqc_file, plots)
+	create_report(output_prefix, args.preqc_file, plots)
 
 	# --------------------------------------------------------
 	# Final: Store log in file if user didn't specify verbose
 	# --------------------------------------------------------
 	global log
-	outfile = args.output_prefix + "_preqclr-report.log"
+	outfile = output_prefix + "_preqclr-report.log"
 	with open(outfile, 'wb') as f:
 		for o in log:
 			f.write(o + "\n")
@@ -164,7 +174,6 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	per_read_GC_content = dict()
 	total_num_bases_vs_min_read_length = dict()
 	ngx_values = dict()
-	nx_values = dict()
 
 	# each s will be represented with a unique marker and color
 	markers = ['s', 'o', '^', 'p', '+', '*', 'v']
@@ -185,7 +194,6 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			per_read_GC_content[s] = (color, data['read_counts_per_GC_content'], marker) 									# histogram
 			total_num_bases_vs_min_read_length[s] = (color, data['total_num_bases_vs_min_read_length'], marker)				# line
 			ngx_values[s] = (color, data['NGX_values'], marker)
-			nx_values[s] = (color, data['NX_values'], marker)
 
 	# parameters for saving each subplot as a png
 	expand_x = 1.4
@@ -243,21 +251,13 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
 			ax_png_file = "./" + output_prefix + "/png/plot_total_num_bases_vs_min_read_length.png"
 			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
-	if 'nx' in plots_requested:
-		ax = subplots.pop(0)
-		ax_temp = plot_assembly_quality_metrics(ax, nx_values, output_prefix, "NX")
-		if save_png:
-			temp_fig = ax_temp.get_figure()
-			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
-			x_png_file = "./" + output_prefix + "/png/nx_plot.png"
-			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'ngx' in plots_requested:
 		ax = subplots.pop(0)
-		ax_temp = plot_assembly_quality_metrics(ax, nx_values, output_prefix, "NGX")
+		ax_temp = plot_assembly_quality_metrics(ax, ngx_values, output_prefix, "NGX")
 		if save_png:
 			temp_fig = ax_temp.get_figure()
 			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
-			x_png_file = "./" + output_prefix + "/png/ngx_plot.png"
+			ax_png_file = "./" + output_prefix + "/png/ngx_plot.png"
 			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 
 	# --------------------------------------------------------
@@ -285,8 +285,8 @@ def plot_read_length_distribution(ax, data, output_prefix):
 		if s_max_read_length > max_read_length:
 			max_read_length = s_max_read_length
 			x_lim = np.percentile(s_read_lengths, max_percentile)
-		binwidth = 1000.0
-		bins = np.arange(0, max_read_length + binwidth, binwidth)
+		#binwidth = 1000.0
+		#bins = np.arange(0, max_read_length + binwidth, binwidth)
 
 	# now start plotting for each sample
 	max_y = 0
@@ -504,7 +504,7 @@ def plot_est_genome_size(ax, data, output_prefix):
 	for rect, value, s in zip(rects, genome_sizes, s_names):
 		rect.set_facecolor(data[s][0])
 		rect.set_height(height)
-		t = ax.text(0.05, rect.get_y() + rect.get_height()/2.0, s + ": " + str(value) + "Mbp", ha='left', va='center', fontsize='8')
+		t = ax.text(0.0, rect.get_y() + rect.get_height()/2.0, s + ": " + str(value) + "Mbp", ha='left', va='center', fontsize='8')
 		t.set_bbox(dict(facecolor='#FFFFFF', alpha=0.5, edgecolor='#FFFFFF'))
 
 	# configure subplot
