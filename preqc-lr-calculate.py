@@ -41,7 +41,7 @@ def main():
 	parser.add_argument('-g', '--gfa', action="store", required=True,
 		dest="gfa", help="Graph Fragment Assembly (GFA) file created by miniasm.")
 	parser.add_argument('--verbose', action="store_true", required=False, dest="verbose", help="Use to output preqc-lr progress.")
-	parser.add_argument('-v', '--version', action='version', version='%(prog)s 0.9')
+	parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.1')
 	args = parser.parse_args()
 
 	# initialize list that will log all output
@@ -61,32 +61,19 @@ def main():
 	# --------------------------------------------------------
 	# check sequences input
 	if not os.path.exists(args.fa_filename) or not os.path.getsize(args.fa_filename) > 0 or not os.access(args.fa_filename, os.R_OK):
-		custom_print( "Fasta/fastq file does not exist, is empty or is not readable." )
-		raise InputFileError('Fasta/fastq')
-	
-	# check output directory, report if already exists, see if user would like to change output directory
+		print( "ERROR: Fasta/fastq file does not exist, is empty or is not readable." )
+		sys.exit(1)
+
+	# set output directory
 	output_prefix = args.sample_name
 	working_dir = './' + output_prefix
-	use_working_dir = ''
-#	while os.path.exists(working_dir) or (not use_working_dir == "n" and not use_working_dir == "y"):
-#		custom_print( "[?] Output directory \'" + working_dir + "\' already exists. Do you still want to use this directory? [y/n]"
-#		use_working_dir = raw_input()
-#		if not use_working_dir == "n" and not use_working_dir == "y":
-#			custom_print( "[-] Only 'y' or 'n' as response."
-#		elif use_working_dir == "n":
-#			custom_print( "[-] Please input new output_prefix:"
-#			output_prefix = raw_input()
-#			working_dir = './' +  output_prefix
-#		else:
-#			working_dir = './' +  output_prefix
-#			custom_print( "[-] Output directory: " + working_dir
-#			break
 
 	# check paf if given
 	global paf_given
 	if args.paf:
 		if not os.path.exists(args.paf) or not os.path.getsize(args.paf) > 0 or not os.access(args.paf, os.R_OK):
-			raise InputFileError('PAF')
+			print( "ERROR: PAF file does not exist, is empty or is not readable." )
+			sys.exit(1)
 		else:   
 			paf_given = True	
 
@@ -183,7 +170,6 @@ def calculate_report(output_prefix, fa_filename, data_type, gfa, data, paf=''):
 		total_num_bases+=seq_length
 	mean_read_length = float(total_num_bases)/float(len(fa_sequences))
 	num_reads = len(fa_sequences)
-	print num_reads
 
 	# --------------------------------------------------------
 	# PART 2: Create PAF file if not given
@@ -601,8 +587,6 @@ def calculate_n50(gfa, data):
 	contig_lengths_sorted = sorted(contig_lengths, reverse = True)
 
 	# calculate NX and NGX values
-   	global est_genome
-	est_genome_size = est_genome
 	NX_p_val = dict()
 	NGX_p_val = dict()
 	x = 0
@@ -611,9 +595,12 @@ def calculate_n50(gfa, data):
 		NGX_p_val[str(x)] = 0
 		x+=1
 
+	global est_genome
+	est_genome_size = est_genome
+	sum_contig_len = sum(contig_lengths)
 	for x in NX_p_val:
 		NGX_p_val[str(x)] = float(est_genome_size)*(float(x)/100.0)	
-		NX_p_val[str(x)] = float(sum(contig_lengths))*(float(x)/100.0)
+		NX_p_val[str(x)] = float(sum_contig_len)*(float(x)/100.0)
 
 	NX = dict()
 	NGX = dict()
@@ -628,12 +615,12 @@ def calculate_n50(gfa, data):
 		for x in NX_p_val:
 			p = NX_p_val[x] 
 			#print "L: " + str(l) +  "\t start: " + str(start) + "\t end: " + str(end) + "\t x: " + str(x) +"\t P: " + str(p)
-			if ( float(p) > float(start) ) and ( float(p) <= float(end) ) :
+			if ( float(p) >= float(start) ) and ( float(p) <= float(end) ) :
 				NX[str(x)] = l
 		for x in NGX_p_val:
 			p = NGX_p_val[x]
 			#print "L: " + str(l) +  "\t start: " + str(start) + "\t end: " + str(end) + "\t x: " + str(x) +"\t P: " + str(p)
-			if ( float(p) > float(start) ) and ( float(p) <= float(end) ):
+			if ( float(p) >= float(start) ) and ( float(p) <= float(end) ):
 				NGX[str(x)] = l
 		start+=l
 
@@ -643,6 +630,8 @@ def calculate_n50(gfa, data):
 			p = NGX_p_val[x]
 			NGX[str(x)] = l
 
+	print NGX
+	print NX
 	data["NGX_values"] = NGX
 	data["NX_values"] = NX
 
@@ -813,8 +802,15 @@ def parse_paf(overlaps_filename):
 			target_start_pos = int(ol.pop(0))
 			target_end_pos = int(ol.pop(0))
 			overlap_length = 0
+			read_length_diff = abs(target_length - query_length)
+			min_len = min(target_length, query_length)
+			n_len_diff = float(read_length_diff)/float(min_len)
+
+			# perform some filtering
+			# what kind of overlaps do we want?
 
 			# calculate overlap length and account for soft clipping
+			#if ( n_len_diff < 0.8 )  and not (query_read_id == target_read_id):
 			if not (query_read_id == target_read_id):
 				query_prefix_len = query_start_pos
 				query_suffix_len = query_length - query_end_pos
