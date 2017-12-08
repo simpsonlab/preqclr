@@ -3,10 +3,13 @@
 Quickstart
 ============
 
+preqc-lr generates a PDF report containing several plots such as estimated genome size and coverage. This report can be used to evaluate the quality of your sequencing data. Here, we provide a step-by-step tutorial to get you started!
+
 **Requirements:**
 
 * `preqc-lr <https://github.com/simpsonlab/preqc-lr>`_ 
 * `minimap2 <https://github.com/lh3/minimap2>`_
+* `miniasm <https://github.com/lh3/miniasm/>`_
 
 Download example dataset
 """"""""""""""""""""""""""
@@ -15,14 +18,15 @@ You can download the example dataset we will use here: ::
 
     wget http://s3.climb.ac.uk/nanopolish_tutorial/ecoli_100kb_region.tar.gz
     tar -xf ecoli_100kb_region.tar.gz
-    cd ecoli_100kb_region
 
 **Details:**
+
+This is a subset of reads that align to a 100kb region of *E. coli*.  The data was produced using Oxford Nanopore Technologies (ONT) MinION sequencer.
 
 * Sample :    E. coli str. K-12 substr. MG1655
 * Instrument : ONT MinION sequencing R9.4 chemistry
 * Basecaller : Albacore v2.0.1
-* Region: "tig00000001:200000-300000"
+* Region length: Approx. 100kb
 * Number of reads: 1581
 
 Generate overlap information with minimap2
@@ -47,12 +51,13 @@ Generate assembly graph with miniasm
 
 We use miniasm to get an assembly graph in the `Graphical Fragment Assembly <https://github.com/GFA-spec/GFA-spec/blob/master/GFA-spec.md>`_ format: ::
 
+   cd ecoli_100kb_region/
    miniasm -f reads.fasta overlaps.paf > layout.gfa
 
 Perform calculations
 """"""""""""""""""""""""
 
-We now have the necessary files to run preqc-lr (``reads.fasta`` and ``overlaps.paf``). 
+We now have the necessary files to run preqc-lr (``reads.fasta``, ``overlaps.paf``, and ``layout.gfa``). 
 To generate the data needed for the reports we first run preqc-lr-calculate ::
 
     python preqc-lr-calculate.py \
@@ -80,43 +85,43 @@ Example report
 
 The report produces plots as seen below.
 
-Plot 0:
+**Plot 0:**
 
 .. figure:: _static/plot_est_genome_size.png
   :scale: 80%
   :alt: plot_est_genome_size
 
-Plot 1: 
+**Plot 1:**
 
 .. figure:: _static/plot_read_length_distribution.png
   :scale: 80%
   :alt: plot_read_length_distribution
 
-Plot 2:
+**Plot 2:**
 
 .. figure:: _static/plot_est_cov.png
   :scale: 80%
   :alt: plot_est_cov
 
-Plot 3:
+**Plot 3:**
 
 .. figure:: _static/plot_per_read_GC_content.png
   :scale: 80%
   :alt: plot_per_read_GC_content
 
-Plot 4:
+**Plot 4:**
 
 .. figure:: _static/plot_est_cov_vs_read_length.png
   :scale: 80%
   :alt: plot_est_cov_vs_read_length
 
-Plot 5:
+**Plot 5:**
 
 .. figure:: _static/plot_total_num_bases.png
   :scale: 80%
   :alt: plot_total_num_bases
 
-Plot 6:
+**Plot 6:**
 
 .. figure:: _static/plot_NGX.png
   :scale: 80%
