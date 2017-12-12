@@ -407,10 +407,6 @@ def calculate_est_cov(fasta, output_prefix, data):
 	l = float(mean_read_length)
 	c = float(np.median([x[0] for x in filtered_covs]))
 	est_genome_size = ( n * l ) / c
-	print n
-	print l
-	print c
-	print "ESTIMATED_GENOME_SIZE:"+ str(est_genome_size)
 
 	# --------------------------------------------------------
 	# PART 4: Estimate number of islands
@@ -801,16 +797,14 @@ def parse_paf(overlaps_filename):
 			target_length = int(ol.pop(0))
 			target_start_pos = int(ol.pop(0))
 			target_end_pos = int(ol.pop(0))
+			alignment_length = int(ol.pop(1))
 			overlap_length = 0
 			read_length_diff = abs(target_length - query_length)
 			min_len = min(target_length, query_length)
-			n_len_diff = float(read_length_diff)/float(min_len)
+			aln_len_min_len = float(alignment_length)/float(min_len)
 
-			# perform some filtering
-			# what kind of overlaps do we want?
 
 			# calculate overlap length and account for soft clipping
-			#if ( n_len_diff < 0.8 )  and not (query_read_id == target_read_id):
 			if not (query_read_id == target_read_id):
 				query_prefix_len = query_start_pos
 				query_suffix_len = query_length - query_end_pos
