@@ -3,6 +3,8 @@
 Quickstart
 ============
 
+**Time: ** 10 minutes 
+
 preqc-lr generates a PDF report containing several plots such as estimated genome size and coverage. This report can be used to evaluate the quality of your sequencing data. Here, we provide a step-by-step tutorial to get you started!
 
 **Requirements:**

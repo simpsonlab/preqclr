@@ -2,10 +2,7 @@
 
 What is preqc-lr?
 ====================================
-With the emergence of new long read sequencing technology such as Pacbio Single Molecule,
-Real-Time (SMRT) Sequencing technology and Oxford Nanopore Technologies (ONT), there is a
-need for a method that assesses sequencing quality prior to analyses. With preqc-lr we ena
-ble users to visualize metrics of quality.
+With the emergence of new long read sequencing technology such as Pacbio Single Molecule, Real-Time (SMRT) Sequencing technology and Oxford Nanopore Technologies (ONT), there is a need for a method that assesses sequencing quality prior to analyses. Prior to genome assembly, preqc-lr can be used to infer quality statistics without alignment to a reference genome.
 
 There are two components to preqc-lr:
 

@@ -12,15 +12,15 @@ Dependencies
 
 Installing the latest code from github
 ----------------------------------------
-
 ::
 
     git clone https://github.com/simpsonlab/preqc-lr.git
 
 
-Installing using pip
+Installing with pip
 -----------------------
-
 ::
 
     pip install preqc-lr
+
+This will automatically install matplotlib, BioPython, and all their dependencies.
