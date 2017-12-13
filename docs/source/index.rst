@@ -17,5 +17,6 @@ To install the latest version: ::
    :hidden:
 
    introduction
+   installation
    quickstart
 

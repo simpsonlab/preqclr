@@ -20,6 +20,7 @@ You can download the example dataset we will use here: ::
 
     wget http://s3.climb.ac.uk/nanopolish_tutorial/ecoli_100kb_region.tar.gz
     tar -xf ecoli_100kb_region.tar.gz
+	cd ecoli_100kb_region/
 
 **Details:**
 
@@ -53,7 +54,6 @@ Generate assembly graph with miniasm
 
 We use miniasm to get an assembly graph in the `Graphical Fragment Assembly <https://github.com/GFA-spec/GFA-spec/blob/master/GFA-spec.md>`_ format: ::
 
-   cd ecoli_100kb_region/
    miniasm -f reads.fasta overlaps.paf > layout.gfa
 
 Perform calculations
@@ -62,7 +62,7 @@ Perform calculations
 We now have the necessary files to run preqc-lr (``reads.fasta``, ``overlaps.paf``, and ``layout.gfa``). 
 To generate the data needed for the reports we first run preqc-lr-calculate ::
 
-    python preqc-lr-calculate.py \
+    python /path/to/preqc-lr-calculate.py \
         --reads reads.fasta \
         --type ont \
         --sample_name ecoli_100kb.ONT \
@@ -76,7 +76,7 @@ Generate report
 
 Now we are read to run preqc-lr-report to generate a PDF file describing quality metrics of your sequencing data: ::
 
-    python preqc-lr-report.py \
+    python /path/to/preqc-lr-report.py \
         -i ecoli_100kb.ONT.preqclr \
         -o ecoli_100kb.ONT
 
