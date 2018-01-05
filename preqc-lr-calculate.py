@@ -16,12 +16,12 @@ except ImportError:
 	print('Missing package(s)')
 	quit()
 
+gfa_given=False
 paf_given=False
 store_csv=False
 verbose=False
 log=list()
 est_genome=0
-repeats=dict()
 
 def main():
 	start = time.clock()	
@@ -39,8 +39,7 @@ def main():
 	dest="paf", help="Minimap2 pairwise alignment file (PAF). This is produced using 'minimap2 -x ava-ont sample.fastq sample.fastq'.")
 	parser.add_argument('--csv', action="store_true", required=False,
 	dest="store_csv", default=False, help="Use flag to save comma separated values (CSV) files for each plot.")
-	parser.add_argument('-g', '--gfa', action="store", required=True,
-		dest="gfa", help="Graph Fragment Assembly (GFA) file created by miniasm.")
+	parser.add_argument('-g', '--gfa', action="store", required=False, dest="gfa", help="Graph Fragment Assembly (GFA) file created by miniasm.")
 	parser.add_argument('--verbose', action="store_true", required=False, dest="verbose", help="Use to output preqc-lr progress.")
 	parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.1')
 	args = parser.parse_args()
@@ -68,6 +67,15 @@ def main():
 	# set output directory
 	output_prefix = args.sample_name
 	working_dir = './' + output_prefix
+
+	# check gfa if given
+	global gfa_given
+	if args.gfa:
+		if not os.path.exists(args.gfa) or not os.path.getsize(args.gfa) > 0 or not os.access(args.gfa, os.R_OK):
+			print( "ERROR: GFA file does not exist, is empty or is not readable." )
+			sys.exit(1)
+		else:
+			gfa_given = True
 
 	# check paf if given
 	global paf_given
@@ -101,6 +109,10 @@ def main():
 		custom_print( "[+] PAF: " + str(args.paf) )
 	else:
  		custom_print( "[+] PAF: None given, will run minimap2." )
+	if gfa_given:
+		custom_print( "[+] GFA: " + str(args.gfa) )
+	else:
+		custom_print( "[+] GFA: None given, will not run NGX calculations." )
 
 	# --------------------------------------------------------
 	# PART 3: Create work dir, and csv dir if requested
@@ -119,10 +131,14 @@ def main():
 	# --------------------------------------------------------
 	# PART 4: Create the preqclr report data
 	# --------------------------------------------------------
-	if paf_given:
-		calculate_report(output_prefix, args.fa_filename, args.data_type, args.gfa, data, args.paf) 
+	if paf_given and gfa_given:
+		calculate_report(output_prefix, args.fa_filename, args.data_type, data, args.gfa, args.paf) 
+	elif paf_given and not gfa_given:
+		calculate_report(output_prefix, args.fa_filename, args.data_type, data, '', args.paf)
+	elif not paf_given and gfa_given:
+		calculate_report(output_prefix, args.fa_filename, args.data_type, data, args.gfa, '')
 	else:
-		calculate_report(output_prefix, args.fa_filename, args.data_type, args.gfa, data)
+		calculate_report(output_prefix, args.fa_filename, args.data_type, data)
 	end = time.clock()
 	total_time = end - start
 	custom_print( "[ Done ]" )
@@ -136,7 +152,7 @@ def main():
 		for o in log:
 			f.write(o + "\n")
 
-def calculate_report(output_prefix, fa_filename, data_type, gfa, data, paf=''):
+def calculate_report(output_prefix, fa_filename, data_type, data, gfa='', paf=''):
 	# ========================================================
 	# Preprocess and calls calculation functions:
 	# --------------------------------------------------------
@@ -223,10 +239,12 @@ def calculate_report(output_prefix, fa_filename, data_type, gfa, data, paf=''):
 	end = time.clock()
 	custom_print( "[+] Time elapsed: " + str(end - start) + " seconds" )
 
-	start = time.clock()
-	calculate_ngx(gfa, data)
-	end = time.clock()
-	custom_print( "[+] Time elapsed: " + str(end - start) + " seconds" )
+	global gfa_given
+	if gfa_given:
+		start = time.clock()
+		calculate_ngx(gfa, output_prefix, data)
+		end = time.clock()
+		custom_print( "[+] Time elapsed: " + str(end - start) + " seconds" )
 
 	start = time.clock()
 	calculate_GC_content_per_read(fasta, output_prefix, data)
@@ -542,7 +560,7 @@ def calculate_total_num_bases_vs_min_read_length(fasta, output_prefix, data):
 	# --------------------------------------------------------
 	data['total_num_bases_vs_min_read_length'] = total_num_bases_vs_min_read_length
 
-def calculate_ngx(gfa, data):
+def calculate_ngx(gfa, output_prefix, data):
 	# ========================================================
 	custom_print( "[ Calculating NG(X) ]" )
 	# --------------------------------------------------------
@@ -610,7 +628,7 @@ def calculate_ngx(gfa, data):
 
 	# --------------------------------------------------------
 	# PART 4: Write to csv if requested
-	# --------------------------------------------------------
+	# --------------------------------------------------------	
 	if store_csv:
 		csv_filename = 'ngx_values.csv'
 		write_to_csv( csv_filename, output_prefix, NGX)
