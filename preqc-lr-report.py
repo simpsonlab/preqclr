@@ -101,29 +101,7 @@ def main():
 def create_report(output_prefix, preqclr_file, plots_requested):
 
 	# --------------------------------------------------------
-	# PART 0: Calculate the number of plots to created
-	# --------------------------------------------------------
-	# total number of plots = a + b
-	# a = number of plots in plots_requested not including est. cov vs read length
-	# b = est. cov vs read length * number of ss
-	# if est. cov vs read length requested, we need to create one for each s
-
-	# calculate num of samples
-	num_ss = len(preqclr_file)
-
-	# calculate a
-	a = len(plots_requested) - 1
-
-	# calculate b 
-	if 'est_cov_vs_read_length' in plots_requested:
-		b = num_ss
-	else:
-		b = 0
-
-	num_plots = a + b
-
-	# --------------------------------------------------------
-	# PART 1: Configure the PDF file 
+	# PART 0: Configure the PDF file 
 	# --------------------------------------------------------
 	MPL.rc('figure', figsize=(8,10.5)) # in inches
 	MPL.rc('font', size=11)
@@ -139,32 +117,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	pp = PdfPages(output_pdf)
 
 	# --------------------------------------------------------
-	# PART 2: Initialize the figures and subplots within
-	# --------------------------------------------------------
-	i = 0
-	figs = list()
-	subplots = list()
-
-	while i < num_plots:
-		# add figure
-		fig = plt.figure()
-		fig.suptitle("Preqc Long Read Results : " + output_prefix )
-		fig.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.5, hspace=0.5)
-
-		# six subplots per pdf page
-		ax1 = fig.add_subplot(321)
-		ax2 = fig.add_subplot(322)
-		ax3 = fig.add_subplot(323)
-		ax4 = fig.add_subplot(324)
-		ax5 = fig.add_subplot(325)
-		ax6 = fig.add_subplot(326)
-
-		subplots.extend((ax1, ax2, ax3, ax4, ax5, ax6))
-		figs.append(fig)
-		i+=6
-
-	# --------------------------------------------------------
-	# PART 3: Extract and save data from json file
+	# PART 1: Extract and save data from json file
 	# --------------------------------------------------------
 	est_genome_sizes = dict()
 	per_read_read_length = dict()
@@ -178,6 +131,11 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	# each s will be represented with a unique marker and color
 	markers = ['s', 'o', '^', 'p', '+', '*', 'v']
 	colors = ['#FC614C', '#2DBDD8', '#B4E23D', '#F7C525', '#5B507A', '#0A2463' ] 
+
+	# check to see if ngx values for any of the samples were found
+	# in preqc-lr-calculate, users needed to pass a GFA file in order for NGX values to be calculated
+	# this will affect downstream processes
+	ngx_calculated=False
 
 	# start reading the preqclr file(s)
 	for s_preqclr_file in preqclr_file:
@@ -193,7 +151,57 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			est_cov_post_filter_info[s] = data['est_cov_post_filter_info']
 			per_read_GC_content[s] = (color, data['read_counts_per_GC_content'], marker) 									# histogram
 			total_num_bases_vs_min_read_length[s] = (color, data['total_num_bases_vs_min_read_length'], marker)				# line
-			ngx_values[s] = (color, data['NGX_values'], marker)
+			if 'NGX_values' in data.keys():
+				ngx_calculated=True
+				ngx_values[s] = (color, data['NGX_values'], marker)
+
+	# --------------------------------------------------------
+	# PART 2: Calculate the number of plots to created
+	# --------------------------------------------------------
+	# total number of plots = a + b
+	# a = number of plots in plots_requested not including est. cov vs read length
+	# b = est. cov vs read length * number of ss
+	# if est. cov vs read length requested, we need to create one for each s
+
+	# calculate num of samples
+	num_ss = len(preqclr_file)
+
+	# calculate a
+	a = len(plots_requested) - 1
+
+	# calculate b
+	if 'est_cov_vs_read_length' in plots_requested:
+		b = num_ss
+	else:
+		b = 0
+	if not ngx_calculated:
+		b-=1
+	num_plots = a + b
+
+	# --------------------------------------------------------
+	# PART 3: Initialize the figures and subplots within
+	# --------------------------------------------------------
+	i = 0
+	figs = list()
+	subplots = list()
+
+	while i < num_plots:
+		# add figure
+		fig = plt.figure()
+		fig.suptitle("Preqc Long Read Results : " + output_prefix )
+		fig.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.5, hspace=0.5)
+
+	# six subplots per pdf page
+		ax1 = fig.add_subplot(321)
+		ax2 = fig.add_subplot(322)
+		ax3 = fig.add_subplot(323)
+		ax4 = fig.add_subplot(324)
+		ax5 = fig.add_subplot(325)
+		ax6 = fig.add_subplot(326)
+
+		subplots.extend((ax1, ax2, ax3, ax4, ax5, ax6))
+		figs.append(fig)
+		i+=6
 
 	# parameters for saving each subplot as a png
 	expand_x = 1.4
@@ -251,7 +259,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
 			ax_png_file = "./" + output_prefix + "/png/plot_total_num_bases_vs_min_read_length.png"
 			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
-	if 'ngx' in plots_requested:
+	if 'ngx' in plots_requested and ngx_values:
 		ax = subplots.pop(0)
 		ax_temp = plot_assembly_quality_metrics(ax, ngx_values, output_prefix, "NGX")
 		if save_png:
