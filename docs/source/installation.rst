@@ -8,6 +8,7 @@ Installing the latest code from github
 ::
 
     git clone https://github.com/simpsonlab/preqc-lr.git
+    cd preqc-lr
     python setup.py install
 
 Installing dependencies with pip
