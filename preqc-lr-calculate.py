@@ -224,7 +224,7 @@ def calculate_report(output_prefix, fa_filename, data_type, gfa, data, paf=''):
 	custom_print( "[+] Time elapsed: " + str(end - start) + " seconds" )
 
 	start = time.clock()
-	calculate_n50(gfa, data)
+	calculate_ngx(gfa, data)
 	end = time.clock()
 	custom_print( "[+] Time elapsed: " + str(end - start) + " seconds" )
 
@@ -542,7 +542,7 @@ def calculate_total_num_bases_vs_min_read_length(fasta, output_prefix, data):
 	# --------------------------------------------------------
 	data['total_num_bases_vs_min_read_length'] = total_num_bases_vs_min_read_length
 
-def calculate_n50(gfa, data):
+def calculate_ngx(gfa, data):
 	# ========================================================
 	custom_print( "[ Calculating NG(X) ]" )
 	# --------------------------------------------------------
@@ -550,6 +550,9 @@ def calculate_n50(gfa, data):
 	# Input:	Graphical fragment assembly
 	# Output:	NG(X) values
 	# ========================================================
+	# --------------------------------------------------------
+    # PART 0: Use the GFA file to extract info on contig lens
+    # --------------------------------------------------------
 	contig_lengths = list()
 	sum_lengths = 0
 	with open(gfa, "r") as file:
@@ -561,26 +564,29 @@ def calculate_n50(gfa, data):
 				length = int(ln_flag.split(':')[2].rstrip())
 				contig_lengths.append(length)	
 
-	# sort list of contig lengths in decreasing order
+	# --------------------------------------------------------
+	# PART 1: Sort the list of contig lengths in decr. order
+	# --------------------------------------------------------
 	contig_lengths_sorted = sorted(contig_lengths, reverse = True)
 
-	# calculate NX and NGX values
-	NX_p_val = dict()
+	# --------------------------------------------------------
+	# PART 2: Calculate the xth percent of genome size est.
+	# --------------------------------------------------------
 	NGX_p_val = dict()
 	x = 0
 	while x <= 100:
-		NX_p_val[str(x)] = 0 
 		NGX_p_val[str(x)] = 0
 		x+=1
 
 	global est_genome
 	est_genome_size = est_genome
 	sum_contig_len = sum(contig_lengths)
-	for x in NX_p_val:
+	for x in NGX_p_val:
 		NGX_p_val[str(x)] = float(est_genome_size)*(float(x)/100.0)	
-		NX_p_val[str(x)] = float(sum_contig_len)*(float(x)/100.0)
 
-	NX = dict()
+	# --------------------------------------------------------
+	# PART 3: Find NGX values
+	# --------------------------------------------------------
 	NGX = dict()
 	curr_sum = 0
 	start = 0
@@ -590,10 +596,6 @@ def calculate_n50(gfa, data):
 		# add unused longest contig length to the curr sum
 		end+=l
 		# for all percentile values that are less than the curr sum
-		for x in NX_p_val:
-			p = NX_p_val[x] 
-			if ( float(p) >= float(start) ) and ( float(p) <= float(end) ) :
-				NX[str(x)] = l
 		for x in NGX_p_val:
 			p = NGX_p_val[x]
 			if ( float(p) >= float(start) ) and ( float(p) <= float(end) ):
@@ -606,8 +608,17 @@ def calculate_n50(gfa, data):
 			p = NGX_p_val[x]
 			NGX[str(x)] = l
 
+	# --------------------------------------------------------
+	# PART 4: Write to csv if requested
+	# --------------------------------------------------------
+	if store_csv:
+		csv_filename = 'ngx_values.csv'
+		write_to_csv( csv_filename, output_prefix, NGX)
+
+	# --------------------------------------------------------
+	# PART 5: Add to the dataset
+	# --------------------------------------------------------
 	data["NGX_values"] = NGX
-	data["NX_values"] = NX
 
 class fasta_file:
 	def __init__(self, fa_filename, read_seqs, num_reads, mean_read_length, data_type, paf_records):
