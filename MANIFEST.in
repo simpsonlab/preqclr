@@ -1,3 +1,4 @@
+include preqc-lr/*
+include docs/*/*
+include README.md
 include LICENSE.txt
-include preqc-lr-calculate.py
-include preqc-lr-report.py

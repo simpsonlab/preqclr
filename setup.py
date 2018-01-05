@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='preqc-lr',
-	version='0.1',
+	version='1.2',
 	description='Quality control tool for long read sequencing data',
 	url='https://github.com/simpsonlab/preqc-lr',
 	author='Simpson Lab',
