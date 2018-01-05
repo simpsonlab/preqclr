@@ -21,6 +21,7 @@ store_csv=False
 verbose=False
 log=list()
 est_genome=0
+repeats=dict()
 
 def main():
 	start = time.clock()	
@@ -151,7 +152,7 @@ def calculate_report(output_prefix, fa_filename, data_type, gfa, data, paf=''):
 	custom_print( "PRE-PROCESS INPUT" )
 	custom_print( "========================================================" )
 	# --------------------------------------------------------
-	# PART 0: Detect the file type, parse file, save to dict
+	# PART 0: Detect the reads file type, parse, save to dict
 	# --------------------------------------------------------
 	start = time.clock()
 	file_type = detect_filetype(fa_filename)
@@ -187,7 +188,6 @@ def calculate_report(output_prefix, fa_filename, data_type, gfa, data, paf=''):
 	# --------------------------------------------------------
 	start = time.clock()
 	paf_records = parse_paf(paf)
-	print len(paf_records)
 	end = time.clock()
 	total_time = end - start
 	custom_print( "[+] Time elapsed: " + str(total_time) + " seconds" )
@@ -207,6 +207,7 @@ def calculate_report(output_prefix, fa_filename, data_type, gfa, data, paf=''):
 	# --------------------------------------------------------
 	# PART 4: Let the calculations begin...
 	# --------------------------------------------------------
+
 	start = time.clock()
 	calculate_read_length(fasta, output_prefix, data)
 	end = time.clock()
@@ -351,7 +352,6 @@ def calculate_est_cov(fasta, output_prefix, data):
 	for read_id in paf_records:
 		total_len_overlaps = float(paf_records[read_id].get_total_len_overlaps())   
 		read_len = float(paf_records[read_id].get_read_length())
-#		read_len = float(reads[read_id][1])
 		read_cov =  round ( total_len_overlaps / read_len ) 
 		covs.append((read_cov, read_len))
 
@@ -409,38 +409,20 @@ def calculate_est_cov(fasta, output_prefix, data):
 	est_genome_size = ( n * l ) / c
 
 	# --------------------------------------------------------
-	# PART 4: Estimate number of islands
-	# --------------------------------------------------------
-	T = 100.0	   # amount of overlap in base pairs needed to detect overlap
-	theta = T / l   # expected minimum fractional overlap required between two clones
-	#custom_print( "T: " + str(T) )
-	#custom_print( "Mean read length:" + str(l) ) 
-	#custom_print( "Theta: " + str(theta) )
-	sigma = 1 - theta
-	g = est_genome_size
-	est_num_islands = ( ( g * c ) / l ) * math.exp(-(1 - theta) * c)
-	est_num_islands_1 = n/math.exp(sigma * c) - n/math.exp(2*sigma*c)
-	est_num_islands_2 = n / math.exp(sigma * c)
-	#custom_print( est_num_islands )
-	#custom_print( est_num_islands_1 )
-	#custom_print( est_num_islands_2 )
-
-	# --------------------------------------------------------
-	# PART 5: Write to csv if requested
+	# PART 4: Write to csv if requested
 	# --------------------------------------------------------
 	if store_csv:
 		csv_filename = 'per_read_est_cov.csv'
 		write_to_csv( csv_filename, output_prefix, [x[0] for x in covs])
 
 	# --------------------------------------------------------
-	# PART 6: Add to the data set
+	# PART 5: Add to the data set
 	# --------------------------------------------------------
 	data['est_cov_stats_pre_filter'] = pre_filter
 	data['est_cov_stats_post_filter'] = post_filter
 	data['est_cov_post_filter_info'] = (lowerbound, upperbound, num_reads, IQR)
 	data['per_read_est_cov_and_read_length'] = covs   
 	data['est_genome_size'] = est_genome_size
-	data['est_num_islands'] = est_num_islands
 
 	global est_genome
 	est_genome = est_genome_size	
@@ -610,12 +592,10 @@ def calculate_n50(gfa, data):
 		# for all percentile values that are less than the curr sum
 		for x in NX_p_val:
 			p = NX_p_val[x] 
-			#print "L: " + str(l) +  "\t start: " + str(start) + "\t end: " + str(end) + "\t x: " + str(x) +"\t P: " + str(p)
 			if ( float(p) >= float(start) ) and ( float(p) <= float(end) ) :
 				NX[str(x)] = l
 		for x in NGX_p_val:
 			p = NGX_p_val[x]
-			#print "L: " + str(l) +  "\t start: " + str(start) + "\t end: " + str(end) + "\t x: " + str(x) +"\t P: " + str(p)
 			if ( float(p) >= float(start) ) and ( float(p) <= float(end) ):
 				NGX[str(x)] = l
 		start+=l
@@ -626,8 +606,6 @@ def calculate_n50(gfa, data):
 			p = NGX_p_val[x]
 			NGX[str(x)] = l
 
-	print NGX
-	print NX
 	data["NGX_values"] = NGX
 	data["NX_values"] = NX
 
@@ -781,7 +759,6 @@ def parse_paf(overlaps_filename):
 	#		   	value = read(read_id, length, total OLs length, 
 	#				 number of OLs)
 	# ========================================================
-	
 	paf_records = dict()
 	with open(overlaps_filename, "r") as overlaps:
 		for line in overlaps:
@@ -797,12 +774,12 @@ def parse_paf(overlaps_filename):
 			target_length = int(ol.pop(0))
 			target_start_pos = int(ol.pop(0))
 			target_end_pos = int(ol.pop(0))
-			alignment_length = int(ol.pop(1))
+			num_matches = int(ol.pop(0))
+			alignment_length = int(ol.pop(0))
 			overlap_length = 0
 			read_length_diff = abs(target_length - query_length)
 			min_len = min(target_length, query_length)
 			aln_len_min_len = float(alignment_length)/float(min_len)
-
 
 			# calculate overlap length and account for soft clipping
 			if not (query_read_id == target_read_id):
@@ -844,8 +821,8 @@ def parse_paf(overlaps_filename):
 					paf_records[target_read_id].update_total_num_overlaps()
 				else:
 					new_read = read(target_read_id, int(target_length), int(overlap_length), int(1))
-					paf_records[target_read_id] = new_read  
-
+					paf_records[target_read_id] = new_read
+				percent_id = float(num_matches)/float(alignment_length)
 	return paf_records
 
 def write_to_csv(csv_filename, output_prefix, data):
@@ -859,9 +836,13 @@ def write_to_csv(csv_filename, output_prefix, data):
 	csv_filepath = './' + output_prefix + '/csv/' + csv_filename 
 	if isinstance(data, list):
 		with open(csv_filepath, "w") as outfile:
+			csv_out=csv.writer(outfile)
 			for entry in data:
-				outfile.write(str(entry))
-				outfile.write("\n")
+				if isinstance(entry, tuple):
+					csv_out.writerow(entry)
+				else:
+					outfile.write(str(entry))
+					outfile.write("\n")
 	elif isinstance(data, dict):
 		with open(csv_filepath, 'wb') as outfile:
 			writer = csv.writer(outfile)
@@ -877,19 +858,42 @@ def create_overlaps_file(fa_filename, output_prefix, data_type):
 	# ========================================================
 	overlaps_filename = "./" + output_prefix + "/" + output_prefix + "_overlaps.paf"
 
+	# check if minimap2 is installed and in PATH
+	program="minimap2"
+	minimap2_works=False
+	fpath, fname = os.path.split(program)
+	if fpath and os.path.isfile(fpath) and os.access(fpath, os.X_OK):
+		minimap2_works=True
+	else:
+		# check each path in PATH environment variable to see if minimap2 is installed in any of these directories
+		for path in os.environ["PATH"].split(os.pathsep):
+			exe_file = os.path.join(path, program)
+			if ( os.path.isfile(exe_file) and os.access(exe_file, os.X_OK) ):
+				minimap2_works=True
+	if minimap2_works:
+		custom_print("[+] Minimap2 was succesfully found in PATH and is executable.")
+	else:
+		print("ERROR: Minimap2 was unsuccessfully found in PATH or is NOT executable.")
+		sys.exit(1)
+
 	# create overlaps file if it doesn't already exist
 	if not (os.path.exists(overlaps_filename) and os.path.getsize(overlaps_filename) > 0):
 		if data_type == "ont":
 			minimap2_command = "minimap2 -x ava-ont " + fa_filename + " " + fa_filename + " > " + overlaps_filename
 			custom_print( "[x] " + minimap2_command )
-			subprocess.call(minimap2_command, shell=True)
-		elif data_type == "pb": 
+			try:
+				subprocess.call(minimap2_command, shell=True)
+			except subprocess.CalledProcessError:
+				print( "ERROR: minimap2 run was unsuccessful." )
+				sys.exit(1)
+		else: 
 			minimap2_command = "minimap2 -x ava-pb " + fa_filename + " " + fa_filename + " > " + overlaps_filename
 			custom_print( "[x] " + minimap2_command )
-			subprocess.call(minimap2_command, shell=True)
-		else:
-			custom_print( "[!] Error: Long read sequencing data not recognized. Either ONT or PB data only." )
-			sys.exit()
+			try:
+				subprocess.call(minimap2_command, shell=True)
+			except subprocess.CalledProcessError:
+				print( "ERROR: minimap2 run was unsuccessful." )
+				sys.exit(1)
 	else:
 		custom_print( "[+] Non-empty PAF file already exists: " + overlaps_filename )
 
