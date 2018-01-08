@@ -128,7 +128,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	total_num_bases_vs_min_read_length = dict()
 	ngx_values = dict()
 
-	# each s will be represented with a unique marker and color
+	# each sample will be represented with a unique marker and color
 	markers = ['s', 'o', '^', 'p', '+', '*', 'v']
 	colors = ['#FC614C', '#2DBDD8', '#B4E23D', '#F7C525', '#5B507A', '#0A2463' ] 
 
@@ -156,26 +156,29 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 				ngx_values[s] = (color, data['NGX_values'], marker)
 
 	# --------------------------------------------------------
-	# PART 2: Calculate the number of plots to created
+	# PART 2: Calculate the number of plots to be created
 	# --------------------------------------------------------
 	# total number of plots = a + b
-	# a = number of plots in plots_requested not including est. cov vs read length
-	# b = est. cov vs read length * number of ss
-	# if est. cov vs read length requested, we need to create one for each s
+	# a = number of plots in plots_requested not including ngx plots and est. cov vs read length
+	# b = est. cov vs read length * number of samples + number of samples with ngx values calculated
+	# if est. cov vs read length requested, we need to create one for each sample
 
 	# calculate num of samples
 	num_ss = len(preqclr_file)
 
 	# calculate a
-	a = len(plots_requested) - 1
+	a = len(plots_requested) - 2
 
 	# calculate b
 	if 'est_cov_vs_read_length' in plots_requested:
 		b = num_ss
 	else:
 		b = 0
-	if not ngx_calculated:
-		b-=1
+
+	# calculate the number of samples that had ngx_calculations
+	if ngx_calculated:
+		b+=len(ngx_values)
+
 	num_plots = a + b
 
 	# --------------------------------------------------------
@@ -261,7 +264,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'ngx' in plots_requested and ngx_values:
 		ax = subplots.pop(0)
-		ax_temp = plot_assembly_quality_metrics(ax, ngx_values, output_prefix, "NGX")
+		ax_temp = plot_ngx(ax, ngx_values, output_prefix)
 		if save_png:
 			temp_fig = ax_temp.get_figure()
 			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
@@ -283,28 +286,20 @@ def plot_read_length_distribution(ax, data, output_prefix):
 	global max_percentile
 	read_lengths = data
 
+	# now start plotting for each sample
 	# get the maximum read length across all the samples
 	max_read_length = 0
-	for s in read_lengths:
-		s_name = s
-		s_color = read_lengths[s][0]
-		s_read_lengths = read_lengths[s][1]
-		s_max_read_length = max(s_read_lengths)
-		if s_max_read_length > max_read_length:
-			max_read_length = s_max_read_length
-			x_lim = np.percentile(s_read_lengths, max_percentile)
-		#binwidth = 1000.0
-		#bins = np.arange(0, max_read_length + binwidth, binwidth)
-
-	# now start plotting for each sample
-	max_y = 0
+	y_lim = 0
 	for s in read_lengths:
 		s_name = s
 		s_color = read_lengths[s][0]
 		sd = read_lengths[s][1]
+
+		# round the read lengths to nearest 100 for smoother graph
 		base = 100
 		sd_rounded = [ int(base * round(float(x)/base)) for x in sd ]
 		labels, values = zip(*sorted(collections.Counter(sorted(sd_rounded)).items()))
+
 		# normalize labels
 		s = sum(values)
 		nlabels = list()
@@ -312,8 +307,16 @@ def plot_read_length_distribution(ax, data, output_prefix):
 		for v in values:
 			nv = float(v)/float(s)
 			nvalues.append(nv)
-		if max(nvalues) > max_y:
-			max_y = max(nvalues)
+
+		# get x and y limits
+		if max(nvalues) > y_lim:
+			y_lim = max(nvalues)*1.3
+		s_max_read_length = max(sd_rounded)
+		if s_max_read_length > max_read_length:
+			max_read_length = s_max_read_length
+			x_lim = np.percentile(sd_rounded, max_percentile)
+
+		# plot!
 		ax.plot(labels, [float(i) for i in nvalues], color=s_color, label=s_name)
 
 	# configure the subplot
@@ -321,49 +324,11 @@ def plot_read_length_distribution(ax, data, output_prefix):
 	ax.set_xlabel('Read lengths (bp)')
 	ax.set_ylabel('Proportion')
 	ax.set_xlim(0, x_lim)
-	ax.set_ylim(0, max_y)
+	ax.set_ylim(0, y_lim)
 	ax.grid(True, linestyle='-', linewidth=0.3)
 	ax.get_xaxis().get_major_formatter().set_scientific(False)
 	ax.get_xaxis().get_major_formatter().set_useOffset(False)
 	ax.legend(loc='upper right')
-	return ax
-
-def plot_num_overlaps_per_read_distribution(ax, data, output_prefix):
-	# ========================================================
-	print "[ Plotting per read number of overlaps distribution ]"
-	# ========================================================
-
-	max_num_overlaps = 0
-	for s in data:
-		sd = data[s][1]
-		s_max_num_overlaps = max(sd.values())
-		if s_max_num_overlaps > max_num_overlaps:
-			max_num_overlaps = s_max_num_overlaps
-			x_lim = np.percentile(sd.values(), 90)
-			binwidth = 0.001
-			bins = np.arange(0, float(max_num_overlaps) + binwidth, binwidth)
-
-	# now start plotting
-		for s in data:
-				s_name = s
-				s_color = data[s][0]
-				sd = data[s][1]
-				sd_rounded = [ round(x, 4) for x in sd.values() ]
-				labels, values = zip(*sorted(collections.Counter(sorted(sd_rounded)).items()))
-				s = sum(values)
-				nvalues = list()
-				for v in values:
-					nv = float(v)/float(s)
-					nvalues.append(nv)
-				ax.plot(labels, nvalues, label=s_name, color=s_color)
-
-	# plotting the number of overlaps/read
-	ax.set_title('Start positions per read distribution')
-	ax.set_xlabel('Number of overlaps')
-	ax.set_ylabel('Proportion')	
-	ax.grid(True, linestyle='-', linewidth=0.3)
-	ax.legend(loc='upper right')
-	ax.set_xlim(0, float(x_lim))
 	return ax
 
 def plot_est_cov(ax, data, est_cov_post_filter_info, output_prefix):
@@ -407,6 +372,8 @@ def plot_est_cov(ax, data, est_cov_post_filter_info, output_prefix):
 		for i in y:
 			ni = float(i)/float(sy)
 			ny.append(ni)
+
+		# plot!
 		ax.plot(x, ny, color=s_color, label=s_name)
 
 	# configure subplot
@@ -551,25 +518,22 @@ def plot_total_num_bases_vs_min_read_length(ax, data, output_prefix):
 		ax.plot(x, ny, label=s_name, color=s_color)
 
 	# set x limit
-	x_lim = max_min_read_length*0.90
+	global max_percentile
+	x_lim = max_min_read_length*(float(max_percentile)/100.0)
 
 	# configure subplot
 	ax.set_title('Total number of bases')
 	ax.grid(True, linestyle='-', linewidth=0.3)
-	ax.set_xlabel('Min. read length (bp)')
+	ax.set_xlabel('Min. read length (bps)')
 	ax.set_ylabel('Proportion')
 	ax.legend(loc='upper right')
 	ax.set_xlim(0, x_lim)
 	return ax
 
-def plot_assembly_quality_metrics(ax, data, output_prefix, type):
+def plot_ngx(ax, data, output_prefix):
 	# ========================================================
-	if type == "NGX":
-		custom_print( "[ Plotting NGX values ]" )
-		ax.set_title('NG(X)')
-	else:
-		custom_print( "[ Plotting NX values ]" )
-		ax.set_title('N(X)')
+	custom_print( "[ Plotting NGX values ]" )
+	ax.set_title('NG(X)')
 	# ========================================================
 
 	for s in data:
@@ -587,7 +551,7 @@ def plot_assembly_quality_metrics(ax, data, output_prefix, type):
 	# configure subplot
 	ax.grid(True, linestyle='-', linewidth=0.3)
 	ax.set_xlabel('X (%)')
-	ax.set_ylabel('Contig length (bp)')
+	ax.set_ylabel('Contig length (bps)')
 	ax.legend(loc='upper right')
 	return ax
 
