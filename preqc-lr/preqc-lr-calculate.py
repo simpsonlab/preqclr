@@ -297,48 +297,6 @@ def calculate_read_length(fasta, output_prefix, data):
 	read_lengths.sort()
 	data['per_read_read_length'] = read_lengths
 
-def calculate_num_overlaps_per_read(fasta, output_prefix, data):
-	# ========================================================
-	custom_print( "[ Calculating number of overlaps per read ]" )
-	# --------------------------------------------------------
-	# Input: FASTA/Q filename
-	# Output: Either ['fastq.gz', 'fasta.gz', 'fastq', 'fasta']
-	# ========================================================
-
-	# --------------------------------------------------------
-	# PART 0: Get all the information needed from fasta
-	# --------------------------------------------------------
-	fa_filename = fasta.get_fa_filename()
-	data_type = fasta.get_data_type()
-	reads = fasta.get_read_seqs()
-	mean_read_length = fasta.get_mean_read_length()
-	num_reads = fasta.get_num_reads()
-	paf_records = fasta.get_paf_records()
-
-	# --------------------------------------------------------
-	# PART 1: Number of overlaps already calculated ...
-	# --------------------------------------------------------
-	# --------------------------------------------------------
-	# PART 2: Divide the num overlaps by the read length
-	# --------------------------------------------------------
-	per_read_overlap_count = dict() 
-	for read_id in paf_records:
-			read_length = float(paf_records[read_id].get_read_length())
-			num_overlaps = float(paf_records[read_id].get_total_num_overlaps())
-			per_read_overlap_count[read_id] = num_overlaps / read_length 
-
-	# --------------------------------------------------------
-	# PART 3: Write to csv if requested
-	# --------------------------------------------------------
-	if store_csv:
-			csv_filename = 'per_read_overlap_count.csv'
-			write_to_csv( csv_filename, output_prefix, per_read_overlap_count)
-
-	# --------------------------------------------------------
-	# PART 4: Add to the data set
-	# --------------------------------------------------------
-	data['per_read_overlap_count'] = per_read_overlap_count
-
 def calculate_est_cov(fasta, output_prefix, data):
 	# ========================================================
 	custom_print( "[ Calculating est cov per read, and est genome size ]" )
