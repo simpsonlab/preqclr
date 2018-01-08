@@ -31,4 +31,4 @@ There are two components to preqc-lr:
 Learn
 =============
 
-* Quickstart tutorial [here](https://www.preqc-lr.readthedocs.io)
+* Quickstart tutorial [here](http://preqc-lr.readthedocs.io/en/latest/quickstart.html)
