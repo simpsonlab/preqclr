@@ -30,17 +30,19 @@ def main():
 	# --------------------------------------------------------
 	parser = argparse.ArgumentParser(prog='preqc-lr',description='Calculate Pre-QC Long Read report')
 	parser.add_argument('-r', '--reads', action="store", required=True, 
-	dest="fa_filename", help="Fasta, fastq, fasta.gz, or fastq.gz files containing reads.")
+		dest="fa_filename", help="Fasta, fastq, fasta.gz, or fastq.gz files containing reads.")
 	parser.add_argument('-t', '--type', action="store", required=True, 
-	dest="data_type", choices=['pb', 'ont'], help="Either pacbio (pb) or oxford nanopore technology data (ont).")
+		dest="data_type", choices=['pb', 'ont'], help="Either pacbio (pb) or oxford nanopore technology data (ont).")
 	parser.add_argument('-n', '--sample_name', action="store", required=True, 
-	dest="sample_name", help="Sample name; you can use the name of species for example. This will be used as output prefix.")
+		dest="sample_name", help="Sample name; you can use the name of species for example. This will be used as output prefix.")
 	parser.add_argument('-p', '--paf', action="store", required=False, 
-	dest="paf", help="Minimap2 pairwise alignment file (PAF). This is produced using 'minimap2 -x ava-ont sample.fastq sample.fastq'.")
+		dest="paf", help="Minimap2 pairwise alignment file (PAF). This is produced using 'minimap2 -x ava-ont sample.fastq sample.fastq'.")
 	parser.add_argument('--csv', action="store_true", required=False,
-	dest="store_csv", default=False, help="Use flag to save comma separated values (CSV) files for each plot.")
-	parser.add_argument('-g', '--gfa', action="store", required=False, dest="gfa", help="Graph Fragment Assembly (GFA) file created by miniasm.")
-	parser.add_argument('--verbose', action="store_true", required=False, dest="verbose", help="Use to output preqc-lr progress.")
+		dest="store_csv", default=False, help="Use flag to save comma separated values (CSV) files for each plot.")
+	parser.add_argument('-g', '--gfa', action="store", required=False, 
+		dest="gfa", help="Miniasm graph gragment assembly (GFA) file. This is produced using 'miniasm -f reads.fasta overlaps.paf'.")
+	parser.add_argument('--verbose', action="store_true", required=False, 
+		dest="verbose", help="Use to output preqc-lr progress to stdout.")
 	parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.2')
 	args = parser.parse_args()
 
@@ -48,6 +50,7 @@ def main():
 	global verbose
 	global log
 	verbose = args.verbose
+	log=list()
 
 	custom_print( "========================================================")
 	custom_print( "RUNNING PREQC-LR CALCULATE" ) 
@@ -115,7 +118,7 @@ def main():
 		custom_print( "[+] GFA: None given, will not run NGX calculations." )
 
 	# --------------------------------------------------------
-	# PART 3: Create work dir, and csv dir if requested
+	# PART 3: Create work dir, and if requested create csv dir 
 	# --------------------------------------------------------
 	custom_print( "[ Output ]" )
 	csv_dir = './' + output_prefix + '/csv'
@@ -154,14 +157,15 @@ def main():
 
 def calculate_report(output_prefix, fa_filename, data_type, data, gfa='', paf=''):
 	# ========================================================
-	# Preprocess and calls calculation functions:
+	# Preprocesses and calls calculation functions:
 	# --------------------------------------------------------
-	# Performs all the preprocessing of input for each calc,
-	# then calls all the calculation functions.
-	# Input:	FASTA/Q file, data type, paf if given, and 
-	#		   initiated json structure called data.
+	# Performs all the preprocessing of input for each calc
+	# (stores only info. needed), then calls all the 
+	# calculation functions.
+	# Input:	FASTA/Q file, data type, paf if given, gfa if
+	#			given, and initiated json structure called data.
 	# Output:   json file holding all information needed to
-	#		   create plots.
+	#		   	create plots in preqc-lr-report program.
 	# ========================================================
 
 	custom_print( "========================================================" )
@@ -239,6 +243,7 @@ def calculate_report(output_prefix, fa_filename, data_type, data, gfa='', paf=''
 	end = time.clock()
 	custom_print( "[+] Time elapsed: " + str(end - start) + " seconds" )
 
+	# we can only calculate ngx if GFA given for now
 	global gfa_given
 	if gfa_given:
 		start = time.clock()
@@ -279,8 +284,8 @@ def calculate_read_length(fasta, output_prefix, data):
 	# --------------------------------------------------------
 	# PART 0: Gets the list of pre-calculated read lengths
 	# --------------------------------------------------------
-	reads = fasta.get_read_seqs()
-	read_lengths = list()
+	reads = fasta.get_read_seqs()	# dictionary with key=read_id, value=length
+	read_lengths = list()			# will hold only lengths
 	for read_id in reads:
 		read_lengths.append(int(reads[read_id][1]))
 
@@ -292,23 +297,21 @@ def calculate_read_length(fasta, output_prefix, data):
 		write_to_csv( csv_filename, output_prefix, read_lengths)
 
 	# --------------------------------------------------------
-	# PART 2: Add to the data set
+	# PART 2: Add to the json data set
 	# --------------------------------------------------------
 	read_lengths.sort()
 	data['per_read_read_length'] = read_lengths
 
 def calculate_est_cov(fasta, output_prefix, data):
 	# ========================================================
-	custom_print( "[ Calculating est cov per read, and est genome size ]" )
+	custom_print( "[ Calculating est cov per read and est genome size ]" )
 	# --------------------------------------------------------
-	# Uses for each read, length and length of all overlaps,
+	# Uses for each read, length, and sum length of all overlaps,
 	# to calculate the est cov. It then performs
 	# filtering to calculate genome size estimates.
-	# Input: parse_paf() output dictionary paf_records
-	# Output: Dictionary with overlap info:
-	#		 key = read_id
-	#		 value = read(read_id, length, total OLs length, 
-	#				 number of OLs)
+	# Input: 	parse_paf() output dictionary paf_records
+	# Output: 	List of tuples. Each tuple represents a read:
+	#		 	( read coverage, read length )
 	# ========================================================
 
 	# --------------------------------------------------------
@@ -373,7 +376,7 @@ def calculate_est_cov(fasta, output_prefix, data):
 	custom_print( "[-]	Read length (mean, median): (" + str(mean_read_length) + "," + str(median_read_length) + ")" )
 	num_reads = float(len(filtered_covs))
 	q75, q25 = np.percentile([x[0] for x in filtered_covs], [75 ,25])
-	IQR = int( q75 - q25 )
+	IQR = float(q75) - float(q25)
 	post_filter = (num_reads, max_cov, min_cov, median_cov, mean_read_length, upperbound, lowerbound)
 
 	# --------------------------------------------------------
@@ -381,7 +384,7 @@ def calculate_est_cov(fasta, output_prefix, data):
 	# --------------------------------------------------------
 	n = float(len(filtered_covs))
 	l = float(mean_read_length)
-	c = float(np.median([x[0] for x in filtered_covs]))
+	c = float(median_cov)
 	est_genome_size = ( n * l ) / c
 
 	# --------------------------------------------------------
@@ -397,9 +400,10 @@ def calculate_est_cov(fasta, output_prefix, data):
 	data['est_cov_stats_pre_filter'] = pre_filter
 	data['est_cov_stats_post_filter'] = post_filter
 	data['est_cov_post_filter_info'] = (lowerbound, upperbound, num_reads, IQR)
-	data['per_read_est_cov_and_read_length'] = covs   
+	data['per_read_est_cov_and_read_length'] = covs
 	data['est_genome_size'] = est_genome_size
 
+	# store info on genome size estimate which will be used for NGX calcs
 	global est_genome
 	est_genome = est_genome_size	
 
@@ -407,10 +411,10 @@ def calculate_GC_content_per_read(fasta, output_prefix, data):
 	# ========================================================
 	custom_print( "[ Calculating GC-content per read ]" )
 	# --------------------------------------------------------
-	# Uses for reduced representation of each read to sum 
+	# Uses reduced representation of each read to sum 
 	# the number of Gs and Cs, then divides by total read
 	# length.
-	# Input:	Dict of reads
+	# Input:	Dict of reads with info on # of G and C already
 	# Output:   Dictionary with GC content info:
 	#		   	key = GC content level (0-100%)
 	#		   	value = # of reads with GC content level
@@ -423,7 +427,7 @@ def calculate_GC_content_per_read(fasta, output_prefix, data):
 	read_counts_per_GC_content = dict()
 	for read_id in reads:
 		read_length = reads[read_id][1]
-		count_rep = reads[read_id][0]   # this is a string containing info about nucleotide counts see reduce_represent()
+		count_rep = reads[read_id][0]   	# this is a string containing info about nucleotide counts see reduce_represent()
 		count_C = translate_reduce_represent(count_rep, 'C')
 		count_G = translate_reduce_represent(count_rep, 'G')
 		count_GC = int(count_G) + int(count_C)
@@ -449,13 +453,11 @@ def calculate_total_num_bases_vs_min_read_length(fasta, output_prefix, data):
 	# ========================================================
 	custom_print( "[ Calculating total number of bases as a function of min read length ]" )
 	# --------------------------------------------------------
-	# Uses for reduced representation of each read to sum 
-	# the number of Gs and Cs, then divides by total read
-	# length.
-	# Input:	Dict of reads
-	# Output:   Dictionary with GC content info:
-	#		   key = GC content level (0-100%)
-	#		   value = # of reads with GC content level
+	# Shows the total number of bases with varying minimum 
+	# read length cut offs.
+	# Input:	Dictionary of reads with read length info in value
+	# Output:   List of tuples:
+	# 			(read length cut off, total number of bases)
 	# ========================================================
 
 	# --------------------------------------------------------
@@ -658,7 +660,6 @@ def reduce_represent(read_seq):
 	count_C = read_seq.count('C')
 	count_G = read_seq.count('G')
 	read_length = int(len(read_seq))
-	#count_rep = "A" + str(count_A) + "C" + str(count_C) + "G" + str(count_G) + "T" + str(count_T)
 	count_rep = "C" + str(count_C) + "G" + str(count_G)
 	return (count_rep, read_length)
 
