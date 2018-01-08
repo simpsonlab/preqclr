@@ -13,6 +13,8 @@ Installing the latest code from github
 
 Installing dependencies with pip
 ------------------------------------
+
+This method will require setuptools to be installed prior.
 ::
 
     pip install preqc-lr
@@ -22,4 +24,4 @@ This will install the following packages with all their dependencies:
 * matplotlib
 * BioPython
 
-Additionally, you will need python2.7.11 and the `OpenBLAS library <https://www.openblas.net>`_.
+Additionally, you will need python2.7.
