@@ -150,7 +150,7 @@ def main():
 	# --------------------------------------------------------
 	# Final: Store log in file if user didn't specify verbose
 	# --------------------------------------------------------
-	outfile = output_prefix + "_preqclr.log"
+	outfile = output_prefix + "_preqclr-calculate.log"
 	with open(outfile, 'wb') as f:
 		for o in log:
 			f.write(o + "\n")
@@ -230,11 +230,6 @@ def calculate_report(output_prefix, fa_filename, data_type, data, gfa='', paf=''
 
 	start = time.clock()
 	calculate_read_length(fasta, output_prefix, data)
-	end = time.clock()
-	custom_print( "[+] Time elapsed: " + str(end - start) + " seconds" )
-
-	start = time.clock()
-	calculate_num_overlaps_per_read(fasta, output_prefix, data)
 	end = time.clock()
 	custom_print( "[+] Time elapsed: " + str(end - start) + " seconds" )
 

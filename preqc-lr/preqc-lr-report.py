@@ -13,6 +13,7 @@ try:
 	import pylab as plt
 	import sys, os, csv
 	import json
+	import time
 	import collections
 	from mpl_toolkits.axes_grid1 import make_axes_locatable
 except ImportError:
@@ -26,9 +27,6 @@ log=list()
 verbose=False
 
 def main():
-	custom_print( "========================================================" )
-	custom_print( "RUNNING PREQC-LR REPORT" )
-	custom_print( "========================================================" )
 
 	# --------------------------------------------------------
 	# PART 0: Pre-process arguments
@@ -53,6 +51,12 @@ def main():
 		print "Use --plot and names to choose which plots to create."
 		sys.exit(0)
 
+	# check to see if preqc-lr files end with .preqclr
+	for file in args.preqc_file:
+		if not file.endswith('.preqclr'):
+			print "ERROR: " + file + " does not end with .preqclr extension."
+			sys.exit(1)
+
 	# change output_prefix to prefix of preqclr file if not specified
 	if not args.output_prefix and len(args.preqc_file) == 1:
 		basename=os.path.basename(args.preqc_file[0])
@@ -66,6 +70,10 @@ def main():
 	if args.verbose:
 		global verbose
 		verbose=True
+
+	custom_print( "========================================================" )
+	custom_print( "RUNNING PREQC-LR REPORT" )
+	custom_print( "========================================================" )
 
 	# set global variable of save png
 	global save_png
@@ -83,14 +91,24 @@ def main():
 		# if user did not specify plots, make all plots
 		plots = plots_available
 
-	if len(args.preqc_file) > 6:
-		print "Warning: Large amount of samples may not display as well"
+	if len(args.preqc_file) > 7:
+		print "ERROR: Maximum amount of samples is 7. More than this will not display well."
+		sys.exit(1)
 
+	start = time.clock()
 	create_report(output_prefix, args.preqc_file, plots)
+	end = time.clock()
+	total_time = end - start
 
 	# --------------------------------------------------------
 	# Final: Store log in file if user didn't specify verbose
 	# --------------------------------------------------------
+	custom_print( "========================================================" )
+	custom_print( "STORE INFO" )
+	custom_print( "========================================================" )
+	custom_print("[+] Preqc-lr report pdf: " + output_prefix + ".pdf")
+	custom_print("[ Done ]")
+	custom_print( "[+] Total time: " + str(total_time) + " seconds" )
 	global log
 	outfile = output_prefix + "_preqclr-report.log"
 	with open(outfile, 'wb') as f:
@@ -121,7 +139,6 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	# --------------------------------------------------------
 	est_genome_sizes = dict()
 	per_read_read_length = dict()
-	per_read_overlap_count = dict()
 	per_read_est_cov_and_read_length = dict()
 	est_cov_post_filter_info = dict()
 	per_read_GC_content = dict()
@@ -146,7 +163,6 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			s = data['sample_name']
 			est_genome_sizes[s] = (color, data['est_genome_size'], marker)													# bar graph
 			per_read_read_length[s] = (color, data['per_read_read_length'], marker)											# histogram
-			per_read_overlap_count[s] = (color, data['per_read_overlap_count'], marker)										# histogram
 			per_read_est_cov_and_read_length[s] = (color, data['per_read_est_cov_and_read_length'], marker) 				# histogram
 			est_cov_post_filter_info[s] = data['est_cov_post_filter_info']
 			per_read_GC_content[s] = (color, data['read_counts_per_GC_content'], marker) 									# histogram
