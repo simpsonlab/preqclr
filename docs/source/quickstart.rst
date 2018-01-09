@@ -9,43 +9,42 @@ preqc-lr generates a PDF report containing several plots such as estimated genom
 
 **Requirements:**
 
-* `preqc-lr <https://github.com/simpsonlab/preqc-lr>`_ 
-* `minimap2 <https://github.com/lh3/minimap2>`_
-* `miniasm <https://github.com/lh3/miniasm/>`_
+* `preqc-lr v1.2 <https://github.com/simpsonlab/preqc-lr>`_ 
+* `minimap2 v2.6 <https://github.com/lh3/minimap2>`_
+* `miniasm v0.2 <https://github.com/lh3/miniasm/>`_
 
 Download example dataset
 """"""""""""""""""""""""""
 
 You can download the example dataset we will use here: ::
 
-    wget http://s3.climb.ac.uk/nanopolish_tutorial/ecoli_100kb_region.tar.gz
-    tar -xf ecoli_100kb_region.tar.gz
-	cd ecoli_100kb_region/
+    wget http://s3.climb.ac.uk/nanopolish_tutorial/example_data.tar.gz
+    tar -xf example_data.tar.gz
+	cd example_data/
 
 **Details:**
 
-This is a subset of reads that align to a 100kb region of *E. coli*.  The data was produced using Oxford Nanopore Technologies (ONT) MinION sequencer.
+This dataset from an *E. coli* sample were produced using Oxford Nanopore Technologies (ONT) MinION sequencer.
 
 * Sample :    E. coli str. K-12 substr. MG1655
 * Instrument : ONT MinION sequencing R9.4 chemistry
 * Basecaller : Albacore v2.0.1
-* Region length: Approx. 100kb
-* Number of reads: 1581
+* Number of reads: 63931
 
 Generate overlap information with minimap2
 """"""""""""""""""""""""""""""""""""""""""""""""
 
 We use minimap2 to find overlaps between our ONT long reads: ::
 
-   minimap2 -x ava-ont reads.fasta reads.fasta > overlaps.paf 
+   minimap2 -x ava-ont albacore_v2.0.1-merged.fasta albacore_v2.0.1-merged.fasta > overlaps.paf 
 
 If we take a peak at the first few lines of the Pairwise mApping Format (PAF) file, we see the following: ::
 
-    00ffc7ec-ce0c-472d-a1f4-9a9ab65353fd	6379	78	6343	-	93d821e7-f696-4fab-b727-e18d4f179747	10079	3330	9672	2988	6467	0	tp:A:S	cm:i:509	s1:i:2946
-    00ffc7ec-ce0c-472d-a1f4-9a9ab65353fd	6379	132	6320	+	b3f12a71-53ed-4245-9f72-67593fd00ec9	10347	2847	9059	2950	6352	0	tp:A:S	cm:i:539	s1:i:2912
-    00ffc7ec-ce0c-472d-a1f4-9a9ab65353fd	6379	230	6343	+	044c27f2-7c69-4485-bea3-a5c75b7459f7	8566	70	6195	2643	6274	0	tp:A:S	cm:i:456	s1:i:2597
-    00ffc7ec-ce0c-472d-a1f4-9a9ab65353fd	6379	127	6343	-	5bba56d6-dcd3-4e5a-8705-ffa9fe5049b2	8434	1222	7417	2442	6373	0	tp:A:S	cm:i:374	s1:i:2395
-    00ffc7ec-ce0c-472d-a1f4-9a9ab65353fd	6379	102	6343	-	083d17cc-7c65-4404-85d2-baa6a36b4183	9218	1062	7319	2372	6407	0	tp:A:S	cm:i:376	s1:i:2329
+     7fd051aa-c88b-4cf7-8846-cc2117780be2_Basecall_1D_template	6605	118	6425	-	ae8fc44b-ee05-4c7a-a611-483bb408cb9e_Basecall_1D_template	7834	629	7230	24806671	0	tp:A:S	cm:i:387	s1:i:2413	dv:f:0.1144
+     7fd051aa-c88b-4cf7-8846-cc2117780be2_Basecall_1D_template	6605	343	6417	-	cecc6ee9-f1ec-4c82-915a-5312f39f7ec5_Basecall_1D_template	6762	421	6710	24286372	0	tp:A:S	cm:i:370	s1:i:2374	dv:f:0.1149
+     7fd051aa-c88b-4cf7-8846-cc2117780be2_Basecall_1D_template	6605	118	6377	-	c0d8087f-ad9f-430c-8094-24c6187bed6c_Basecall_1D_template	11415	3039	9493	22646559	0	tp:A:S	cm:i:346	s1:i:2209	dv:f:0.1214
+     7fd051aa-c88b-4cf7-8846-cc2117780be2_Basecall_1D_template	6605	738	6422	-	bbb93738-16ec-4bcd-86e5-31e852946a7d_Basecall_1D_template	6596	553	6498	20916000	0	tp:A:S	cm:i:302	s1:i:2031	dv:f:0.1242
+     7fd051aa-c88b-4cf7-8846-cc2117780be2_Basecall_1D_template	6605	212	6422	-	943b8d89-2ee5-4d67-91d1-a94772afed31_Basecall_1D_template	7324	807	7152	20676448	0	tp:A:S	cm:i:322	s1:i:2011	dv:f:0.1255
 
 You can find more information about the format of the PAF file `here <https://github.com/lh3/miniasm/blob/master/PAF.md>`_.
 
@@ -54,31 +53,33 @@ Generate assembly graph with miniasm
 
 We use miniasm to get an assembly graph in the `Graphical Fragment Assembly <https://github.com/GFA-spec/GFA-spec/blob/master/GFA-spec.md>`_ format: ::
 
-   miniasm -f reads.fasta overlaps.paf > layout.gfa
+   miniasm -f albacore_v2.0.1-merged.fasta overlaps.paf > layout.gfa
+
+.. Checkpoint:: Make sure ``layout.gfa`` and ``overlaps.paf`` are not empty.
 
 Perform calculations
 """"""""""""""""""""""""
 
-We now have the necessary files to run preqc-lr (``reads.fasta``, ``overlaps.paf``, and ``layout.gfa``). 
+We now have the necessary files to run preqc-lr (``albacore_v2.0.1-merged.fasta``, ``overlaps.paf``, and ``layout.gfa``). 
 To generate the data needed for the reports we first run preqc-lr-calculate ::
 
-    python /path/to/preqc-lr-calculate.py \
-        --reads reads.fasta \
+    python /PATH/TO/preqc-lr-calculate.py \
+        --reads albacore_v2.0.1-merged.fasta \
         --type ont \
-        --sample_name ecoli_100kb.ONT \
+        --sample_name ecoli.ONT \
         --paf overlaps.paf \
-        --gfa layout.gfa
+        --gfa layout.gfa \
+		--verbose
 
-This will produce a JSON formatted file: ``ecoli_100kb.ONT.preqclr``.
+This will produce a JSON formatted file (``ecoli.ONT.preqclr``) and a log of calculations that were performed (``ecoli.ONT_preqclr-calculate.log``).
 
 Generate report
 """""""""""""""""""
 
-Now we are read to run preqc-lr-report to generate a PDF file describing quality metrics of your sequencing data: ::
+Now we are read to run preqc-lr-report to generate a PDF file describing quality metrics of the sequencing data: ::
 
-    python /path/to/preqc-lr-report.py \
-        -i ecoli_100kb.ONT.preqclr \
-        -o ecoli_100kb.ONT
+    python /PATH/TO/preqc-lr-report.py \
+        -i ecoli.ONT.preqclr --verbose
 
 This will produce a PDF file: ``ecoli.ONT.pdf``.
 
