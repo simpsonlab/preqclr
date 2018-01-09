@@ -20,15 +20,15 @@ You can download the example dataset we will use here: ::
 
     wget http://s3.climb.ac.uk/nanopolish_tutorial/example_data.tar.gz
     tar -xf example_data.tar.gz
-	cd example_data/
+    cd example_data/
 
 **Details:**
 
 This dataset from an *E. coli* sample were produced using Oxford Nanopore Technologies (ONT) MinION sequencer.
 
-* Sample :    E. coli str. K-12 substr. MG1655
-* Instrument : ONT MinION sequencing R9.4 chemistry
-* Basecaller : Albacore v2.0.1
+* Sample :		E. coli str. K-12 substr. MG1655
+* Instrument : 	ONT MinION sequencing R9.4 chemistry
+* Basecaller :	Albacore v2.0.1
 * Number of reads: 63931
 
 Generate overlap information with minimap2
@@ -38,7 +38,7 @@ We use minimap2 to find overlaps between our ONT long reads: ::
 
    minimap2 -x ava-ont albacore_v2.0.1-merged.fasta albacore_v2.0.1-merged.fasta > overlaps.paf 
 
-If we take a peak at the first few lines of the Pairwise mApping Format (PAF) file, we see the following: ::
+If we take a peek at the first few lines of the Pairwise mApping Format (PAF) file, we see the following: ::
 
      7fd051aa-c88b-4cf7-8846-cc2117780be2_Basecall_1D_template	6605	118	6425	-	ae8fc44b-ee05-4c7a-a611-483bb408cb9e_Basecall_1D_template	7834	629	7230	24806671	0	tp:A:S	cm:i:387	s1:i:2413	dv:f:0.1144
      7fd051aa-c88b-4cf7-8846-cc2117780be2_Basecall_1D_template	6605	343	6417	-	cecc6ee9-f1ec-4c82-915a-5312f39f7ec5_Basecall_1D_template	6762	421	6710	24286372	0	tp:A:S	cm:i:370	s1:i:2374	dv:f:0.1149
@@ -55,13 +55,13 @@ We use miniasm to get an assembly graph in the `Graphical Fragment Assembly <htt
 
    miniasm -f albacore_v2.0.1-merged.fasta overlaps.paf > layout.gfa
 
-.. Checkpoint:: Make sure ``layout.gfa`` and ``overlaps.paf`` are not empty.
+.. note:: Make sure ``layout.gfa`` and ``overlaps.paf`` are not empty before continuing.
 
 Perform calculations
 """"""""""""""""""""""""
 
 We now have the necessary files to run preqc-lr (``albacore_v2.0.1-merged.fasta``, ``overlaps.paf``, and ``layout.gfa``). 
-To generate the data needed for the reports we first run preqc-lr-calculate ::
+To generate the data needed for the report we first run preqc-lr-calculate ::
 
     python /PATH/TO/preqc-lr-calculate.py \
         --reads albacore_v2.0.1-merged.fasta \
@@ -69,14 +69,14 @@ To generate the data needed for the reports we first run preqc-lr-calculate ::
         --sample_name ecoli.ONT \
         --paf overlaps.paf \
         --gfa layout.gfa \
-		--verbose
+        --verbose
 
 This will produce a JSON formatted file (``ecoli.ONT.preqclr``) and a log of calculations that were performed (``ecoli.ONT_preqclr-calculate.log``).
 
 Generate report
 """""""""""""""""""
 
-Now we are read to run preqc-lr-report to generate a PDF file describing quality metrics of the sequencing data: ::
+Now we are ready to run preqc-lr-report to generate a PDF file describing quality metrics of the sequencing data: ::
 
     python /PATH/TO/preqc-lr-report.py \
         -i ecoli.ONT.preqclr --verbose
@@ -91,41 +91,41 @@ The report produces plots as seen below.
 **Plot 0:**
 
 .. figure:: _static/plot_est_genome_size.png
-  :scale: 80%
+  :scale: 70%
   :alt: plot_est_genome_size
 
 **Plot 1:**
 
 .. figure:: _static/plot_read_length_distribution.png
-  :scale: 80%
+  :scale: 70%
   :alt: plot_read_length_distribution
 
 **Plot 2:**
 
 .. figure:: _static/plot_est_cov.png
-  :scale: 80%
+  :scale: 70%
   :alt: plot_est_cov
 
 **Plot 3:**
 
 .. figure:: _static/plot_per_read_GC_content.png
-  :scale: 80%
+  :scale: 70%
   :alt: plot_per_read_GC_content
 
 **Plot 4:**
 
 .. figure:: _static/plot_est_cov_vs_read_length.png
-  :scale: 80%
+  :scale: 70%
   :alt: plot_est_cov_vs_read_length
 
 **Plot 5:**
 
 .. figure:: _static/plot_total_num_bases.png
-  :scale: 80%
+  :scale: 70%
   :alt: plot_total_num_bases
 
 **Plot 6:**
 
 .. figure:: _static/plot_NGX.png
-  :scale: 80%
+  :scale: 70%
   :alt: plot_NGX.png
