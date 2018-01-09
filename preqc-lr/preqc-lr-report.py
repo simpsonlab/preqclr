@@ -79,7 +79,7 @@ def main():
 	global save_png
 	if args.save_png:
 		save_png=True
-		png_dir = "./" + args.output_prefix + "/png/"
+		png_dir = "./" + output_prefix + "/png/"
 		if not os.path.exists(png_dir):
 			os.makedirs(png_dir)
 
@@ -266,10 +266,14 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			ax = subplots.pop(0)
 			ax_temp = plot_per_read_est_cov_vs_read_length(ax, per_read_est_cov_and_read_length, s, output_prefix)
 			if save_png:
-				temp_fig = ax_temp.get_figure()
-				extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+				temp_fig = ax_temp[0].get_figure()
+				extent = ax_temp[0].get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
 				ax_png_file = "./" + output_prefix + "/png/plot_est_cov_vs_read_length_" + s +".png" 
 				temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
+			# add color bar
+			divider = make_axes_locatable(ax)
+			cax = divider.append_axes("right", size="5%", pad=0.05)
+        	ax.figure.colorbar(ax_temp[1], cax=cax)
 	if 'total_num_bases_vs_min_read_length' in plots_requested:
 		ax = subplots.pop(0)
 		ax_temp = plot_total_num_bases_vs_min_read_length(ax, total_num_bases_vs_min_read_length, output_prefix)
@@ -284,7 +288,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 		if save_png:
 			temp_fig = ax_temp.get_figure()
 			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
-			ax_png_file = "./" + output_prefix + "/png/ngx_plot.png"
+			ax_png_file = "./" + output_prefix + "/png/plot_ngx.png"
 			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 
 	# --------------------------------------------------------
@@ -429,13 +433,13 @@ def plot_per_read_est_cov_vs_read_length(ax, data, s, output_prefix):
 	# configure subplot
 	ax.set_title('Est. cov vs read length (' + s + ')')
 	ax.grid(True, linestyle='-', linewidth=0.3)
-	divider = make_axes_locatable(ax)
-	cax = divider.append_axes("right", size="5%", pad=0.05)
-	ax.figure.colorbar(im, cax=cax)
+	#divider = make_axes_locatable(ax)
+	#cax = divider.append_axes("right", size="5%", pad=0.05)
+	#ax.figure.colorbar(im, cax=cax)
 	ax.set_xlabel('Read length (bps)')
 	ax.set_ylabel('Est. cov')
 	ax.legend(loc='upper right')
-	return ax
+	return (ax,im)
 
 def plot_per_read_GC_content(ax, data, output_prefix):
 	# ========================================================
