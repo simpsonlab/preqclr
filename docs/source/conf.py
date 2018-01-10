@@ -107,12 +107,6 @@ html_sidebars = {
     ]
 }
 
-html_context = {
-    'css_files': [
-        '_static/theme_overrides.css',  # overrides for wide tables in RTD theme
-        ],
-    }
-
 
 # -- Options for HTMLHelp output ------------------------------------------
 
