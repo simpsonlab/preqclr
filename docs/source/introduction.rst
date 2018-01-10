@@ -9,6 +9,10 @@ There are two components to preqc-lr:
     1. Calculate
     2. Report
 
+.. figure:: _static/preqc-lr-workflow.png
+  :scale: 70%
+  :alt: preqc-lr-workflow
+
 Calculate
 ----------------
 The first tool will calculate all the datasets needed to create plots using overlap inform
