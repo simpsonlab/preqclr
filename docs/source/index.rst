@@ -19,4 +19,4 @@ To install the latest version: ::
    introduction
    installation
    quickstart
-
+   manual

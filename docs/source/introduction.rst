@@ -24,3 +24,4 @@ The second tool reads the calculated output and generates a pdf with the followi
     5. Estimated coverage vs read length 
     6. Total number of bases as a function of minimum read length
     7. NG(X)
+
