@@ -7,12 +7,6 @@ preqc-lr
 ====================================
 preqc-lr is a software tool that performs quality control checks on long read sequencing data. 
 
-Install
-====================================
-To install the latest version: ::
-
-   git clone https://github.com/simpsonlab/preqc-lr.git
-
 .. toctree::
    :hidden:
 
