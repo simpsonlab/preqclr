@@ -18,8 +18,8 @@ Download example dataset
 
 You can download the example dataset we will use here: ::
 
-    wget http://s3.climb.ac.uk/nanopolish_tutorial/example_data.tar.gz
-    tar -xf example_data.tar.gz
+    wget http://s3.climb.ac.uk/nanopolish_tutorial/preqclr_example_data.tar.gz
+    tar -xf preqclr_example_data.tar.gz
     cd example_data/
 
 **Details:**

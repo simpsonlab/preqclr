@@ -3,6 +3,16 @@
 Installation
 ================
 
+Requirements
+-------------
+
+* Python 2.7
+* setuptools - required for installation
+* minimap2 - required to create required input PAF file
+* miniasm - required if NG(X) plots requested
+* BioPython
+* matplotlib
+
 Installing the latest code from github
 ----------------------------------------
 ::
@@ -13,8 +23,6 @@ Installing the latest code from github
 
 Installing dependencies with pip
 ------------------------------------
-
-This method will require setuptools to be installed prior.
 ::
 
     pip install preqc-lr
@@ -24,4 +32,3 @@ This will install the following packages with all their dependencies:
 * matplotlib
 * BioPython
 
-Additionally, you will need python2.7.
