@@ -43,7 +43,9 @@ namespace opt
     static string sample_name;
 }
 
-class read{
+// TODO: move to own header file...
+class read 
+{
   public:
     string read_id;
     int read_len;
@@ -58,8 +60,8 @@ class read{
   }
   void updateOverlap(int new_ol_len)
   {
-    total_len_overlaps+=new_ol_len;
-    total_num_overlaps+=1;
+    total_len_overlaps += new_ol_len;
+    total_num_overlaps += 1;
   }
 };
 
@@ -71,7 +73,7 @@ void calculate_tot_bases( map<string, read> paf, JSONWriter* writer);
 int getopt( int argc, char *const arv[], const char *optstring);
 enum { OPT_VERSION };
 
-int main( int argc, char *argv[]){
+int main( int argc, char *argv[]) {
   ifstream inFile;
   int i;
 
@@ -163,7 +165,7 @@ int main( int argc, char *argv[]){
     }
   }
 
-  if( argc < 4 ){
+  if( argc < 4 ) {
     cerr << PREQCLR_CALCULATE_USAGE_MESSAGE << endl;
     return -1;
   }
@@ -171,7 +173,8 @@ int main( int argc, char *argv[]){
   // print any remaining command line argumentes
   if (optind < argc) { 
     for (; optind < argc; optind++)
-      cerr << "preqclr " << SUBPROGRAM << ": too many arguments: argv[optind]" << endl;
+      cerr << "preqclr " << SUBPROGRAM << ": too many arguments:" 
+      " argv[optind]" << endl;
   }
 
   // check mandatory variables and assign defaults
@@ -203,10 +206,11 @@ int main( int argc, char *argv[]){
   string line;
   ifstream infile(opt::paf_file);
   map<string, read> paf_records;
-  float sum_left_clip = 0;
-  float sum_right_clip = 0;
-  float sum_ol = 0;
-  while(getline(infile, line)) {
+  int sum_left_clip = 0;
+  int sum_right_clip = 0;
+  int sum_ol = 0;
+  int sum_ols_no_clips = 0;
+  while( getline(infile, line) ) {
     // read each line/overlap and save each column into variable
     string qname;
     int qlen=0, qstart=0, qend=0;
@@ -219,12 +223,13 @@ int main( int argc, char *argv[]){
     ss >> qname >> qlen >> qstart >> qend >> strand >> tname >> tlen >> tstart >> tend;
     //cout<<qname<<"\t"<<qlen<<"\t"<<qstart<<"\t"<<qend<<"\t"<<strand<<"\t"<<tname<<"\t"<<tlen<<"\t"<<tstart<<"\t"<<tend<<"\n";
 
-    if ( qname != tname ) {
+	if ( qname.compare(tname) != 0 ) {
       qprefix_len = qstart;
       qsuffix_len = qlen - qend;
       tprefix_len = tstart;
       tsuffix_len = tlen - tend;
       overlap_len = qend - qstart;
+      sum_ols_no_clips += overlap_len;
 
       // calculate overlap length, we need to take into account minimap2's softclipping
       int left_clip = 0, right_clip = 0;
@@ -243,10 +248,10 @@ int main( int argc, char *argv[]){
         }
       }
       // debugging 
-      overlap_len+=left_clip;
-      overlap_len+=right_clip;
-      sum_left_clip+=left_clip;
-      sum_right_clip+=right_clip;
+      overlap_len += left_clip;
+      overlap_len += right_clip;
+      sum_left_clip += left_clip;
+      sum_right_clip += right_clip;
 
       // add this information to paf_records dictionary
       auto i = paf_records.find(qname);
@@ -255,37 +260,36 @@ int main( int argc, char *argv[]){
             read qr;
             qr.set(qname, qlen, overlap_len);
             paf_records.insert(pair<string,read>(qname, qr));
-        } else {
+      } else {
             // if read found, update the overlap info
             i->second.updateOverlap(overlap_len);
-        }
-        auto j = paf_records.find(tname);
-        if ( j == paf_records.end() ) {
+      }
+      auto j = paf_records.find(tname);
+      if ( j == paf_records.end() ) {
             // if target read not found initialize in paf_records
             read tr;
             tr.set(tname, tlen, overlap_len);
             paf_records.insert(pair<string,read>(tname, tr));
-        } else {
+      } else {
             // if target read found, update the overlap info
             j->second.updateOverlap(overlap_len);
-        }
+      }
     }
   }
   
   // let's check the records...
   int sum_tot_len_ol = 0; 
-  auto it = paf_records.begin();
-  while (it != paf_records.end())
-  {
+  for ( auto const& r : paf_records ) {
     // Accessing KEY from element pointed by it
-    string read_id = it->first;
-    read temp = it->second;
+    string read_id = r.first;
+    read temp = r.second;
     // cout << read_id << ": " << temp.read_len << "," << temp.total_num_overlaps << "," << temp.total_len_overlaps<< "\n";
-    sum_tot_len_ol+=temp.total_len_overlaps;  
-
-    // Increment the Iterator to point to next entry
-    it++;
+    sum_tot_len_ol += temp.total_len_overlaps;  
   }
+  cout << "SUM OL LEN IN PAF_RECORDS: " << sum_tot_len_ol << endl;
+  cout << "OL LENS no clips: " << sum_ols_no_clips <<endl; 
+  cout << "left: " << sum_left_clip << endl;
+  cout << "right: " << sum_right_clip << endl;
 
   // start the JSON object
   StringBuffer s;
@@ -319,15 +323,14 @@ void calculate_tot_bases( map<string, read> paf, JSONWriter* writer)
       read length cut offs.
       Input:    Dictionary of reads with read length info in value
       Output:   Dictionary:
-                 key   = read length cut off :
+                 key   = read length cut off
                  value = total number of bases
       ========================================================
   */
 
   // bin the reads by read length
   map < int, int, greater<int>> read_lengths;
-  for( auto it = paf.begin(); it != paf.end(); it++)
-  {
+  for( auto it = paf.begin(); it != paf.end(); it++) {
     string id = it->first;
     int r_len = it->second.read_len;
 
@@ -348,7 +351,7 @@ void calculate_tot_bases( map<string, read> paf, JSONWriter* writer)
   int tot_num_bases = 0;
   writer->Key("total_num_bases_vs_min_read_length");
   writer->StartObject();
-  for (const auto& p : read_lengths){
+  for (const auto& p : read_lengths) {
     curr_longest = p.first;
     tot_num_bases += ( p.second * p.first);
     string key = to_string( curr_longest );
@@ -416,24 +419,23 @@ void calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* w
   writer->StartObject();
   int sum_tot_len_ol = 0;
   int sum_tot_ol = 0;
-  for( auto it = paf.begin(); it != paf.end(); ++it)
+  for( auto it = paf.begin(); it != paf.end(); it++)
   {
-    float r_len, r_tot_len_ol, r_tot_num_ol, r_cov;
     string id = it->first;
-    read* r = &it->second;
-    r_len = float(r->read_len);
-    sum_tot_len_ol += float(r->total_len_overlaps);
-    r_tot_len_ol = float(r->total_len_overlaps);
-    r_tot_num_ol = float(r->total_num_overlaps);
+    read r = it->second;
+    float r_len = float(r.read_len);
+    sum_tot_len_ol += r.total_len_overlaps;
+    int r_tot_len_ol = r.total_len_overlaps;
+    int r_tot_num_ol = r.total_num_overlaps;
     sum_tot_ol += r_tot_num_ol;
-    r_cov = r_tot_len_ol / r_len;
+    float r_cov = float(r_tot_len_ol) / r_len;
     string key = to_string(r_cov);
     writer->Key(key.c_str());
     writer->Int(r_len);
     covs.push_back(make_pair(r_cov,r_len));
   }
-  printf( "TOTAL OL LENGTH ACROSS ALL READS: %i\n", sum_tot_ol );
-  printf( "TOTAL OL NUMBER ACROSS ALL READS: %i\n", sum_tot_len_ol);
+  printf( "TOTAL OL NUM ACROSS ALL READS: %i\n", sum_tot_ol );
+  printf( "TOTAL OL LEN ACROSS ALL READS: %i\n", sum_tot_len_ol );
   writer->EndObject();
 
   // filter the coverage: remove if outside 1.5*interquartile_range
@@ -450,7 +452,6 @@ void calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* w
   double bd = double(IQR)*1.5;
   double lowerbound = double(covs[i25].first) - bd;
   double upperbound = double(covs[i75].first) + bd;
-  cout<<lowerbound<<","<<upperbound<<endl;
 
   // create a new set after applying this filter
   // stores info of set of reads after filtering:
