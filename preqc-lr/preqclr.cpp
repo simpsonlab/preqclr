@@ -72,8 +72,38 @@ void calculate_tot_bases( map<string, read> paf, JSONWriter* writer);
 
 int getopt( int argc, char *const arv[], const char *optstring);
 enum { OPT_VERSION };
+void parse_args( int argc, char *argv[]);
+map<string, read> parse_paf();
 
-int parse_args( int argc, char *argv[]) {
+int main( int argc, char *argv[]) 
+{
+
+    parse_args(argc, argv);
+    map<string, read> paf_records = parse_paf();
+
+    // start the JSON object
+    StringBuffer s;
+    JSONWriter writer(s);
+    writer.StartObject();
+
+    // add input arguments
+    writer.String("sample_name");
+    writer.String(opt::sample_name.c_str());
+
+    // start calculations
+    calculate_read_length( paf_records, &writer);
+    calculate_est_cov_and_est_genome_size( paf_records, &writer);
+    calculate_GC_content( opt::reads_file, &writer);
+    calculate_tot_bases( paf_records, &writer);
+
+    // convert JSON document to string and print
+    writer.EndObject();
+    cout << s.GetString() << endl;
+
+}
+
+void parse_args ( int argc, char *argv[])
+{
     // getopt
     extern char *optarg;
     extern int optind, opterr, optopt;
@@ -164,7 +194,7 @@ int parse_args( int argc, char *argv[]) {
     }
     if( argc < 4 ) {
         cerr << PREQCLR_CALCULATE_USAGE_MESSAGE << endl;
-        return -1;
+        exit(1);
     }
 
     // print any remaining command line argumentes
@@ -203,15 +233,14 @@ int parse_args( int argc, char *argv[]) {
 
 };
 
-int main( int argc, char *argv[]) {
-
-    parse_args(argc, argv);
-    ifstream inFile;
+map<string, read> parse_paf()
+{
     // read each line in paf file passed on by user
     string line;
     ifstream infile(opt::paf_file);
     map<string, read> paf_records;
     while( getline(infile, line) ) {
+
         // read each line/overlap and save each column into variable
         string qname;
         unsigned int qlen, qstart, qend;
@@ -221,7 +250,7 @@ int main( int argc, char *argv[]) {
         stringstream ss(line);
         ss >> qname >> qlen >> qstart >> qend >> strand >> tname >> tlen >> tstart >> tend;
 
-	    if ( qname.compare(tname) != 0 ) {
+        if ( qname.compare(tname) != 0 ) {
             unsigned int qprefix_len = qstart;
             unsigned int qsuffix_len = qlen - qend;
             unsigned int tprefix_len = tstart;
@@ -277,25 +306,7 @@ int main( int argc, char *argv[]) {
         read temp = r.second;
     }
 
-    // start the JSON object
-    StringBuffer s;
-    JSONWriter writer(s);
-    writer.StartObject();
-
-    // add input arguments
-    writer.String("sample_name");
-    writer.String(opt::sample_name.c_str());
-
-    // start calculations
-    calculate_read_length( paf_records, &writer);
-    calculate_est_cov_and_est_genome_size( paf_records, &writer);
-    calculate_GC_content( opt::reads_file, &writer);
-    calculate_tot_bases( paf_records, &writer);
-
-    // convert JSON document to string and print
-    writer.EndObject();
-    cout << s.GetString() << endl;
-
+   return paf_records;
 }
 
 void calculate_tot_bases( map<string, read> paf, JSONWriter* writer)
