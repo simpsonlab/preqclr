@@ -15,6 +15,7 @@ try:
 	import json
 	import time
 	import collections
+	import operator
 	from mpl_toolkits.axes_grid1 import make_axes_locatable
 except ImportError:
 	print('Missing package(s)')	
@@ -237,14 +238,14 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
 			ax_png_file = "./" + output_prefix + "/png/plot_est_genome_size.png"
 			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)	
-#	if 'read_length_dist' in plots_requested:
-#		ax = subplots.pop(0)
-#		ax_temp = plot_read_length_distribution(ax, per_read_read_length, output_prefix)
-#		if save_png:
-#			temp_fig = ax_temp.get_figure()
-#			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
-#			ax_png_file = "./" + output_prefix + "/png/plot_read_length_distribution.png"
-#			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
+	if 'read_length_dist' in plots_requested:
+		ax = subplots.pop(0)
+		ax_temp = plot_read_length_distribution(ax, per_read_read_length, output_prefix)
+		if save_png:
+			temp_fig = ax_temp.get_figure()
+			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+			ax_png_file = "./" + output_prefix + "/png/plot_read_length_distribution.png"
+			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'est_cov_dist' in plots_requested:
 		ax = subplots.pop(0)
 		ax_temp = plot_est_cov(ax, per_read_est_cov_and_read_length, est_cov_post_filter_info, output_prefix)
@@ -261,27 +262,27 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
 			ax_png_file =  "./" + output_prefix + "/png/plot_per_read_GC_content.png"
 			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
-#	if 'est_cov_vs_read_length' in plots_requested:
-#		for s in per_read_est_cov_and_read_length:
-#			ax = subplots.pop(0)
-#			ax_temp = plot_per_read_est_cov_vs_read_length(ax, per_read_est_cov_and_read_length, s, output_prefix)
-#			if save_png:
-#				temp_fig = ax_temp[0].get_figure()
-#				extent = ax_temp[0].get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
-#				ax_png_file = "./" + output_prefix + "/png/plot_est_cov_vs_read_length_" + s +".png" 
-#				temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
-#			# add color bar
-#			divider = make_axes_locatable(ax)
-#			cax = divider.append_axes("right", size="5%", pad=0.05)
-#        	ax.figure.colorbar(ax_temp[1], cax=cax)
-#	if 'total_num_bases_vs_min_read_length' in plots_requested:
-#		ax = subplots.pop(0)
-#		ax_temp = plot_total_num_bases_vs_min_read_length(ax, total_num_bases_vs_min_read_length, output_prefix)
-#		if save_png:
-#			temp_fig = ax_temp.get_figure()
-#			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
-#			ax_png_file = "./" + output_prefix + "/png/plot_total_num_bases_vs_min_read_length.png"
-#			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
+	if 'est_cov_vs_read_length' in plots_requested:
+		for s in per_read_est_cov_and_read_length:
+			ax = subplots.pop(0)
+			ax_temp = plot_per_read_est_cov_vs_read_length(ax, per_read_est_cov_and_read_length, s, output_prefix)
+			if save_png:
+				temp_fig = ax_temp[0].get_figure()
+				extent = ax_temp[0].get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+				ax_png_file = "./" + output_prefix + "/png/plot_est_cov_vs_read_length_" + s +".png" 
+				temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
+			# add color bar
+			divider = make_axes_locatable(ax)
+			cax = divider.append_axes("right", size="5%", pad=0.05)
+        	ax.figure.colorbar(ax_temp[1], cax=cax)
+	if 'total_num_bases_vs_min_read_length' in plots_requested:
+		ax = subplots.pop(0)
+		ax_temp = plot_total_num_bases_vs_min_read_length(ax, total_num_bases_vs_min_read_length, output_prefix)
+		if save_png:
+			temp_fig = ax_temp.get_figure()
+			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+			ax_png_file = "./" + output_prefix + "/png/plot_total_num_bases_vs_min_read_length.png"
+			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'ngx' in plots_requested and ngx_values:
 		ax = subplots.pop(0)
 		ax_temp = plot_ngx(ax, ngx_values, output_prefix)
@@ -363,45 +364,34 @@ def plot_est_cov(ax, data, est_cov_post_filter_info, output_prefix):
 		sd = data[s]												# list of tuples (read_cov, read_len)
 		sd_est_cov_read_length = data[s][1] 						# this returns a dictionary with key = est_cov and value =read length this is for each read
 		sd_est_cov = [ round(float(x),0) for x in sd_est_cov_read_length.keys() ]
-		filter_info = est_cov_post_filter_info[s]		# tuple (lowerbound cov, upperbound cov, num reads, IQR covs)
-		print(filter_info)
-
-		sd_upperbound = float(filter_info[1])					# precalculated est. cov. upperbound 
-
-		print(sd_upperbound)
-		sd_num_reads = float(filter_info[2])					# number of reads after filtering
-		sd_IQR = float(filter_info[3])							# IQR cov after filtering
-		if sd_upperbound > max_cov:
-			max_cov = sd_upperbound
-	#		IQR = float(sd_IQR) 
-	#		n = float(sd_num_reads)
-	#		binwidth = int(float(2 * IQR) / float(n ** (1/3)))
-	#		num_bins = int(float(max_cov)/binwidth)
+		sd_max_cov = float(max(sd_est_cov))
+		filter_info = est_cov_post_filter_info[s]        # tuple (lowerbound cov, upperbound cov, num reads, IQR covs)
+		sd_upperbound = float(filter_info[1])                    # precalculated est. cov. upperbound 
+		if sd_max_cov > sd_upperbound:
+			max_cov = float(sd_upperbound)
 
 		# now start plotting for each sample
 		s_name = s
 		s_color = data[s][0]
 		d = sorted(sd_est_cov)
 		x, y = zip(*sorted(collections.Counter(sorted(sd_est_cov)).items()))
-		print(sorted(sd_est_cov))
 
 		# normalize
 		sy = sum(y)
 		ny = list()
 		for i in y:
-			ni = float(i)/float(sy)
+			ni = float(i)/sy
 			ny.append(ni)
 
 		# plot!
 		ax.plot(x, ny, color=s_color, label=s_name)
 
 	# configure subplot
-	#bins = np.arange(0, max_cov + binwidth, num_bins)
 	ax.set_title('Est. cov. distribution')
 	ax.grid(True, linestyle='-', linewidth=0.3)
 	ax.set_xlabel('Est. cov.')
 	ax.set_ylabel('Proportion')   
-	ax.set_xlim(0, 80.0)
+	ax.set_xlim(0, max_cov)
 	ax.legend(loc='upper right')
 	return ax
 
@@ -419,8 +409,8 @@ def plot_per_read_est_cov_vs_read_length(ax, data, s, output_prefix):
 	# get info from json file produced from preqclr v2.0
 	sd = data[s]                                                # list of tuples (read_cov, read_len)
 	sd_est_cov_read_length = data[s][1]                         # this returns a dictionary with key = est_cov and value =read length 
-	sd_est_cov = [ float(x) for x in sd_est_cov_read_length.keys() ]
-	sd_read_lengths = [ float(y) for y in sd_est_cov_read_length.values() ]
+	sd_read_lengths = [ float(x) for x in sd_est_cov_read_length.keys() ]
+	sd_est_cov = [ float(y) for y in sd_est_cov_read_length.values() ]
 
 	# get x and y values from list of tuples
 	#y,x = zip(*sd)
@@ -470,7 +460,7 @@ def plot_per_read_GC_content(ax, data, output_prefix):
 		x, y = zip(*sorted(collections.Counter(sorted(sd)).items()))
 		
 		# normalize yvalues
-		sy = sum(sd)
+		sy = sum(y)
 		ny = list()
 		for i in y:
 			j = float(i)/float(sy)
@@ -542,12 +532,16 @@ def plot_total_num_bases_vs_min_read_length(ax, data, output_prefix):
 		s_color = data[s][0]
 		sd = data[s][1]		# dictionary: key = min read length cut off, value = total bases
 		s_marker = data[s][2]
-		print(sd)
+		x = list()
+		y = list()
+		for key, value in sorted(sd.iteritems(), key=lambda (k,v): (v,k)):
+			x.append(float(key))
+			y.append(float(value))
 		# get x and y values from json object produced with preqclr 2.0
 		# min read length cut off
-		x = [ float(mc) for mc in sd.keys() ]
+		#x = [ float(mc) for mc in sd.key ]
 		# total bases 
-		y = [ float(tb) for tb in sd.values() ]
+		#y = [ float(tb[1]) for tb in sd ]
  
 		# get x and y values from list of tuples
 		#x,y=zip(*sd)
