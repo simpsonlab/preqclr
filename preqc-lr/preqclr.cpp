@@ -73,43 +73,41 @@ void calculate_tot_bases( map<string, read> paf, JSONWriter* writer);
 int getopt( int argc, char *const arv[], const char *optstring);
 enum { OPT_VERSION };
 
-int main( int argc, char *argv[]) {
-    ifstream inFile;
-    int i;
-
+int parse_args( int argc, char *argv[]) {
     // getopt
     extern char *optarg;
     extern int optind, opterr, optopt;
     const char* const short_opts = "hvr:t:n:p:g:";
     const option long_opts[] = {
-        {"verbose",			no_argument, 		NULL,	'v'},
-        {"version",			no_argument, 		NULL, 	OPT_VERSION},
-        {"reads",			required_argument, 	NULL,	'r'},
-        {"type",			required_argument, 	NULL,	't'},
-        {"sample_name",	required_argument, 	NULL,	'n'},
-        {"paf",			required_argument, 	NULL, 	'p'},
-        {"gfa",			optional_argument, 	NULL, 	'g'},
-        {"help",			no_argument,	NULL, 	'h'},
-        { NULL,			0,	NULL,	0}
+        {"verbose",         no_argument,        NULL,   'v'},
+        {"version",         no_argument,        NULL,   OPT_VERSION},
+        {"reads",           required_argument,  NULL,   'r'},
+        {"type",            required_argument,  NULL,   't'},
+        {"sample_name", required_argument,  NULL,   'n'},
+        {"paf",         required_argument,  NULL,   'p'},
+        {"gfa",         optional_argument,  NULL,   'g'},
+        {"help",            no_argument,    NULL,   'h'},
+        { NULL,         0,  NULL,   0}
     };
 
-    static const char* PREQCLR_CALCULATE_VERSION_MESSAGE = 
+    static const char* PREQCLR_CALCULATE_VERSION_MESSAGE =
     "preqclr-" SUBPROGRAM " version " VERSION "\n"
     "Written by Joanna Pineda.\n"
     "\n"
-    "Copyright 2017 Ontario Institute for Cancer Research\n"; 
+    "Copyright 2017 Ontario Institute for Cancer Research\n";
 
     static const char* PREQCLR_CALCULATE_USAGE_MESSAGE =
     "Usage: preqclr version " VERSION " " SUBPROGRAM " [OPTIONS] --reads reads.fa --type {ont|pb} --paf overlaps.paf --gfa layout.gfa \n"
     "Calculate information for preqclr report\n"
     "\n"
-    "-v, --verbose				display verbose output\n"
-    "        --version				display version\n"
-    "-r, --reads				Fasta, fastq, fasta.gz, or fastq.gz files containing reads\n"
-    "-t, --type				Type of long read sequencer. Either pacbio (pb) or oxford nanopore technology data (ont)\n"
-    "-n, --sample_name			Sample name; you can use the name of species for example. This will be used as output prefix\n"
-    "-p, --paf				Minimap2 pairwise alignment file (PAF). This is produced using \'minimap2 -x ava-ont sample.fastq sample.fastq\'\n"
-    "-g, --gfa				Miniasm graph gragment assembly (GFA) file. This is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
+    "-v, --verbose              display verbose output\n"
+    "        --version              display version\n"
+    "-r, --reads                Fasta, fastq, fasta.gz, or fastq.gz files containing reads\n"
+    "-t, --type             Type of long read sequencer. Either pacbio (pb) or oxford nanopore technology data (ont)\n"
+    "-n, --sample_name          Sample name; you can use the name of species for example. This will be used as output prefix\n"
+    "-p, --paf              Minimap2 pairwise alignment file (PAF). This is produced using \'minimap2 -x ava-ont sample.fastq sample.fasta"
+    "\n"
+    "-g, --gfa              Miniasm graph gragment assembly (GFA) file. This is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
     "\n";
 
     int rflag=0, tflag=0, nflag=0, pflag=0, gflag=0, verboseflag=0, versionflag=0;
@@ -164,25 +162,24 @@ int main( int argc, char *argv[]) {
             break;
         }
     }
-
     if( argc < 4 ) {
         cerr << PREQCLR_CALCULATE_USAGE_MESSAGE << endl;
         return -1;
     }
-    
+
     // print any remaining command line argumentes
-    if (optind < argc) { 
+    if (optind < argc) {
         for (; optind < argc; optind++)
-            cerr << "preqclr " << SUBPROGRAM << ": too many arguments:" 
+            cerr << "preqclr " << SUBPROGRAM << ": too many arguments:"
                  << " argv[optind]" << endl;
     }
 
     // check mandatory variables and assign defaults
-    if ( rflag == 0 ) { 
+    if ( rflag == 0 ) {
         fprintf(stderr, "preqclr %s: missing -r,--reads option\n\n", SUBPROGRAM);
         fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
         exit(1);
-    } 
+    }
     if ( nflag == 0 ) {
         fprintf(stderr, "preqclr %s: missing -n,--sample_name option\n\n", SUBPROGRAM);
         fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE);
@@ -202,6 +199,14 @@ int main( int argc, char *argv[]) {
     // check if an option is used more than once
     // check if files exist and are readable ...
 
+
+
+};
+
+int main( int argc, char *argv[]) {
+
+    parse_args(argc, argv);
+    ifstream inFile;
     // read each line in paf file passed on by user
     string line;
     ifstream infile(opt::paf_file);
@@ -216,7 +221,7 @@ int main( int argc, char *argv[]) {
         stringstream ss(line);
         ss >> qname >> qlen >> qstart >> qend >> strand >> tname >> tlen >> tstart >> tend;
 
-	if ( qname.compare(tname) != 0 ) {
+	    if ( qname.compare(tname) != 0 ) {
             unsigned int qprefix_len = qstart;
             unsigned int qsuffix_len = qlen - qend;
             unsigned int tprefix_len = tstart;
