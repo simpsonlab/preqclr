@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include <typeinfo>
+
 #include <math.h>
 #include <zlib.h>
 #include <stdio.h>
@@ -48,8 +50,8 @@ class read
 {
   public:
     string read_id;
-    int read_len;
-    int total_len_overlaps;
+    unsigned int read_len;
+    unsigned long total_len_overlaps;
     int total_num_overlaps;
   void set(string i, int l, int lol)
   {
@@ -206,52 +208,41 @@ int main( int argc, char *argv[]) {
   string line;
   ifstream infile(opt::paf_file);
   map<string, read> paf_records;
-  int sum_left_clip = 0;
-  int sum_right_clip = 0;
-  int sum_ol = 0;
-  int sum_ols_no_clips = 0;
   while( getline(infile, line) ) {
     // read each line/overlap and save each column into variable
     string qname;
-    int qlen=0, qstart=0, qend=0;
+    unsigned int qlen, qstart, qend;
     char strand;
     string tname;
-    int tlen=0, tstart=0, tend=0;
-    int qprefix_len=0, qsuffix_len=0, tprefix_len=0, tsuffix_len=0, overlap_len=0;
+    unsigned int tlen, tstart, tend;
 
     stringstream ss(line);
     ss >> qname >> qlen >> qstart >> qend >> strand >> tname >> tlen >> tstart >> tend;
     //cout<<qname<<"\t"<<qlen<<"\t"<<qstart<<"\t"<<qend<<"\t"<<strand<<"\t"<<tname<<"\t"<<tlen<<"\t"<<tstart<<"\t"<<tend<<"\n";
-
 	if ( qname.compare(tname) != 0 ) {
-      qprefix_len = qstart;
-      qsuffix_len = qlen - qend;
-      tprefix_len = tstart;
-      tsuffix_len = tlen - tend;
-      overlap_len = qend - qstart;
-      sum_ols_no_clips += overlap_len;
+      unsigned int qprefix_len = qstart;
+      unsigned int qsuffix_len = qlen - qend;
+      unsigned int tprefix_len = tstart;
+      unsigned int tsuffix_len = tlen - tend;
 
       // calculate overlap length, we need to take into account minimap2's softclipping
       int left_clip = 0, right_clip = 0;
       if ( ( qstart != 0 ) && ( tstart != 0 ) ){
         if ( strand == '+' ) {
-          left_clip = min(qprefix_len, tprefix_len);
+          left_clip += min(qprefix_len, tprefix_len);
         } else {
-          left_clip = min(qprefix_len, tsuffix_len);
+          left_clip += min(qprefix_len, tsuffix_len);
         }
       }
       if ( ( qend != 0 ) && ( tend != 0 ) ){
         if ( strand == '+' ) {
-          right_clip = min(qsuffix_len, tsuffix_len);
+          right_clip += min(qsuffix_len, tsuffix_len);
         } else {
-          right_clip = min(qsuffix_len, tprefix_len);
+          right_clip += min(qsuffix_len, tprefix_len);
         }
       }
-      // debugging 
-      overlap_len += left_clip;
-      overlap_len += right_clip;
-      sum_left_clip += left_clip;
-      sum_right_clip += right_clip;
+
+      unsigned long overlap_len = (qend - qstart) + left_clip + right_clip;
 
       // add this information to paf_records dictionary
       auto i = paf_records.find(qname);
@@ -278,18 +269,12 @@ int main( int argc, char *argv[]) {
   }
   
   // let's check the records...
-  int sum_tot_len_ol = 0; 
   for ( auto const& r : paf_records ) {
     // Accessing KEY from element pointed by it
     string read_id = r.first;
     read temp = r.second;
     // cout << read_id << ": " << temp.read_len << "," << temp.total_num_overlaps << "," << temp.total_len_overlaps<< "\n";
-    sum_tot_len_ol += temp.total_len_overlaps;  
   }
-  cout << "SUM OL LEN IN PAF_RECORDS: " << sum_tot_len_ol << endl;
-  cout << "OL LENS no clips: " << sum_ols_no_clips <<endl; 
-  cout << "left: " << sum_left_clip << endl;
-  cout << "right: " << sum_right_clip << endl;
 
   // start the JSON object
   StringBuffer s;
@@ -301,14 +286,14 @@ int main( int argc, char *argv[]) {
   writer.String(opt::sample_name.c_str());
 
   // start calculations
-  // calculate_read_length( paf_records, &writer);
+  calculate_read_length( paf_records, &writer);
   calculate_est_cov_and_est_genome_size( paf_records, &writer);
-  // calculate_GC_content( opt::reads_file, &writer);
-  // calculate_tot_bases( paf_records, &writer);
+  calculate_GC_content( opt::reads_file, &writer);
+  calculate_tot_bases( paf_records, &writer);
 
   // convert JSON document to string and print
   writer.EndObject();
-  //cout << s.GetString() << endl;
+  cout << s.GetString() << endl;
 
 }
 
@@ -329,7 +314,7 @@ void calculate_tot_bases( map<string, read> paf, JSONWriter* writer)
   */
 
   // bin the reads by read length
-  map < int, int, greater<int>> read_lengths;
+  map < unsigned long, unsigned long, greater<unsigned long>> read_lengths;
   for( auto it = paf.begin(); it != paf.end(); it++) {
     string id = it->first;
     int r_len = it->second.read_len;
@@ -347,8 +332,8 @@ void calculate_tot_bases( map<string, read> paf, JSONWriter* writer)
 
   // sort read lengths
   // display items in sorted order of keys
-  int curr_longest;
-  int tot_num_bases = 0;
+  unsigned long curr_longest;
+  unsigned long tot_num_bases = 0;
   writer->Key("total_num_bases_vs_min_read_length");
   writer->StartObject();
   for (const auto& p : read_lengths) {
@@ -411,31 +396,24 @@ void calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* w
       ========================================================
   */
 
-  vector< pair < float, int > > covs;
+  vector< pair < int, int > > covs;
   double r_len, r_tot_len_ol, r_tot_num_ol, r_cov;
 
   // make an object that will hold pair of coverage and read length
   writer->Key("per_read_est_cov_and_read_length");
   writer->StartObject();
-  int sum_tot_len_ol = 0;
-  int sum_tot_ol = 0;
   for( auto it = paf.begin(); it != paf.end(); it++)
   {
     string id = it->first;
     read r = it->second;
     float r_len = float(r.read_len);
-    sum_tot_len_ol += r.total_len_overlaps;
-    int r_tot_len_ol = r.total_len_overlaps;
-    int r_tot_num_ol = r.total_num_overlaps;
-    sum_tot_ol += r_tot_num_ol;
-    float r_cov = float(r_tot_len_ol) / r_len;
+    unsigned long r_tot_len_ol = r.total_len_overlaps;
+    int r_cov = r_tot_len_ol / r_len;
     string key = to_string(r_cov);
     writer->Key(key.c_str());
     writer->Int(r_len);
     covs.push_back(make_pair(r_cov,r_len));
   }
-  printf( "TOTAL OL NUM ACROSS ALL READS: %i\n", sum_tot_ol );
-  printf( "TOTAL OL LEN ACROSS ALL READS: %i\n", sum_tot_len_ol );
   writer->EndObject();
 
   // filter the coverage: remove if outside 1.5*interquartile_range
@@ -449,43 +427,36 @@ void calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* w
 
   // find IQR
   int IQR = covs[i75].first - covs[i25].first;
-  double bd = double(IQR)*1.5;
-  double lowerbound = double(covs[i25].first) - bd;
-  double upperbound = double(covs[i75].first) + bd;
+  double bd = IQR*1.5;
+  int lowerbound = double(covs[i25].first) - bd;
+  int upperbound = double(covs[i75].first) + bd;
 
   // create a new set after applying this filter
   // stores info of set of reads after filtering:
-  float sum_len = 0;
-  float sum_cov = 0;
+  unsigned long sum_len = 0;
+  unsigned long sum_cov = 0;
   float tot_reads = 0;
   for( auto it = covs.begin(); it != covs.end(); ++it) {
-    if (( it->first > lowerbound ) && ( it->first < upperbound ))
-      sum_len+=it->second;
-      sum_cov+=it->first;
-      tot_reads+=1;
+    if (( it->first > lowerbound ) && ( it->first < upperbound )) {
+      unsigned long co = it->first;
+      unsigned long le = it->second;
+      sum_len += le;
+      sum_cov += co;
+      tot_reads += 1;
+    }
   }
 
-  // calculate mean read length
-  float mean_read_len;
-  mean_read_len = sum_len / tot_reads;
-
-  float mean_cov;
-  mean_cov = sum_cov / tot_reads;
-
-  // calculate the estimated genome size  
-  float n, l, c, est_genome_size;
-  n = tot_reads;
-  l = mean_read_len;
-  c = mean_cov;
-  est_genome_size = ( n * l ) / c;
-  //cout<<"sum_cov"<<sum_cov<<"sum_len"<<sum_len<<","<<tot_reads<<"n,"<<l<<"l,"<<c<<"c,"<<est_genome_size<<std::endl;
-
+  // calculate estimated genome size
+  float mean_read_len = sum_len / tot_reads;
+  float mean_cov = sum_cov / tot_reads;
+  float est_genome_size = ( tot_reads * mean_read_len ) / mean_cov;
+  // cout << "est genome size: " << est_genome_size << ", lowerbound" <<  lowerbound << ", upperbound: " << upperbound << endl;
   // now store in JSON object
   writer->Key("est_cov_post_filter_info");
   writer->StartArray();
   writer->Double(lowerbound);
   writer->Double(upperbound);
-  writer->Int(n);
+  writer->Int(tot_reads);
   writer->Double(IQR);
   writer->EndArray();
 
