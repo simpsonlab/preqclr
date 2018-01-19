@@ -154,7 +154,7 @@ int main( int argc, char *argv[]) {
             cout << PREQCLR_CALCULATE_USAGE_MESSAGE << endl;
             exit(0);
         case ':':
-            printf(stderr, "preqclr %s: option `-%c' is missing a required argument\n", SUBPROGRAM, optopt);
+            fprintf(stderr, "preqclr %s: option `-%c' is missing a required argument\n", SUBPROGRAM, optopt);
             fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
             exit(1);
         case '?':
