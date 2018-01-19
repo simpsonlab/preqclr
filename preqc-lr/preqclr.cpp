@@ -77,8 +77,12 @@ map<string, read> parse_paf();
 
 int main( int argc, char *argv[]) 
 {
-
+    // parse the input arguments, if successful it will save all the arguments
+    // in the global struct opts
     parse_args(argc, argv);
+
+    // parse the input PAF file and return a map with key = read id, 
+    // and value = read object with all needed read info
     map<string, read> paf_records = parse_paf();
 
     // start the JSON object
