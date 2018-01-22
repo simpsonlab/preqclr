@@ -41,7 +41,7 @@ namespace opt
     static unsigned int verbose;
     static string reads_file;
     static string paf_file;
-    static string gfa_file;
+    static string gfa_file = "";
     static string type;
     static string sample_name;
 }
@@ -75,8 +75,8 @@ int main( int argc, char *argv[])
     auto end = chrono::system_clock::now();
     auto elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
     cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
-    
-    // start the JSON object
+
+    // start json object
     StringBuffer s;
     JSONWriter writer(s);
     writer.StartObject();
@@ -95,7 +95,7 @@ int main( int argc, char *argv[])
 
     cout << "[ Calculating est cov per read and est genome size ]" << endl;
     start = chrono::system_clock::now();
-    calculate_est_cov_and_est_genome_size( paf_records, &writer);
+    float genome_size_est = calculate_est_cov_and_est_genome_size( paf_records, &writer);
     end = chrono::system_clock::now();
     elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
     cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
@@ -114,6 +114,22 @@ int main( int argc, char *argv[])
     elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
     cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
 
+    if ( opt::gfa_file != "" ) {
+        cout << "[ Parse GFA file ] " << endl;
+        start = chrono::system_clock::now();
+        vector<int> contigs = parse_gfa();
+        end = chrono::system_clock::now();
+        elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
+        cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
+
+        cout << "[ Calculating NGX ]" << endl;
+        start = chrono::system_clock::now();
+        calculate_ngx( contigs, genome_size_est, &writer );
+        end = chrono::system_clock::now();
+        elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
+        cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
+    }
+    
     // convert JSON document to string and print
     writer.EndObject();
     ofstream preqclrFILE;
@@ -128,6 +144,37 @@ int main( int argc, char *argv[])
     auto tot_elapsed = chrono::duration_cast<chrono::milliseconds>(tot_end - tot_start).count();
     cout << "[ Done ]" << endl;
     cout << "[+] Total time: " << tot_elapsed << " milliseconds" << endl;
+}
+
+vector<int> parse_gfa()
+{
+    // parse gfa to get the contig lengths
+    string line;
+    ifstream infile(opt::gfa_file);
+    vector <int> contig_lengths;
+    while( getline(infile, line) ) {
+        char spec;
+        stringstream ss(line);
+        ss >> spec;
+
+        // get only lines that have information on the contig length
+        if ( spec == 'S' ) {
+            string contig_id, contig_seq, contig_len;
+            ss >> spec >> contig_id >> contig_seq >> contig_len;
+            const string toErase = "LN:i:";
+            size_t pos = contig_len.find(toErase);
+
+            // Search for the substring in string in a loop untill nothing is found
+            if (pos != string::npos)
+            {
+                // If found then erase it from string
+                contig_len.erase(pos, toErase.length());
+            }
+            int len = stoi(contig_len);
+            contig_lengths.push_back(len);
+        }
+    }
+    return contig_lengths;
 }
 
 void parse_args ( int argc, char *argv[])
@@ -335,6 +382,52 @@ map<string, read> parse_paf()
    return paf_records;
 }
 
+void calculate_ngx( vector<int> contig_lengths, int genome_size_est, JSONWriter* writer ){
+    /*
+    ========================================================
+    Calculating NGX
+    --------------------------------------------------------
+    Uses GFA information to evaluate the assembly quality
+    Input:      All the contig lengths
+    Output:     NGX values in a dictionary:
+                key   = X
+                value = contig length where summing contigs 
+                with length greater than or equal to this 
+                length is Xth percentile
+                of the genome size estimate....
+    ========================================================
+    */
+    int x = 0;
+    int nx;
+    map<int,int> ngx;
+    while ( x < 100 ) {
+        ngx.insert( make_pair((float(x) * genome_size_est)/100, 0) );
+        x += 1;
+    }
+    
+    // sort in descending order the contig_lengths
+    sort(contig_lengths.rbegin(), contig_lengths.rend());
+    
+    int start = 0, end = 0;
+    for ( auto const& c : contig_lengths ) {
+       end += c;
+       // for all percentile values that are less then the curr sum
+       for ( auto& p : ngx ) {
+           if ( ( p.first >= float(start) ) && ( p.first <= float(end) ) ) {
+               p.second = c;
+           }           
+       }
+    }
+    writer->Key("ngx_values");
+    writer->StartObject();
+    for ( auto& p : ngx ) {
+        string key = to_string(p.first);
+        writer->Key(key.c_str());
+        writer->Int(p.second);
+    }
+    writer->EndObject();   
+}
+
 void calculate_tot_bases( map<string, read> paf, JSONWriter* writer)
 {
     /*
@@ -419,7 +512,7 @@ void calculate_GC_content( string file, JSONWriter* writer )
     gzclose(fp); 
 }
 
-void calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* writer )
+float calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* writer )
 {
     /*
     ========================================================
@@ -499,6 +592,7 @@ void calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* w
     writer->EndArray();
     writer->Key("est_genome_size");
     writer->Double(est_genome_size);    
+    return est_genome_size;
 }
 
 void calculate_read_length( map<string, read> paf, JSONWriter* writer)
