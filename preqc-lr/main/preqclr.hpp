@@ -21,7 +21,7 @@ void calculate_read_length( map<string, read_seq> paf, JSONWriter* writer);
 void calculate_GC_content( string readsFile, JSONWriter* writer);
 void calculate_tot_bases( map<string, read_seq> paf, JSONWriter* writer);
 
-int getopt( int argc, char *const arv[], const char *optstring);
+int getopt( int argc, char* const* argv[], const char *optstring);
 enum { OPT_VERSION };
 void parse_args( int argc, char *argv[]);
 map<string, read_seq> parse_paf();

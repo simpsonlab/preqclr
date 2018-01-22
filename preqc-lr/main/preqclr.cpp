@@ -9,14 +9,14 @@
 #include <string>
 #include <vector>
 
+#include "preqclr.hpp"
+#include <chrono>
+
 #include <zlib.h>
 #include <stdio.h>
 #include <getopt.h>
 
 #include "readfq/kseq.h"
-
-#include "preqclr.hpp"
-
 
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
@@ -46,48 +46,36 @@ namespace opt
     static string sample_name;
 }
 
-// TODO: move to own header file...
-/*class read 
-{
-    public:
-        string read_id;
-        unsigned int read_len;
-        unsigned long total_len_overlaps;
-        int total_num_overlaps;
-    void set(string i, int l, int lol)
-    {
-        read_id = i;
-        read_len = l;
-        total_len_overlaps = lol;
-        total_num_overlaps = 1; 
-    }
-    void updateOverlap(int new_ol_len)
-    {
-        total_len_overlaps += new_ol_len;
-        total_num_overlaps += 1;
-    }
-};
-*/
-//void calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* writer );
-//void calculate_read_length( map<string, read> paf, JSONWriter* writer);
-//void calculate_GC_content( string readsFile, JSONWriter* writer);
-//void calculate_tot_bases( map<string, read> paf, JSONWriter* writer);
-
-//int getopt( int argc, char *const arv[], const char *optstring);
-//enum { OPT_VERSION };
-//void parse_args( int argc, char *argv[]);
-//map<string, read> parse_paf();
-
 int main( int argc, char *argv[]) 
 {
     // parse the input arguments, if successful it will save all the arguments
     // in the global struct opts
     parse_args(argc, argv);
 
+    // Let's handle the verbose option
+    SO: https://stackoverflow.com/questions/10150468/how-to-redirect-cin-and-cout-to-files
+    if ( opt::verbose != 1 ) {
+        // if verbose option not found, then redirect all cout to preqclr.log file
+        ofstream out( "preqclr.log" );
+        streambuf *coutbuf = cout.rdbuf();
+        cout.rdbuf(out.rdbuf());
+    }
+    cout << "========================================================" << endl;
+    cout << "RUNNING PREQC-LR CALCULATE" << endl;
+    cout << "========================================================" << endl;
+    auto tot_start = chrono::system_clock::now();
+ 
     // parse the input PAF file and return a map with key = read id, 
     // and value = read object with all needed read info
+    // SO: https://stackoverflow.com/questions/11062804/measuring-the-runtime-of-a-c-code
+    // SO1 to get cast to milliseconds: https://stackoverflow.com/questions/30131181/calculate-time-to-execute-a-function 
+    cout << "[ Parse PAF file ] " << endl;
+    auto start = chrono::system_clock::now();    
     map<string, read> paf_records = parse_paf();
-
+    auto end = chrono::system_clock::now();
+    auto elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
+    cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
+    
     // start the JSON object
     StringBuffer s;
     JSONWriter writer(s);
@@ -98,15 +86,48 @@ int main( int argc, char *argv[])
     writer.String(opt::sample_name.c_str());
 
     // start calculations
+    cout << "[ Calculating read length distribution ]" << endl;
+    start = chrono::system_clock::now();
     calculate_read_length( paf_records, &writer);
+    end = chrono::system_clock::now();
+    elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
+    cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
+
+    cout << "[ Calculating est cov per read and est genome size ]" << endl;
+    start = chrono::system_clock::now();
     calculate_est_cov_and_est_genome_size( paf_records, &writer);
+    end = chrono::system_clock::now();
+    elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
+    cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
+
+    cout << "[ Calculating GC-content per read ]" << endl;
+    start = chrono::system_clock::now();
     calculate_GC_content( opt::reads_file, &writer);
+    end = chrono::system_clock::now();
+    elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
+    cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
+
+    cout << "[ Calculating total number of bases as a function of min read length ]" << endl;
+    start = chrono::system_clock::now();
     calculate_tot_bases( paf_records, &writer);
+    end = chrono::system_clock::now();
+    elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
+    cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
 
     // convert JSON document to string and print
     writer.EndObject();
-    cout << s.GetString() << endl;
-
+    ofstream preqclrFILE;
+    string filename = opt::sample_name + ".preqclr"; 
+    preqclrFILE.open( filename );
+    preqclrFILE << s.GetString() << endl;
+    preqclrFILE.close();
+    cout << "[+] Resulting preqclr file: " << filename << endl;
+ 
+    // wrap it up
+    auto tot_end = chrono::system_clock::now();
+    auto tot_elapsed = chrono::duration_cast<chrono::milliseconds>(tot_end - tot_start).count();
+    cout << "[ Done ]" << endl;
+    cout << "[+] Total time: " << tot_elapsed << " milliseconds" << endl;
 }
 
 void parse_args ( int argc, char *argv[])
@@ -235,8 +256,6 @@ void parse_args ( int argc, char *argv[])
 
     // check if an option is used more than once
     // check if files exist and are readable ...
-
-
 
 };
 
