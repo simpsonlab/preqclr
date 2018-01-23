@@ -526,6 +526,10 @@ void calculate_GC_content( string file, JSONWriter* writer )
     kseq_t *seq;
     const char *c = file.c_str();
     fp = gzopen(c, "r");
+    if (fp == 0) {
+        fprintf(stderr, "preqclr %s: reads file failed to open. Check to see if it exists, is readable, and is non-empty.\n\n", SUBPROGRAM);
+        exit(1);
+    }
     seq = kseq_init(fp);
     writer->Key("read_counts_per_GC_content");
     writer->StartArray();
