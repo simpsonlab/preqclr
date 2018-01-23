@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <chrono>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -10,7 +11,6 @@
 #include <vector>
 
 #include "preqclr.hpp"
-#include <chrono>
 
 #include <zlib.h>
 #include <stdio.h>
@@ -151,6 +151,10 @@ vector<int> parse_gfa()
     // parse gfa to get the contig lengths
     string line;
     ifstream infile(opt::gfa_file);
+    if (!infile.is_open()) {
+        fprintf(stderr, "preqclr %s: GFA failed to open. Check to see if it exists, is readable, and is non-empty.\n\n", SUBPROGRAM);
+        exit(1);
+    }
     vector <int> contig_lengths;
     while( getline(infile, line) ) {
         char spec;
@@ -229,10 +233,20 @@ void parse_args ( int argc, char *argv[])
             cout << PREQCLR_CALCULATE_VERSION_MESSAGE << endl;
             exit(0);
         case 'r':
+            if ( rflag == 1 ) {
+                fprintf(stderr, "preqclr %s: multiple instances of option -r,--reads. \n\n", SUBPROGRAM);
+                fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]); 
+                exit(1);
+            }
             rflag = 1;
             arg >> opt::reads_file;
             break;
         case 't':
+            if ( tflag == 1 ) {
+                fprintf(stderr, "preqclr %s: multiple instances of option -t,--type. \n\n", SUBPROGRAM);
+                fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
+                exit(1);
+            }
             tflag = 1;
             if (( arg.str().compare("ont")    != 0 ) && ( arg.str().compare("pb") != 0 )) {
                 fprintf(stderr, "preqclr %s: option -t,--type is missing a valid argument {ont,pb}. \n\n", SUBPROGRAM);
@@ -242,14 +256,29 @@ void parse_args ( int argc, char *argv[])
             arg >> opt::type;
             break;
         case 'n':
+            if ( nflag == 1 ) {
+                fprintf(stderr, "preqclr %s: multiple instances of option -n,--sample_name. \n\n", SUBPROGRAM);
+                fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
+                exit(1);
+            }
             nflag = 1;
             arg >> opt::sample_name;
             break;
         case 'p':
+            if ( pflag == 1 ) {
+                fprintf(stderr, "preqclr %s: multiple instances of option -p,--paf. \n\n", SUBPROGRAM);
+                fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
+                exit(1);
+            }
             pflag = 1;
             arg >> opt::paf_file;
             break;
         case 'g':
+            if ( gflag == 1 ) {
+                fprintf(stderr, "preqclr %s: multiple instances of option -g,--gfa. \n\n", SUBPROGRAM);
+                fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
+                exit(1);
+            }
             gflag = 1;
             arg >> opt::gfa_file;
             break;
@@ -302,8 +331,6 @@ void parse_args ( int argc, char *argv[])
     }
 
     // check if an option is used more than once
-    // check if files exist and are readable ...
-
 };
 
 map<string, read> parse_paf()
@@ -311,6 +338,10 @@ map<string, read> parse_paf()
     // read each line in paf file passed on by user
     string line;
     ifstream infile(opt::paf_file);
+    if (!infile.is_open()) { 
+        fprintf(stderr, "preqclr %s: PAF failed to open. Check to see if it exists, is readable, and is non-empty.\n\n", SUBPROGRAM);
+        exit(1);
+    }
     map<string, read> paf_records;
     while( getline(infile, line) ) {
 
