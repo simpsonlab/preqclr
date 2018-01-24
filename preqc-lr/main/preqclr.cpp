@@ -210,14 +210,14 @@ void parse_args ( int argc, char *argv[])
     "Usage: preqclr version " VERSION " " SUBPROGRAM " [OPTIONS] --reads reads.fa --type {ont|pb} --paf overlaps.paf --gfa layout.gfa \n"
     "Calculate information for preqclr report\n"
     "\n"
-    "-v, --verbose              display verbose output\n"
-    "        --version              display version\n"
-    "-r, --reads                Fasta, fastq, fasta.gz, or fastq.gz files containing reads\n"
-    "-t, --type             Type of long read sequencer. Either pacbio (pb) or oxford nanopore technology data (ont)\n"
-    "-n, --sample_name          Sample name; you can use the name of species for example. This will be used as output prefix\n"
-    "-p, --paf              Minimap2 pairwise alignment file (PAF). This is produced using \'minimap2 -x ava-ont sample.fastq sample.fasta"
+    "-v, --verbose				display verbose output\n"
+    "    --version				display version\n"
+    "-r, --reads				Fasta, fastq, fasta.gz, or fastq.gz files containing reads\n"
+    "-t, --type				Type of long read sequencer. Either pacbio (pb) or oxford nanopore technology data (ont)\n"
+    "-n, --sample_name			Sample name; you can use the name of species for example. This will be used as output prefix\n"
+    "-p, --paf				Minimap2 pairwise alignment file (PAF). This is produced using \'minimap2 -x ava-ont sample.fastq sample.fasta"
     "\n"
-    "-g, --gfa              Miniasm graph gragment assembly (GFA) file. This is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
+    "-g, --gfa=FILE				Miniasm graph fragment assembly (GFA) FILE. NOTE: you must use '=' sign after -g, --gfa option. This FILE is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
     "\n";
 
     int rflag=0, tflag=0, nflag=0, pflag=0, gflag=0, verboseflag=0, versionflag=0;
@@ -303,11 +303,6 @@ void parse_args ( int argc, char *argv[])
     }
 
     // print any remaining command line arguments
-    // but first handle optional arguments ...
-    // if a gfa file is given, it is NOT considered "too many arguments" ...
-    if ( gflag == 1 ) {
-        optind += 1;
-    }
     if (optind < argc) {
         for (; optind < argc; optind++)
             cerr << "preqclr " << SUBPROGRAM << ": too many arguments: "
