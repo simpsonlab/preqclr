@@ -195,7 +195,7 @@ void parse_args ( int argc, char *argv[])
         {"type",            required_argument,  NULL,   't'},
         {"sample_name", required_argument,  NULL,   'n'},
         {"paf",         required_argument,  NULL,   'p'},
-        {"gfa",         optional_argument,  NULL,   'g'},
+        {"gfa",         required_argument,  NULL,   'g'},
         {"help",            no_argument,    NULL,   'h'},
         { NULL,         0,  NULL,   0}
     };
@@ -217,7 +217,7 @@ void parse_args ( int argc, char *argv[])
     "-n, --sample_name			Sample name; you can use the name of species for example. This will be used as output prefix\n"
     "-p, --paf				Minimap2 pairwise alignment file (PAF). This is produced using \'minimap2 -x ava-ont sample.fastq sample.fasta"
     "\n"
-    "-g, --gfa=FILE				Miniasm graph fragment assembly (GFA) FILE. NOTE: you must use '=' sign after -g, --gfa option. This FILE is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
+    "-g, --gfa				Miniasm graph fragment assembly (GFA) file. This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
     "\n";
 
     int rflag=0, tflag=0, nflag=0, pflag=0, gflag=0, verboseflag=0, versionflag=0;
