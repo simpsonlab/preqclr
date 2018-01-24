@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include <limits.h>
 #include "preqclr.hpp"
 
 #include <zlib.h>
@@ -95,7 +96,7 @@ int main( int argc, char *argv[])
 
     cout << "[ Calculating est cov per read and est genome size ]" << endl;
     start = chrono::system_clock::now();
-    float genome_size_est = calculate_est_cov_and_est_genome_size( paf_records, &writer);
+    int genome_size_est = calculate_est_cov_and_est_genome_size( paf_records, &writer);
     end = chrono::system_clock::now();
     elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
     cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
@@ -114,7 +115,7 @@ int main( int argc, char *argv[])
     elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
     cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
 
-    if ( opt::gfa_file != "" ) {
+    if ( !opt::gfa_file.empty() ) {
         cout << "[ Parse GFA file ] " << endl;
         start = chrono::system_clock::now();
         vector<int> contigs = parse_gfa();
@@ -137,12 +138,12 @@ int main( int argc, char *argv[])
     preqclrFILE.open( filename );
     preqclrFILE << s.GetString() << endl;
     preqclrFILE.close();
-    cout << "[+] Resulting preqclr file: " << filename << endl;
  
     // wrap it up
     auto tot_end = chrono::system_clock::now();
     auto tot_elapsed = chrono::duration_cast<chrono::milliseconds>(tot_end - tot_start).count();
     cout << "[ Done ]" << endl;
+    cout << "[+] Resulting preqclr file: " << filename << endl;
     cout << "[+] Total time: " << tot_elapsed << " milliseconds" << endl;
 }
 
@@ -186,7 +187,7 @@ void parse_args ( int argc, char *argv[])
     // getopt
     extern char *optarg;
     extern int optind, opterr, optopt;
-    const char* const short_opts = "hvr:t:n:p:g:";
+    const char* const short_opts = ":g:hvr:t:n:p:";
     const option long_opts[] = {
         {"verbose",         no_argument,        NULL,   'v'},
         {"version",         no_argument,        NULL,   OPT_VERSION},
@@ -301,11 +302,16 @@ void parse_args ( int argc, char *argv[])
         exit(1);
     }
 
-    // print any remaining command line argumentes
+    // print any remaining command line arguments
+    // but first handle optional arguments ...
+    // if a gfa file is given, it is NOT considered "too many arguments" ...
+    if ( gflag == 1 ) {
+        optind += 1;
+    }
     if (optind < argc) {
         for (; optind < argc; optind++)
-            cerr << "preqclr " << SUBPROGRAM << ": too many arguments:"
-                 << " argv[optind]" << endl;
+            cerr << "preqclr " << SUBPROGRAM << ": too many arguments: "
+                 << argv[optind] << endl;
     }
 
     // check mandatory variables and assign defaults
@@ -330,7 +336,6 @@ void parse_args ( int argc, char *argv[])
         exit(1);
     }
 
-    // check if an option is used more than once
 };
 
 map<string, read> parse_paf()
@@ -376,29 +381,35 @@ map<string, read> parse_paf()
                     right_clip += min(qsuffix_len, tprefix_len);
                 }
             }
-
+            
             unsigned long overlap_len = (qend - qstart) + left_clip + right_clip;
-
+            
             // add this information to paf_records dictionary
             auto i = paf_records.find(qname);
             if ( i == paf_records.end() ) {
                 // if read not found initialize in paf_records
                 read qr;
-                qr.set(qname, qlen, overlap_len);
+                double cov = overlap_len / double(qlen);
+                qr.set(qname, qlen, overlap_len, cov);
                 paf_records.insert(pair<string,read>(qname, qr));
             } else {
                 // if read found, update the overlap info
                 i->second.updateOverlap(overlap_len);
+                double cov = overlap_len / double(qlen);
+                i->second.updateCov(cov);
             }
             auto j = paf_records.find(tname);
             if ( j == paf_records.end() ) {
                 // if target read not found initialize in paf_records
                 read tr;
-                tr.set(tname, tlen, overlap_len);
+                double cov = overlap_len / double(tlen);
+                tr.set(tname, tlen, overlap_len, cov);
                 paf_records.insert(pair<string,read>(tname, tr));
             } else {
                 // if target read found, update the overlap info
                 j->second.updateOverlap(overlap_len);
+                double cov = overlap_len / double(tlen);
+                j->second.updateCov(cov);
             }
         }
     }
@@ -408,6 +419,7 @@ map<string, read> parse_paf()
         // Accessing KEY from element pointed by it
         string read_id = r.first;
         read temp = r.second;
+        //cout << temp.read_id << ", " << temp.read_len << ", " << temp.total_len_overlaps <<endl;
     }
 
    return paf_records;
@@ -430,30 +442,35 @@ void calculate_ngx( vector<int> contig_lengths, int genome_size_est, JSONWriter*
     */
     int x = 0;
     int nx;
-    map<int,int> ngx;
+    // this is going to hold key = x percent of genome size estimate, value = x
+    map<unsigned long long int, int> gx;
     while ( x < 100 ) {
-        ngx.insert( make_pair((float(x) * genome_size_est)/100, 0) );
+        gx.insert( make_pair((float(x) * genome_size_est)/100, x) );
         x += 1;
     }
     
     // sort in descending order the contig_lengths
     sort(contig_lengths.rbegin(), contig_lengths.rend());
     
+    map<int, int> ngx;
     int start = 0, end = 0;
     for ( auto const& c : contig_lengths ) {
        end += c;
        // for all percentile values that are less then the curr sum
-       for ( auto& p : ngx ) {
-           if ( ( p.first >= float(start) ) && ( p.first <= float(end) ) ) {
-               p.second = c;
+       for ( auto& p : gx ) {
+           if ( ( p.first >= start ) && ( p.first <= end ) ) {
+               ngx.insert( make_pair(p.second, c) );
            }           
        }
     }
+
     writer->Key("ngx_values");
     writer->StartObject();
     for ( auto& p : ngx ) {
         string key = to_string(p.first);
+        // x value:
         writer->Key(key.c_str());
+        // ngx value:
         writer->Int(p.second);
     }
     writer->EndObject();   
@@ -475,11 +492,11 @@ void calculate_tot_bases( map<string, read> paf, JSONWriter* writer)
     ========================================================
     */
 
-    // bin the reads by read length
-    map < unsigned long, unsigned long, greater<unsigned long>> read_lengths;
+    // bin the reads by read length, and sort in decreasing order
+    map < unsigned long long, unsigned long long, greater<unsigned long long>> read_lengths;
     for( auto it = paf.begin(); it != paf.end(); it++) {
         string id = it->first;
-        int r_len = it->second.read_len;
+        unsigned int r_len = it->second.read_len;
 
         // add as new read length if read length not in map yet
         auto j = read_lengths.find(r_len);
@@ -488,22 +505,30 @@ void calculate_tot_bases( map<string, read> paf, JSONWriter* writer)
             read_lengths.insert( pair<int,int>(r_len, 1) );
         } else {
             // if read length found
-            j->second+=1;
+            j->second += 1;
         }
     }
 
-    // sort read lengths
-    // display items in sorted order of keys
     writer->Key("total_num_bases_vs_min_read_length");
     writer->StartObject();
-    unsigned long curr_longest;
-    unsigned long tot_num_bases = 0;
+    unsigned long long curr_longest;
+    unsigned int nr;
+    unsigned long long nb; // total number of bases of reads with current longest read length
+    unsigned long long tot_num_bases = 0;
     for (const auto& p : read_lengths) {
         curr_longest = p.first;
-        tot_num_bases += ( p.second * p.first);
-        string key = to_string( curr_longest );
-        writer->Key(key.c_str());
-        writer->Int(tot_num_bases);
+        nr = p.second;
+        nb = curr_longest * nr;
+        // detect for potential overflow issues:
+        // SO: https://stackoverflow.com/questions/199333/how-to-detect-integer-overflow
+      
+            if (!(nb > 0) || !(tot_num_bases > INT_MAX - nb)) {
+                // would not overflow 
+                tot_num_bases += nb;
+                string key = to_string( curr_longest );
+                writer->Key(key.c_str());
+                writer->Int(tot_num_bases);
+            }
     }
     writer->EndObject();
 }
@@ -562,8 +587,7 @@ float calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* 
     ========================================================
     */
 
-    vector< pair < int, int > > covs;
-    double r_len, r_tot_len_ol, r_tot_num_ol, r_cov;
+    vector< pair < double, int > > covs;
 
     // make an object that will hold pair of coverage and read length
     writer->Key("per_read_est_cov_and_read_length");
@@ -572,9 +596,9 @@ float calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* 
     {
         string id = it->first;
         read r = it->second;
-        float r_len = float(r.read_len);
-        unsigned long r_tot_len_ol = r.total_len_overlaps;
-        float r_cov = r_tot_len_ol / r_len;
+        int r_len = r.read_len;
+        long int r_tot_len_ol = r.total_len_overlaps;
+        double r_cov = r_tot_len_ol/double(r_len);
         string key = to_string(r_cov);
         writer->Key(key.c_str());
         writer->Int(r_len);
@@ -590,32 +614,36 @@ float calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* 
     // get the index of the 25th and 75th percentile item
     int i25 = ceil(covs.size() * 0.25);
     int i75 = ceil(covs.size() * 0.75);
-
-    // find IQR
-    int IQR = covs[i75].first - covs[i25].first;
+    
+    double IQR = covs[i75].first - covs[i25].first;
     double bd = IQR*1.5;
-    int lowerbound = double(covs[i25].first) - bd;
-    int upperbound = double(covs[i75].first) + bd;
+    double lowerbound = round(double(covs[i25].first) - bd);
+    double upperbound = round(double(covs[i75].first) + bd);
 
     // create a new set after applying this filter
     // stores info of set of reads after filtering:
-    unsigned long sum_len = 0;
-    unsigned long sum_cov = 0;
-    float tot_reads = 0;
-    for( auto it = covs.begin(); it != covs.end(); ++it) {
-        if (( it->first > lowerbound ) && ( it->first < upperbound )) {
-            unsigned long co = it->first;
-            unsigned long le = it->second;
+    long long sum_len = 0;
+    long double sum_cov = 0;
+    int tot_reads = 0;
+    vector <double> filtered_covs;
+    for( auto it = covs.begin(); it != covs.end(); ++it ) {
+        double co = round(it->first);
+        if (( co > lowerbound ) && ( co < upperbound )) {
+            unsigned long long le = it->second;
             sum_len += le;
             sum_cov += co;
             tot_reads += 1;
+            filtered_covs.push_back(co);
         }
     }
 
+    // get the median coverage
+    int i50 = ceil(filtered_covs.size() * 0.50);
+    double median_cov = double(filtered_covs[i50]);
+
     // calculate estimated genome size
-    float mean_read_len = sum_len / tot_reads;
-    float mean_cov = sum_cov / tot_reads;
-    float est_genome_size = ( tot_reads * mean_read_len ) / mean_cov;
+    double mean_read_len = sum_len / double(tot_reads);
+    double est_genome_size = ( tot_reads * mean_read_len ) / median_cov;
 
     // now store in JSON object
     writer->Key("est_cov_post_filter_info");
