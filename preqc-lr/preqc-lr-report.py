@@ -21,7 +21,7 @@ except ImportError:
 	print('Missing package(s)')	
 	quit()
 
-plots_available = ['ngx', 'est_genome_size', 'read_length_dist', 'est_cov_dist', 'est_cov_vs_read_length', 'per_read_GC_content_dist', 'total_num_bases_vs_min_read_length']
+plots_available = ['est_genome_size', 'read_length_dist', 'est_cov_dist', 'est_cov_vs_read_length', 'per_read_GC_content_dist', 'total_num_bases_vs_min_read_length']
 save_png=False
 max_percentile=90
 log=list()
@@ -168,9 +168,9 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			est_cov_post_filter_info[s] = data['est_cov_post_filter_info']
 			per_read_GC_content[s] = (color, data['read_counts_per_GC_content'], marker) 									# histogram
 			total_num_bases_vs_min_read_length[s] = (color, data['total_num_bases_vs_min_read_length'], marker)				# line
-			if 'NGX_values' in data.keys():
+			if 'ngx_values' in data.keys():
 				ngx_calculated=True
-				ngx_values[s] = (color, data['NGX_values'], marker)
+				ngx_values[s] = (color, data['ngx_values'], marker)
 
 	# --------------------------------------------------------
 	# PART 2: Calculate the number of plots to be created
@@ -184,7 +184,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	num_ss = len(preqclr_file)
 
 	# calculate a
-	a = len(plots_requested) - 2
+	a = len(plots_requested) - 1
 
 	# calculate b
 	if 'est_cov_vs_read_length' in plots_requested:
@@ -283,7 +283,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
 			ax_png_file = "./" + output_prefix + "/png/plot_total_num_bases_vs_min_read_length.png"
 			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
-	if 'ngx' in plots_requested and ngx_values:
+	if ngx_values and ngx_calculated:
 		ax = subplots.pop(0)
 		ax_temp = plot_ngx(ax, ngx_values, output_prefix)
 		if save_png:
@@ -550,7 +550,9 @@ def plot_total_num_bases_vs_min_read_length(ax, data, output_prefix):
 		ny = list()
 		s = max(y)
 		for i in y:
-			ny.append(float(i)/float(s))	
+			ny.append(float(i)/float(s))
+			if ( float(i)/float(s) < 0 ):
+				print i
 		
 		# record if current highest x-value
 		mx = max(x)
@@ -593,6 +595,7 @@ def plot_ngx(ax, data, output_prefix):
 	ax.grid(True, linestyle='-', linewidth=0.3)
 	ax.set_xlabel('X (%)')
 	ax.set_ylabel('Contig length (bps)')
+	ax.set_xlim(0,100)
 	ax.legend(loc='upper right')
 	return ax
 
