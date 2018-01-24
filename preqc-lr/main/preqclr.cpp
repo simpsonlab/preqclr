@@ -439,7 +439,7 @@ void calculate_ngx( vector<int> contig_lengths, int genome_size_est, JSONWriter*
     int nx;
     // this is going to hold key = x percent of genome size estimate, value = x
     map<unsigned long long int, int> gx;
-    while ( x < 100 ) {
+    while ( x <= 100 ) {
         gx.insert( make_pair((float(x) * genome_size_est)/100, x) );
         x += 1;
     }
