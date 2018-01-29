@@ -356,9 +356,9 @@ map<string, read> parse_paf()
 
         if ( qname.compare(tname) != 0 ) {
             unsigned int qprefix_len = qstart;
-            unsigned int qsuffix_len = qlen - qend;
+            unsigned int qsuffix_len = qlen - qend - 1;
             unsigned int tprefix_len = tstart;
-            unsigned int tsuffix_len = tlen - tend;
+            unsigned int tsuffix_len = tlen - tend - 1;
 
             // calculate overlap length, we need to take into account minimap2's softclipping
             int left_clip = 0, right_clip = 0;
@@ -377,7 +377,7 @@ map<string, read> parse_paf()
                 }
             }
             
-            unsigned long overlap_len = (qend - qstart) + left_clip + right_clip;
+            unsigned long overlap_len = abs(qend - qstart) + left_clip + right_clip;
             
             // add this information to paf_records dictionary
             auto i = paf_records.find(qname);
@@ -385,11 +385,10 @@ map<string, read> parse_paf()
                 // if read not found initialize in paf_records
                 read qr;
                 double cov = overlap_len / double(qlen);
-                qr.set(qname, qlen, overlap_len, cov);
+                qr.set(qname, qlen, cov);
                 paf_records.insert(pair<string,read>(qname, qr));
             } else {
                 // if read found, update the overlap info
-                i->second.updateOverlap(overlap_len);
                 double cov = overlap_len / double(qlen);
                 i->second.updateCov(cov);
             }
@@ -398,11 +397,10 @@ map<string, read> parse_paf()
                 // if target read not found initialize in paf_records
                 read tr;
                 double cov = overlap_len / double(tlen);
-                tr.set(tname, tlen, overlap_len, cov);
+                tr.set(tname, tlen, cov);
                 paf_records.insert(pair<string,read>(tname, tr));
             } else {
                 // if target read found, update the overlap info
-                j->second.updateOverlap(overlap_len);
                 double cov = overlap_len / double(tlen);
                 j->second.updateCov(cov);
             }
@@ -446,17 +444,19 @@ void calculate_ngx( vector<int> contig_lengths, int genome_size_est, JSONWriter*
     
     // sort in descending order the contig_lengths
     sort(contig_lengths.rbegin(), contig_lengths.rend());
-    
+   
+    // this is going to hold key = x, value = ngx
     map<int, int> ngx;
     int start = 0, end = 0;
     for ( auto const& c : contig_lengths ) {
        end += c;
-       // for all percentile values that are less then the curr sum
+       // for all values that are less then the curr sum
        for ( auto& p : gx ) {
            if ( ( p.first >= start ) && ( p.first <= end ) ) {
                ngx.insert( make_pair(p.second, c) );
            }           
        }
+       start += c;
     }
 
     writer->Key("ngx_values");
@@ -507,7 +507,7 @@ void calculate_tot_bases( map<string, read> paf, JSONWriter* writer)
     writer->Key("total_num_bases_vs_min_read_length");
     writer->StartObject();
     unsigned long long curr_longest;
-    unsigned int nr;
+    unsigned int nr;       // number of reads with read length
     unsigned long long nb; // total number of bases of reads with current longest read length
     unsigned long long tot_num_bases = 0;
     for (const auto& p : read_lengths) {
@@ -592,8 +592,7 @@ float calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* 
         string id = it->first;
         read r = it->second;
         int r_len = r.read_len;
-        long int r_tot_len_ol = r.total_len_overlaps;
-        double r_cov = r_tot_len_ol/double(r_len);
+        double r_cov = round(r.cov);
         string key = to_string(r_cov);
         writer->Key(key.c_str());
         writer->Int(r_len);
@@ -639,7 +638,7 @@ float calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* 
     // calculate estimated genome size
     double mean_read_len = sum_len / double(tot_reads);
     double est_genome_size = ( tot_reads * mean_read_len ) / median_cov;
-
+    cout << est_genome_size << endl;
     // now store in JSON object
     writer->Key("est_cov_post_filter_info");
     writer->StartArray();
