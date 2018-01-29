@@ -4,16 +4,14 @@
 
 using namespace std;
 
-void read_seq::set(string i, int l, int lol)
+void read_seq::set(string i, unsigned long long int l, double c)
 {
     read_id = i;
     read_len = l;
-    total_len_overlaps = lol;
-    total_num_overlaps = 1;
+    cov = c;
 }
 
-void read_seq::updateOverlap(int new_ol_len)
+void read_seq::updateCov( double c )
 {
-    total_len_overlaps+=new_ol_len;
-    total_num_overlaps+=1;
+    cov += c;
 }
