@@ -347,10 +347,12 @@ map<string, read> parse_paf()
 
         // read each line/overlap and save each column into variable
         string qname;
-        unsigned int qlen, qstart, qend;
+        unsigned long int qlen;
+        unsigned int qstart, qend;
         char strand;
         string tname;
-        unsigned int tlen, tstart, tend;
+        unsigned long int tlen;
+        unsigned int tstart, tend;
         stringstream ss(line);
         ss >> qname >> qlen >> qstart >> qend >> strand >> tname >> tlen >> tstart >> tend;
 
@@ -384,36 +386,36 @@ map<string, read> parse_paf()
             if ( i == paf_records.end() ) {
                 // if read not found initialize in paf_records
                 read qr;
-                double cov = overlap_len / double(qlen);
+                double cov = double(overlap_len) / double(qlen);
                 qr.set(qname, qlen, cov);
                 paf_records.insert(pair<string,read>(qname, qr));
             } else {
                 // if read found, update the overlap info
-                double cov = overlap_len / double(qlen);
+                double cov = double(overlap_len) / double(qlen);
                 i->second.updateCov(cov);
             }
             auto j = paf_records.find(tname);
             if ( j == paf_records.end() ) {
                 // if target read not found initialize in paf_records
                 read tr;
-                double cov = overlap_len / double(tlen);
+                double cov = double(overlap_len) / double(tlen);
                 tr.set(tname, tlen, cov);
                 paf_records.insert(pair<string,read>(tname, tr));
             } else {
                 // if target read found, update the overlap info
-                double cov = overlap_len / double(tlen);
+                double cov = double(overlap_len) / double(tlen);
                 j->second.updateCov(cov);
             }
         }
     }
     
     // let's check the records...
-    for ( auto const& r : paf_records ) {
+//    for ( auto const& r : paf_records ) {
         // Accessing KEY from element pointed by it
-        string read_id = r.first;
-        read temp = r.second;
+//        string read_id = r.first;
+//        read temp = r.second;
         //cout << temp.read_id << ", " << temp.read_len << ", " << temp.total_len_overlaps <<endl;
-    }
+//    }
 
    return paf_records;
 }
@@ -582,7 +584,7 @@ float calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* 
     ========================================================
     */
 
-    vector< pair < double, int > > covs;
+    vector<pair <double, int>> covs;
 
     // make an object that will hold pair of coverage and read length
     writer->Key("per_read_est_cov_and_read_length");
@@ -591,12 +593,12 @@ float calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* 
     {
         string id = it->first;
         read r = it->second;
-        int r_len = r.read_len;
-        double r_cov = round(r.cov);
+        double r_len = r.read_len;
+        double r_cov = r.cov;
         string key = to_string(r_cov);
         writer->Key(key.c_str());
         writer->Int(r_len);
-        covs.push_back(make_pair(r_cov,r_len));
+        covs.push_back(make_pair(round(r_cov),r_len));        
     }
     writer->EndObject();
 
