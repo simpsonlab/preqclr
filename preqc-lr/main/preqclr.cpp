@@ -36,6 +36,7 @@ using namespace std;
 using namespace rapidjson;
 
 typedef PrettyWriter<StringBuffer> JSONWriter;
+typedef std::chrono::duration<float> fsec;
 
 namespace opt
 {
@@ -65,17 +66,21 @@ int main( int argc, char *argv[])
     cout << "RUNNING PREQC-LR CALCULATE" << endl;
     cout << "========================================================" << endl;
     auto tot_start = chrono::system_clock::now();
+    auto tot_start_cpu = clock();
  
     // parse the input PAF file and return a map with key = read id, 
     // and value = read object with all needed read info
     // SO: https://stackoverflow.com/questions/11062804/measuring-the-runtime-of-a-c-code
     // SO1 to get cast to milliseconds: https://stackoverflow.com/questions/30131181/calculate-time-to-execute-a-function 
     cout << "[ Parse PAF file ] " << endl;
-    auto start = chrono::system_clock::now();    
+    auto swc = chrono::system_clock::now();    
+    auto scpu = clock();
     map<string, read> paf_records = parse_paf();
-    auto end = chrono::system_clock::now();
-    auto elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
-    cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
+    auto ewc = chrono::system_clock::now();
+    auto ecpu = clock();
+    fsec elapsedwc = ewc - swc;
+    double elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
+    cout << "[+] Time elapsed: " << elapsedwc.count() << "s, CPU time: "  << elapsedcpu << "s" << endl;
 
     // start json object
     StringBuffer s;
@@ -87,50 +92,69 @@ int main( int argc, char *argv[])
     writer.String(opt::sample_name.c_str());
 
     // start calculations
+    // SO: Calculating CPU time. (https://stackoverflow.com/questions/17432502/how-can-i-measure-cpu-time-and-wall-clock-time-on-both-linux-windows)
+    swc = chrono::system_clock::now();
+    scpu = clock();
     cout << "[ Calculating read length distribution ]" << endl;
-    start = chrono::system_clock::now();
     calculate_read_length( paf_records, &writer);
-    end = chrono::system_clock::now();
-    elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
-    cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
+    ewc = chrono::system_clock::now();
+    ecpu = clock();
+    elapsedwc = ewc - swc;
+    elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
+    cout << "[+] Time elapsed: " << elapsedwc.count() << "s, CPU time: "  << elapsedcpu << "s" << endl;
 
     cout << "[ Calculating est cov per read and est genome size ]" << endl;
-    start = chrono::system_clock::now();
+    swc = chrono::system_clock::now();
+    scpu = clock();
     int genome_size_est = calculate_est_cov_and_est_genome_size( paf_records, &writer);
-    end = chrono::system_clock::now();
-    elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
-    cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
+    ewc = chrono::system_clock::now();
+    ecpu = clock();
+    elapsedwc = ewc - swc;
+    elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
+    cout << "[+] Time elapsed: " << elapsedwc.count() << "s, CPU time: "  << elapsedcpu << "s" << endl;
 
     cout << "[ Calculating GC-content per read ]" << endl;
-    start = chrono::system_clock::now();
+    swc = chrono::system_clock::now();
+    scpu = clock();
     calculate_GC_content( opt::reads_file, &writer);
-    end = chrono::system_clock::now();
-    elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
-    cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
+    ewc = chrono::system_clock::now();
+    ecpu = clock();
+    elapsedwc = ewc - swc;
+    elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
+    cout << "[+] Time elapsed: " << elapsedwc.count() << "s, CPU time: "  << elapsedcpu << "s" << endl;
 
     cout << "[ Calculating total number of bases as a function of min read length ]" << endl;
-    start = chrono::system_clock::now();
+    swc = chrono::system_clock::now();
+    scpu = clock();
     calculate_tot_bases( paf_records, &writer);
-    end = chrono::system_clock::now();
-    elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
-    cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
+    ewc = chrono::system_clock::now();
+    ecpu = clock();
+    elapsedwc = ewc - swc;
+    elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
+    cout << "[+] Time elapsed: " << elapsedwc.count() << "s, CPU time: "  << elapsedcpu << "s" << endl;
 
     if ( !opt::gfa_file.empty() ) {
         cout << "[ Parse GFA file ] " << endl;
-        start = chrono::system_clock::now();
+        swc = chrono::system_clock::now();
+        scpu = clock();
         vector<int> contigs = parse_gfa();
-        end = chrono::system_clock::now();
-        elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
-        cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
+        ewc = chrono::system_clock::now();
+        ecpu = clock();
+        elapsedwc = ewc - swc;
+        elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
+        cout << "[+] Time elapsed: " << elapsedwc.count() << "s, CPU time: "  << elapsedcpu << "s" << endl;
+
 
         cout << "[ Calculating NGX ]" << endl;
-        start = chrono::system_clock::now();
+        swc = chrono::system_clock::now();
+        scpu = clock();
         calculate_ngx( contigs, genome_size_est, &writer );
-        end = chrono::system_clock::now();
-        elapsed = chrono::duration_cast<chrono::milliseconds>(end - start).count();
-        cout << "[+] Time elapsed: " << elapsed << " milliseconds" << endl;
+        ewc = chrono::system_clock::now();
+        ecpu = clock();
+        elapsedwc = ewc - swc;
+        elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
+        cout << "[+] Time elapsed: " << elapsedwc.count() << "s, CPU time: "  << elapsedcpu << "s" << endl;
     }
-    
     // convert JSON document to string and print
     writer.EndObject();
     ofstream preqclrFILE;
@@ -140,11 +164,13 @@ int main( int argc, char *argv[])
     preqclrFILE.close();
  
     // wrap it up
-    auto tot_end = chrono::system_clock::now();
-    auto tot_elapsed = chrono::duration_cast<chrono::milliseconds>(tot_end - tot_start).count();
     cout << "[ Done ]" << endl;
     cout << "[+] Resulting preqclr file: " << filename << endl;
-    cout << "[+] Total time: " << tot_elapsed << " milliseconds" << endl;
+    auto tot_end = chrono::system_clock::now();
+    auto tot_end_cpu = clock();
+    fsec tot_elapsed = tot_end - tot_start;
+    double tot_elapsed_cpu = (tot_end_cpu - tot_start_cpu)/(double)CLOCKS_PER_SEC;;
+    cout << "[+] Total time: " << tot_elapsed.count() << "s, CPU time: "  << tot_elapsed_cpu << "s" << endl;
 }
 
 vector<int> parse_gfa()
@@ -356,7 +382,16 @@ map<string, read> parse_paf()
         stringstream ss(line);
         ss >> qname >> qlen >> qstart >> qend >> strand >> tname >> tlen >> tstart >> tend;
 
+        // ---------------------
+        //      TRIAL ZONE
+        // ---------------------
+        // filtering overlaps ...
+        int sl = min(qlen, tlen);
+        int ol = min(qend - qstart, tend - tstart);
+        double pol = double(ol)/double(sl);
+
         if ( qname.compare(tname) != 0 ) {
+            //cout << qlen << "," << tlen << "," << ol << ","<< pol << endl;
             unsigned int qprefix_len = qstart;
             unsigned int qsuffix_len = qlen - qend - 1;
             unsigned int tprefix_len = tstart;
@@ -640,7 +675,9 @@ float calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* 
     // calculate estimated genome size
     double mean_read_len = sum_len / double(tot_reads);
     double est_genome_size = ( tot_reads * mean_read_len ) / median_cov;
-    cout << est_genome_size << endl;
+    cout << "median cov: " << median_cov << endl;
+    cout << "mean read length: " << mean_read_len << endl;
+    cout << "est genome size: " << est_genome_size << endl;
     // now store in JSON object
     writer->Key("est_cov_post_filter_info");
     writer->StartArray();
