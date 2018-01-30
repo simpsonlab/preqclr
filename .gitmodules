@@ -1,0 +1,8 @@
+[submodule "zstr"]
+	path = zstr
+	url = https://github.com/mateidavid/zstr.git
+	branch = master
+[submodule "include/zstr"]
+	path = include/zstr
+	url = https://github.com/mateidavid/zstr.git
+	branch = master
