@@ -1,16 +1,16 @@
 #
 
 # Sub directories containing source code, except for the main programs
-SUBDIRS := include preqc-lr 
+SUBDIRS := include preqc-lr include/readpaf include/rapidjson/include include/zstr/src include/seqtk
 
 #
 # Set libraries, paths, flags and options
 #
 
 #Basic flags every build needs
-LIBS = -lz
+LIBS = -lz -lboost_iostreams
 CXXFLAGS ?= -g -O3
-CXXFLAGS += -std=c++11
+CXXFLAGS += -std=c++11 
 CFLAGS ?= -O3 -std=c99
 CXX ?= g++
 CC ?= gcc
