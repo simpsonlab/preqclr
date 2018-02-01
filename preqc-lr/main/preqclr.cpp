@@ -17,7 +17,12 @@
 #include <stdio.h>
 #include <getopt.h>
 
-#include "readfq/kseq.h"
+#include "seqtk/kseq.h"
+#include "readpaf/paf.h"
+#include "readpaf/sdict.h"
+
+#include "zstr.hpp"
+#include "strict_fstream.hpp"
 
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
@@ -30,13 +35,17 @@ KSEQ_INIT(gzFile, gzread)
 
 #define VERSION "2.0"
 #define SUBPROGRAM "calculate"
-#define read read_seq
 
 using namespace std;
 using namespace rapidjson;
 
 typedef PrettyWriter<StringBuffer> JSONWriter;
 typedef std::chrono::duration<float> fsec;
+
+bool myComparison(const pair<double,int> &a,const pair<double,int> &b)
+{
+       return a.second<b.second;
+}
 
 namespace opt
 {
@@ -55,7 +64,7 @@ int main( int argc, char *argv[])
     parse_args(argc, argv);
 
     // Let's handle the verbose option
-    SO: https://stackoverflow.com/questions/10150468/how-to-redirect-cin-and-cout-to-files
+    // SO: https://stackoverflow.com/questions/10150468/how-to-redirect-cin-and-cout-to-files
     if ( opt::verbose != 1 ) {
         // if verbose option not found, then redirect all cout to preqclr.log file
         ofstream out( "preqclr.log" );
@@ -75,7 +84,7 @@ int main( int argc, char *argv[])
     cout << "[ Parse PAF file ] " << endl;
     auto swc = chrono::system_clock::now();    
     auto scpu = clock();
-    map<string, read> paf_records = parse_paf();
+    map<string, sequence> paf_records = parse_paf();
     auto ewc = chrono::system_clock::now();
     auto ecpu = clock();
     fsec elapsedwc = ewc - swc;
@@ -359,39 +368,36 @@ void parse_args ( int argc, char *argv[])
 
 };
 
-map<string, read> parse_paf()
+map<string, sequence> parse_paf()
 {
     // read each line in paf file passed on by user
     string line;
-    ifstream infile(opt::paf_file);
-    if (!infile.is_open()) { 
-        fprintf(stderr, "preqclr %s: PAF failed to open. Check to see if it exists, is readable, and is non-empty.\n\n", SUBPROGRAM);
+    const char *c = opt::paf_file.c_str();
+    paf_file_t *fp;
+    paf_rec_t r;
+    sdict_t *d;
+    fp = paf_open(c);
+    if (!fp) {
+        fprintf(stderr, "ERROR: could not open PAF file %s\n", __func__, c);
         exit(1);
     }
-    map<string, read> paf_records;
-    while( getline(infile, line) ) {
+    d = sd_init();
+
+    map<string, sequence> paf_records;
+    while (paf_read(fp, &r) >= 0) { 
 
         // read each line/overlap and save each column into variable
-        string qname;
-        unsigned long int qlen;
-        unsigned int qstart, qend;
-        char strand;
-        string tname;
-        unsigned long int tlen;
-        unsigned int tstart, tend;
-        stringstream ss(line);
-        ss >> qname >> qlen >> qstart >> qend >> strand >> tname >> tlen >> tstart >> tend;
-
-        // ---------------------
-        //      TRIAL ZONE
-        // ---------------------
-        // filtering overlaps ...
-        int sl = min(qlen, tlen);
-        int ol = min(qend - qstart, tend - tstart);
-        double pol = double(ol)/double(sl);
+        string qname = r.qn;
+        unsigned int qlen = r.ql;
+        unsigned int qstart = r.qs;
+        unsigned int qend = r.qe;
+        unsigned int strand = r.rev;
+        string tname = r.tn;
+        unsigned int tlen = r.tl;
+        unsigned int tstart = r.ts;
+        unsigned int tend = r.te
 
         if ( qname.compare(tname) != 0 ) {
-            //cout << qlen << "," << tlen << "," << ol << ","<< pol << endl;
             unsigned int qprefix_len = qstart;
             unsigned int qsuffix_len = qlen - qend - 1;
             unsigned int tprefix_len = tstart;
@@ -400,30 +406,30 @@ map<string, read> parse_paf()
             // calculate overlap length, we need to take into account minimap2's softclipping
             int left_clip = 0, right_clip = 0;
             if ( ( qstart != 0 ) && ( tstart != 0 ) ){
-                if ( strand == '+' ) {
+                if ( strand == 0 ) {
                     left_clip += min(qprefix_len, tprefix_len);
                 } else {
                     left_clip += min(qprefix_len, tsuffix_len);
                 }
             }
             if ( ( qend != 0 ) && ( tend != 0 ) ){
-                if ( strand == '+' ) {
+                if ( strand == 0 ) {
                     right_clip += min(qsuffix_len, tsuffix_len);
                 } else {
                     right_clip += min(qsuffix_len, tprefix_len);
                 }
             }
             
-            unsigned long overlap_len = abs(qend - qstart) + left_clip + right_clip;
-            
+            unsigned int overlap_len = abs(qend - qstart) + left_clip + right_clip;
+  
             // add this information to paf_records dictionary
             auto i = paf_records.find(qname);
             if ( i == paf_records.end() ) {
                 // if read not found initialize in paf_records
-                read qr;
+                sequence qr;
                 double cov = double(overlap_len) / double(qlen);
                 qr.set(qname, qlen, cov);
-                paf_records.insert(pair<string,read>(qname, qr));
+                paf_records.insert(pair<string,sequence>(qname, qr));
             } else {
                 // if read found, update the overlap info
                 double cov = double(overlap_len) / double(qlen);
@@ -432,10 +438,10 @@ map<string, read> parse_paf()
             auto j = paf_records.find(tname);
             if ( j == paf_records.end() ) {
                 // if target read not found initialize in paf_records
-                read tr;
+                sequence tr;
                 double cov = double(overlap_len) / double(tlen);
                 tr.set(tname, tlen, cov);
-                paf_records.insert(pair<string,read>(tname, tr));
+                paf_records.insert(pair<string,sequence>(tname, tr));
             } else {
                 // if target read found, update the overlap info
                 double cov = double(overlap_len) / double(tlen);
@@ -444,14 +450,6 @@ map<string, read> parse_paf()
         }
     }
     
-    // let's check the records...
-//    for ( auto const& r : paf_records ) {
-        // Accessing KEY from element pointed by it
-//        string read_id = r.first;
-//        read temp = r.second;
-        //cout << temp.read_id << ", " << temp.read_len << ", " << temp.total_len_overlaps <<endl;
-//    }
-
    return paf_records;
 }
 
@@ -508,7 +506,7 @@ void calculate_ngx( vector<int> contig_lengths, int genome_size_est, JSONWriter*
     writer->EndObject();   
 }
 
-void calculate_tot_bases( map<string, read> paf, JSONWriter* writer)
+void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer)
 {
     /*
     ========================================================
@@ -525,7 +523,7 @@ void calculate_tot_bases( map<string, read> paf, JSONWriter* writer)
     */
 
     // bin the reads by read length, and sort in decreasing order
-    map < unsigned long long, unsigned long long, greater<unsigned long long>> read_lengths;
+    map < unsigned int, int, greater<unsigned int>> read_lengths;
     for( auto it = paf.begin(); it != paf.end(); it++) {
         string id = it->first;
         unsigned int r_len = it->second.read_len;
@@ -534,7 +532,7 @@ void calculate_tot_bases( map<string, read> paf, JSONWriter* writer)
         auto j = read_lengths.find(r_len);
         if ( j == read_lengths.end() ) {
             // if read length not found
-            read_lengths.insert( pair<int,int>(r_len, 1) );
+            read_lengths.insert( pair<unsigned int,int>(r_len, 1) );
         } else {
             // if read length found
             j->second += 1;
@@ -551,9 +549,11 @@ void calculate_tot_bases( map<string, read> paf, JSONWriter* writer)
         curr_longest = p.first;
         nr = p.second;
         nb = curr_longest * nr;
+        cout << curr_longest << endl;
         // detect for potential overflow issues:
         // SO: https://stackoverflow.com/questions/199333/how-to-detect-integer-overflow
-      
+        // curr_longest * nr may have encountered an overflow issue
+        //     leading to a negative number. We do not include negative nb. 
             if (!(nb > 0) || !(tot_num_bases > INT_MAX - nb)) {
                 // would not overflow 
                 tot_num_bases += nb;
@@ -604,7 +604,7 @@ void calculate_GC_content( string file, JSONWriter* writer )
     gzclose(fp); 
 }
 
-float calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* writer )
+float calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWriter* writer )
 {
     /*
     ========================================================
@@ -627,21 +627,25 @@ float calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* 
     for( auto it = paf.begin(); it != paf.end(); it++)
     {
         string id = it->first;
-        read r = it->second;
+        sequence r = it->second;
         double r_len = r.read_len;
         double r_cov = r.cov;
         string key = to_string(r_cov);
+        //cout << r_len << endl;
         writer->Key(key.c_str());
         writer->Int(r_len);
         covs.push_back(make_pair(round(r_cov),r_len));        
     }
     writer->EndObject();
 
+    cout << "done" << endl;
+
     // filter the coverage: remove if outside 1.5*interquartile_range
     // calculate IQR
     // sort the estimated coverages
     sort(covs.begin(), covs.end());
 
+    cout << "done" << endl;
     // get the index of the 25th and 75th percentile item
     int i25 = ceil(covs.size() * 0.25);
     int i75 = ceil(covs.size() * 0.75);
@@ -650,6 +654,7 @@ float calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* 
     double bd = IQR*1.5;
     double lowerbound = round(double(covs[i25].first) - bd);
     double upperbound = round(double(covs[i75].first) + bd);
+    //cout << IQR << ", lb" << lowerbound << ", ub" << upperbound << endl;
 
     // create a new set after applying this filter
     // stores info of set of reads after filtering:
@@ -667,17 +672,19 @@ float calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* 
             filtered_covs.push_back(co);
         }
     }
-
     // get the median coverage
+    sort(filtered_covs.begin(), filtered_covs.end());
+    cout << "size: " <<  filtered_covs.size() << endl;
     int i50 = ceil(filtered_covs.size() * 0.50);
     double median_cov = double(filtered_covs[i50]);
 
     // calculate estimated genome size
-    double mean_read_len = sum_len / double(tot_reads);
+    double mean_read_len = double(sum_len) / double(tot_reads);
     double est_genome_size = ( tot_reads * mean_read_len ) / median_cov;
-    cout << "median cov: " << median_cov << endl;
-    cout << "mean read length: " << mean_read_len << endl;
-    cout << "est genome size: " << est_genome_size << endl;
+    //cout << "median cov: " << median_cov << endl;
+    //cout << "mean read length: " << mean_read_len << endl;
+    //cout << "est genome size: " << est_genome_size << endl;
+
     // now store in JSON object
     writer->Key("est_cov_post_filter_info");
     writer->StartArray();
@@ -691,7 +698,7 @@ float calculate_est_cov_and_est_genome_size( map<string, read> paf, JSONWriter* 
     return est_genome_size;
 }
 
-void calculate_read_length( map<string, read> paf, JSONWriter* writer)
+void calculate_read_length( map<string, sequence> paf, JSONWriter* writer)
 {
     /*
     ========================================================
@@ -708,7 +715,7 @@ void calculate_read_length( map<string, read> paf, JSONWriter* writer)
 
     // loop through the map of reads and get read lengths
     for(auto it = paf.begin(); it != paf.end(); it++) {
-        read r = it->second;
+        sequence r = it->second;
         int r_len = r.read_len;
         writer->Int(r_len);
     }
