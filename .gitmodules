@@ -2,11 +2,11 @@
 	path = include/zstr
 	url = https://github.com/mateidavid/zstr.git
 	branch = master
-[submodule "include/readfq"]
-	path = include/readfq
-	url = https://github.com/lh3/readfq.git
-	branch = master
 [submodule "include/rapidjson"]
 	path = include/rapidjson
 	url = https://github.com/Tencent/rapidjson.git
+	branch = master
+[submodule "include/seqtk"]
+	path = include/seqtk
+	url = https://github.com/lh3/seqtk.git
 	branch = master
