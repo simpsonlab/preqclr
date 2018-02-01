@@ -2,7 +2,7 @@
 
 using namespace std;
 
-class read_seq
+class sequence
 {
   public:
     string read_id;
