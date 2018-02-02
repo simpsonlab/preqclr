@@ -184,7 +184,9 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	num_ss = len(preqclr_file)
 
 	# calculate a
-	a = len(plots_requested) - 1
+	a = len(plots_requested)
+	if 'est_cov_vs_read_length' in plots_requested:
+		a -= 1
 
 	# calculate b
 	if 'est_cov_vs_read_length' in plots_requested:
@@ -194,7 +196,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 
 	# calculate the number of samples that had ngx_calculations
 	if ngx_calculated:
-		b+=len(ngx_values)
+		b+=1
 
 	num_plots = a + b
 
@@ -266,15 +268,15 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 		for s in per_read_est_cov_and_read_length:
 			ax = subplots.pop(0)
 			ax_temp = plot_per_read_est_cov_vs_read_length(ax, per_read_est_cov_and_read_length, s, output_prefix)
-			if save_png:
-				temp_fig = ax_temp[0].get_figure()
-				extent = ax_temp[0].get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
-				ax_png_file = "./" + output_prefix + "/png/plot_est_cov_vs_read_length_" + s +".png" 
-				temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 			# add color bar
 			divider = make_axes_locatable(ax)
 			cax = divider.append_axes("right", size="5%", pad=0.05)
-        	ax.figure.colorbar(ax_temp[1], cax=cax)
+			ax.figure.colorbar(ax_temp[1], cax=cax)
+			if save_png:
+				temp_fig = ax_temp[0].get_figure()
+				extent = ax_temp[0].get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+				ax_png_file = "./" + output_prefix + "/png/plot_est_cov_vs_read_length_" + s +".png"
+				temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'total_num_bases_vs_min_read_length' in plots_requested:
 		ax = subplots.pop(0)
 		ax_temp = plot_total_num_bases_vs_min_read_length(ax, total_num_bases_vs_min_read_length, output_prefix)
@@ -358,6 +360,7 @@ def plot_est_cov(ax, data, est_cov_post_filter_info, output_prefix):
 
 	# identify limits and bins based on max calues across all samples
 	max_cov = 0
+	max_y = 0
 	binwidth = 0
 	num_bins = 0
 	for s in data:
@@ -367,7 +370,7 @@ def plot_est_cov(ax, data, est_cov_post_filter_info, output_prefix):
 		sd_max_cov = float(max(sd_est_cov))
 		filter_info = est_cov_post_filter_info[s]        # tuple (lowerbound cov, upperbound cov, num reads, IQR covs)
 		sd_upperbound = float(filter_info[1])                    # precalculated est. cov. upperbound 
-		if sd_max_cov > sd_upperbound:
+		if sd_upperbound > max_cov:
 			max_cov = float(sd_upperbound)
 
 		# now start plotting for each sample
@@ -382,6 +385,8 @@ def plot_est_cov(ax, data, est_cov_post_filter_info, output_prefix):
 		for i in y:
 			ni = float(i)/sy
 			ny.append(ni)
+			if ni > max_y:
+				max_y = ni
 
 		# plot!
 		ax.plot(x, ny, color=s_color, label=s_name)
@@ -391,6 +396,7 @@ def plot_est_cov(ax, data, est_cov_post_filter_info, output_prefix):
 	ax.grid(True, linestyle='-', linewidth=0.3)
 	ax.set_xlabel('Est. cov.')
 	ax.set_ylabel('Proportion')   
+	global max_percentile
 	ax.set_xlim(0, max_cov)
 	ax.legend(loc='upper right')
 	return ax
@@ -411,12 +417,6 @@ def plot_per_read_est_cov_vs_read_length(ax, data, s, output_prefix):
 	sd_est_cov_read_length = data[s][1]                         # this returns a dictionary with key = est_cov and value =read length 
 	sd_read_lengths = [ float(x) for x in sd_est_cov_read_length.keys() ]
 	sd_est_cov = [ float(y) for y in sd_est_cov_read_length.values() ]
-
-	# get x and y values from list of tuples
-	#y,x = zip(*sd)
-
-	# convert est cov values to int
-	#x = [double(i) for i in x]
 
 	# setting limits
 	mx = np.mean(sd_est_cov)
@@ -451,11 +451,6 @@ def plot_per_read_GC_content(ax, data, output_prefix):
 		s_name = s
 		s_color = data[s][0]
 		sd = [ round(float(i),0) for i in data[s][1] ]
-		#for GC_content_level in sd:
-		#	value = sd[GC_content_level]
-		#	nvalue = float(value)/float(s)
-		#	per_read_GC_content[int(float(GC_content_level))] = nvalue
-		#ax.plot(per_read_GC_content.keys(), per_read_GC_content.values(), color=s_color, label=s_name)
 		# reading json data from preqc-lr v2.0
 		x, y = zip(*sorted(collections.Counter(sorted(sd)).items()))
 		
@@ -537,14 +532,6 @@ def plot_total_num_bases_vs_min_read_length(ax, data, output_prefix):
 		for key, value in sorted(sd.iteritems(), key=lambda (k,v): (v,k)):
 			x.append(float(key))
 			y.append(float(value))
-		# get x and y values from json object produced with preqclr 2.0
-		# min read length cut off
-		#x = [ float(mc) for mc in sd.key ]
-		# total bases 
-		#y = [ float(tb[1]) for tb in sd ]
- 
-		# get x and y values from list of tuples
-		#x,y=zip(*sd)
 
 		# let's normalize the y values
 		ny = list()
@@ -554,10 +541,12 @@ def plot_total_num_bases_vs_min_read_length(ax, data, output_prefix):
 			if ( float(i)/float(s) < 0 ):
 				print i
 		
-		# record if current highest x-value
+		# record if current highest x-value across all samples
 		mx = max(x)
 		if mx > max_min_read_length:
 			max_min_read_length = mx
+
+		# plot!
 		ax.plot(x, ny, label=s_name, color=s_color)
 
 	# set x limit
@@ -594,7 +583,7 @@ def plot_ngx(ax, data, output_prefix):
 	# configure subplot
 	ax.grid(True, linestyle='-', linewidth=0.3)
 	ax.set_xlabel('X (%)')
-	ax.set_ylabel('Contig length (bps)')
+	ax.set_ylabel('Contig length (Mbps)')
 	ax.set_xlim(0,100)
 	ax.legend(loc='upper right')
 	return ax
