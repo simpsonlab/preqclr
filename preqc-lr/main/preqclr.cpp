@@ -169,7 +169,7 @@ int main( int argc, char *argv[])
         out("[ Parse GFA file ] ");
         swc = chrono::system_clock::now();
         scpu = clock();
-        vector<int> contigs = parse_gfa();
+        auto contigs = parse_gfa();
         ewc = chrono::system_clock::now();
         ecpu = clock();
         elapsedwc = ewc - swc;
@@ -205,16 +205,16 @@ int main( int argc, char *argv[])
     out("[+] Total time: " + to_string(tot_elapsed.count()) + "s, CPU time: " + to_string(tot_elapsed_cpu) + "s");
 }
 
-vector<int> parse_gfa()
+vector<double> parse_gfa()
 {
-    // parse gfa to get the contig lengths
+    // parse gfa to get the contig lengths in MB
     string line;
     ifstream infile(opt::gfa_file);
     if (!infile.is_open()) {
         fprintf(stderr, "preqclr %s: GFA failed to open. Check to see if it exists, is readable, and is non-empty.\n\n", SUBPROGRAM);
         exit(1);
     }
-    vector <int> contig_lengths;
+    vector <double> contig_lengths;
     while( getline(infile, line) ) {
         char spec;
         stringstream ss(line);
@@ -233,7 +233,7 @@ vector<int> parse_gfa()
                 // If found then erase it from string
                 contig_len.erase(pos, toErase.length());
             }
-            int len = stoi(contig_len);
+            double len = double(stoi(contig_len))/1000000;
             contig_lengths.push_back(len);
         }
     }
@@ -476,7 +476,7 @@ map<string, sequence> parse_paf()
    return paf_records;
 }
 
-void calculate_ngx( vector<int> contig_lengths, int genome_size_est, JSONWriter* writer ){
+void calculate_ngx( vector<double> contig_lengths, double genome_size_est, JSONWriter* writer ){
     /*
     ========================================================
     Calculating NGX
@@ -491,12 +491,15 @@ void calculate_ngx( vector<int> contig_lengths, int genome_size_est, JSONWriter*
                 of the genome size estimate....
     ========================================================
     */
+    // we will need to add contig lengths downstream
+    // so first we need to check if addition of contig lens would cause overflow
+    genome_size_est = double(genome_size_est)/1000000;
     int x = 0;
     int nx;
     // this is going to hold key = x percent of genome size estimate, value = x
-    map<unsigned long long int, int> gx;
+    map<double, int> gx;
     while ( x <= 100 ) {
-        gx.insert( make_pair((float(x) * genome_size_est)/100, x) );
+        gx.insert( make_pair((double(x) * genome_size_est)/100, x) );
         x += 1;
     }
     
@@ -504,10 +507,10 @@ void calculate_ngx( vector<int> contig_lengths, int genome_size_est, JSONWriter*
     sort(contig_lengths.rbegin(), contig_lengths.rend());
    
     // this is going to hold key = x, value = ngx
-    map<int, int> ngx;
-    int start = 0, end = 0;
+    map<int, double> ngx;
+    double start = 0, end = 0;
     for ( auto const& c : contig_lengths ) {
-       end += c;
+       end += double(c);
        // for all values that are less then the curr sum
        for ( auto& p : gx ) {
            if ( ( p.first >= start ) && ( p.first <= end ) ) {
@@ -524,7 +527,7 @@ void calculate_ngx( vector<int> contig_lengths, int genome_size_est, JSONWriter*
         // x value:
         writer->Key(key.c_str());
         // ngx value:
-        writer->Int(p.second);
+        writer->Double(p.second);
     }
     writer->EndObject();   
 }
@@ -634,7 +637,7 @@ void calculate_GC_content( vector <pair< double, int >> fq, JSONWriter* writer )
     writer->EndArray();
 }
 
-float calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWriter* writer )
+double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWriter* writer )
 {
     /*
     ========================================================
