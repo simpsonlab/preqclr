@@ -6,6 +6,8 @@ preqc-lr is a software tool that reports on quality control metrics for long rea
 * Python2.7
 * matplotlib
 * BioPython
+* C++ compiler with C++11 support
+* setuptools (to download report script dependencies)
 
 ## Install
 To install from source:
@@ -13,6 +15,10 @@ To install from source:
 ```bash
 git clone https://github.com/simpsonlab/preqc-lr.git
 cd preqc-lr
+make
+
+# download report script dependencies
+# create virtual environment
 python setup.py install
 ```
 
@@ -29,3 +35,7 @@ There are two components to preqc-lr:
 
 * Documentation [here](http://preqc-lr.readthedocs.io/en/latest/)
 * Quickstart tutorial [here](http://preqc-lr.readthedocs.io/en/latest/quickstart.html)
+
+## Acknowledgements
+
+preqc-lr uses overlap and assembly information from minimap2 and miniasm, respectively. To parse the output PAF file, and efficiently read fasta files we used kseq and PAF parser in miniasm. Therefore, I would like to thank Heng Li for developing these tools.
