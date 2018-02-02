@@ -56,6 +56,22 @@ namespace opt
     static string type;
     static string sample_name;
 }
+bool endFile = false;
+void out( string o )
+{
+    // Let's handle the verbose option
+    // SO: https://stackoverflow.com/questions/10150468/how-to-redirect-cin-and-cout-to-files
+    string logfile = opt::sample_name + "_preqclr.log";
+    ofstream out;
+    out.open( logfile, ios::app );
+    out << o << "\n";
+    if ( opt::verbose == 1 ) {
+        cout << o << "\n";
+    }    
+    if (endFile) {
+        out.close();
+    }
+}
 
 int main( int argc, char *argv[]) 
 {
@@ -63,17 +79,14 @@ int main( int argc, char *argv[])
     // in the global struct opts
     parse_args(argc, argv);
 
-    // Let's handle the verbose option
-    // SO: https://stackoverflow.com/questions/10150468/how-to-redirect-cin-and-cout-to-files
-    if ( opt::verbose != 1 ) {
-        // if verbose option not found, then redirect all cout to preqclr.log file
-        ofstream out( "preqclr.log" );
-        streambuf *coutbuf = cout.rdbuf();
-        cout.rdbuf(out.rdbuf());
-    }
-    cout << "========================================================" << endl;
-    cout << "RUNNING PREQC-LR CALCULATE" << endl;
-    cout << "========================================================" << endl;
+    // clear any previous log files with same name
+    ofstream ofs;
+    ofs.open( opt::sample_name + "_preqclr.log", ofstream::out | ios::trunc );
+    ofs.close();
+
+    out("========================================================");
+    out("RUNNING PREQC-LR CALCULATE");
+    out("========================================================");
     auto tot_start = chrono::system_clock::now();
     auto tot_start_cpu = clock();
  
@@ -81,7 +94,7 @@ int main( int argc, char *argv[])
     // and value = read object with all needed read info
     // SO: https://stackoverflow.com/questions/11062804/measuring-the-runtime-of-a-c-code
     // SO1 to get cast to milliseconds: https://stackoverflow.com/questions/30131181/calculate-time-to-execute-a-function 
-    cout << "[ Parse PAF file ] " << endl;
+    out("[ Parse PAF file ] ");
     auto swc = chrono::system_clock::now();    
     auto scpu = clock();
     map<string, sequence> paf_records = parse_paf();
@@ -89,7 +102,7 @@ int main( int argc, char *argv[])
     auto ecpu = clock();
     fsec elapsedwc = ewc - swc;
     double elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
-    cout << "[+] Time elapsed: " << elapsedwc.count() << "s, CPU time: "  << elapsedcpu << "s" << endl;
+    out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) + "s");
 
     // start json object
     StringBuffer s;
@@ -102,37 +115,47 @@ int main( int argc, char *argv[])
 
     // start calculations
     // SO: Calculating CPU time. (https://stackoverflow.com/questions/17432502/how-can-i-measure-cpu-time-and-wall-clock-time-on-both-linux-windows)
+    out("[ Parse reads file ]");
     swc = chrono::system_clock::now();
     scpu = clock();
-    cout << "[ Calculating read length distribution ]" << endl;
-    calculate_read_length( paf_records, &writer);
+    auto fq_records = parse_fq ( opt::reads_file );
     ewc = chrono::system_clock::now();
     ecpu = clock();
     elapsedwc = ewc - swc;
     elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
-    cout << "[+] Time elapsed: " << elapsedwc.count() << "s, CPU time: "  << elapsedcpu << "s" << endl;
+    out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
-    cout << "[ Calculating est cov per read and est genome size ]" << endl;
+    swc = chrono::system_clock::now();
+    scpu = clock();
+    out("[ Calculating read length distribution ]");
+    calculate_read_length( fq_records, &writer);
+    ewc = chrono::system_clock::now();
+    ecpu = clock();
+    elapsedwc = ewc - swc;
+    elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
+    out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) + "s");
+
+    out("[ Calculating est cov per read and est genome size ]");
     swc = chrono::system_clock::now();
     scpu = clock();
     int genome_size_est = calculate_est_cov_and_est_genome_size( paf_records, &writer);
     ewc = chrono::system_clock::now();
     ecpu = clock();
     elapsedwc = ewc - swc;
-    elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
-    cout << "[+] Time elapsed: " << elapsedwc.count() << "s, CPU time: "  << elapsedcpu << "s" << endl;
+    elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;
+    out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
-    cout << "[ Calculating GC-content per read ]" << endl;
+    out("[ Calculating GC-content per read ]");
     swc = chrono::system_clock::now();
     scpu = clock();
-    calculate_GC_content( opt::reads_file, &writer);
+    calculate_GC_content( fq_records, &writer);
     ewc = chrono::system_clock::now();
     ecpu = clock();
     elapsedwc = ewc - swc;
     elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
-    cout << "[+] Time elapsed: " << elapsedwc.count() << "s, CPU time: "  << elapsedcpu << "s" << endl;
+    out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
-    cout << "[ Calculating total number of bases as a function of min read length ]" << endl;
+    out("[ Calculating total number of bases as a function of min read length ]");
     swc = chrono::system_clock::now();
     scpu = clock();
     calculate_tot_bases( paf_records, &writer);
@@ -140,10 +163,10 @@ int main( int argc, char *argv[])
     ecpu = clock();
     elapsedwc = ewc - swc;
     elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
-    cout << "[+] Time elapsed: " << elapsedwc.count() << "s, CPU time: "  << elapsedcpu << "s" << endl;
+    out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
     if ( !opt::gfa_file.empty() ) {
-        cout << "[ Parse GFA file ] " << endl;
+        out("[ Parse GFA file ] ");
         swc = chrono::system_clock::now();
         scpu = clock();
         vector<int> contigs = parse_gfa();
@@ -151,10 +174,9 @@ int main( int argc, char *argv[])
         ecpu = clock();
         elapsedwc = ewc - swc;
         elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
-        cout << "[+] Time elapsed: " << elapsedwc.count() << "s, CPU time: "  << elapsedcpu << "s" << endl;
+        out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
-
-        cout << "[ Calculating NGX ]" << endl;
+        out("[ Calculating NGX ]");
         swc = chrono::system_clock::now();
         scpu = clock();
         calculate_ngx( contigs, genome_size_est, &writer );
@@ -162,7 +184,7 @@ int main( int argc, char *argv[])
         ecpu = clock();
         elapsedwc = ewc - swc;
         elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
-        cout << "[+] Time elapsed: " << elapsedwc.count() << "s, CPU time: "  << elapsedcpu << "s" << endl;
+        out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
     }
     // convert JSON document to string and print
     writer.EndObject();
@@ -173,13 +195,14 @@ int main( int argc, char *argv[])
     preqclrFILE.close();
  
     // wrap it up
-    cout << "[ Done ]" << endl;
-    cout << "[+] Resulting preqclr file: " << filename << endl;
+    out("[ Done ]");
+    out("[+] Resulting preqclr file: " + filename );
     auto tot_end = chrono::system_clock::now();
     auto tot_end_cpu = clock();
     fsec tot_elapsed = tot_end - tot_start;
-    double tot_elapsed_cpu = (tot_end_cpu - tot_start_cpu)/(double)CLOCKS_PER_SEC;;
-    cout << "[+] Total time: " << tot_elapsed.count() << "s, CPU time: "  << tot_elapsed_cpu << "s" << endl;
+    double tot_elapsed_cpu = (tot_end_cpu - tot_start_cpu)/(double)CLOCKS_PER_SEC;
+    endFile = true;
+    out("[+] Total time: " + to_string(tot_elapsed.count()) + "s, CPU time: " + to_string(tot_elapsed_cpu) + "s");
 }
 
 vector<int> parse_gfa()
@@ -266,7 +289,7 @@ void parse_args ( int argc, char *argv[])
             opt::verbose = 1; // set verbose flag
             break;
         case OPT_VERSION:
-            cout << PREQCLR_CALCULATE_VERSION_MESSAGE << endl;
+            out(PREQCLR_CALCULATE_VERSION_MESSAGE);
             exit(0);
         case 'r':
             if ( rflag == 1 ) {
@@ -395,7 +418,7 @@ map<string, sequence> parse_paf()
         string tname = r.tn;
         unsigned int tlen = r.tl;
         unsigned int tstart = r.ts;
-        unsigned int tend = r.te
+        unsigned int tend = r.te;
 
         if ( qname.compare(tname) != 0 ) {
             unsigned int qprefix_len = qstart;
@@ -549,7 +572,6 @@ void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer)
         curr_longest = p.first;
         nr = p.second;
         nb = curr_longest * nr;
-        cout << curr_longest << endl;
         // detect for potential overflow issues:
         // SO: https://stackoverflow.com/questions/199333/how-to-detect-integer-overflow
         // curr_longest * nr may have encountered an overflow issue
@@ -565,7 +587,33 @@ void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer)
     writer->EndObject();
 }
 
-void calculate_GC_content( string file, JSONWriter* writer )
+vector <pair< double, int >> parse_fq( string file )
+{
+    gzFile fp;
+    kseq_t *seq;
+    const char *c = file.c_str();
+    fp = gzopen(c, "r");
+    if (fp == 0) {
+        fprintf(stderr, "preqclr %s: reads file failed to open. Check to see if it exists, is readable, and is non-empty.\n\n", SUBPROGRAM);
+        exit(1);
+    }
+    seq = kseq_init(fp);
+    vector <pair< double, int >> fq_records;
+    while (kseq_read(seq) >= 0) {
+         string id = seq->name.s;
+         string sequence = seq->seq.s;
+         size_t C_count = count(sequence.begin(), sequence.end(), 'C');
+         size_t G_count = count(sequence.begin(), sequence.end(), 'G');
+         int r_len = sequence.length();
+         double gc_cont = (double( C_count + G_count ) / double(r_len)) *100.0;
+         fq_records.push_back(make_pair(gc_cont, r_len));
+    }
+    kseq_destroy(seq);
+    gzclose(fp);         
+    return fq_records;
+}
+
+void calculate_GC_content( vector <pair< double, int >> fq, JSONWriter* writer )
 {
     /*
     ========================================================
@@ -578,30 +626,12 @@ void calculate_GC_content( string file, JSONWriter* writer )
     ========================================================
     */
 
-    vector < double > GC_content;
-    gzFile fp;
-    kseq_t *seq;
-    const char *c = file.c_str();
-    fp = gzopen(c, "r");
-    if (fp == 0) {
-        fprintf(stderr, "preqclr %s: reads file failed to open. Check to see if it exists, is readable, and is non-empty.\n\n", SUBPROGRAM);
-        exit(1);
-    }
-    seq = kseq_init(fp);
     writer->Key("read_counts_per_GC_content");
     writer->StartArray();
-    while (kseq_read(seq) >= 0) {
-         string id = seq->name.s;
-         string sequence = seq->seq.s;
-         size_t C_count = count(sequence.begin(), sequence.end(), 'C');
-         size_t G_count = count(sequence.begin(), sequence.end(), 'G');
-         double r_len = sequence.length();
-         double gc_cont = (double( C_count + G_count ) / r_len) *100.0;
-         writer->Double(gc_cont);
+    for (auto &r : fq) {
+         writer->Double(r.first);
     }
     writer->EndArray();
-    kseq_destroy(seq);
-    gzclose(fp); 
 }
 
 float calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWriter* writer )
@@ -631,21 +661,18 @@ float calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWrit
         double r_len = r.read_len;
         double r_cov = r.cov;
         string key = to_string(r_cov);
-        //cout << r_len << endl;
         writer->Key(key.c_str());
         writer->Int(r_len);
         covs.push_back(make_pair(round(r_cov),r_len));        
     }
     writer->EndObject();
 
-    cout << "done" << endl;
 
     // filter the coverage: remove if outside 1.5*interquartile_range
     // calculate IQR
     // sort the estimated coverages
     sort(covs.begin(), covs.end());
 
-    cout << "done" << endl;
     // get the index of the 25th and 75th percentile item
     int i25 = ceil(covs.size() * 0.25);
     int i75 = ceil(covs.size() * 0.75);
@@ -654,7 +681,6 @@ float calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWrit
     double bd = IQR*1.5;
     double lowerbound = round(double(covs[i25].first) - bd);
     double upperbound = round(double(covs[i75].first) + bd);
-    //cout << IQR << ", lb" << lowerbound << ", ub" << upperbound << endl;
 
     // create a new set after applying this filter
     // stores info of set of reads after filtering:
@@ -674,7 +700,6 @@ float calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWrit
     }
     // get the median coverage
     sort(filtered_covs.begin(), filtered_covs.end());
-    cout << "size: " <<  filtered_covs.size() << endl;
     int i50 = ceil(filtered_covs.size() * 0.50);
     double median_cov = double(filtered_covs[i50]);
 
@@ -698,7 +723,7 @@ float calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWrit
     return est_genome_size;
 }
 
-void calculate_read_length( map<string, sequence> paf, JSONWriter* writer)
+void calculate_read_length( vector<pair<double, int>> fq, JSONWriter* writer)
 {
     /*
     ========================================================
@@ -714,10 +739,8 @@ void calculate_read_length( map<string, sequence> paf, JSONWriter* writer)
     writer->StartArray();
 
     // loop through the map of reads and get read lengths
-    for(auto it = paf.begin(); it != paf.end(); it++) {
-        sequence r = it->second;
-        int r_len = r.read_len;
-        writer->Int(r_len);
+    for(auto &r : fq) {
+        writer->Int(r.second);
     }
     writer->EndArray();
 }
