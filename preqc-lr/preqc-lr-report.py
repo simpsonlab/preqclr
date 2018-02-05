@@ -155,12 +155,17 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	# this will affect downstream processes
 	ngx_calculated=False
 
+	calcs = ['sample_name', 'est_genome_size', 'per_read_read_length', 'per_read_est_cov_and_read_length', 'est_cov_post_filter_info', 'read_counts_per_GC_content', 'total_num_bases_vs_min_read_length']
 	# start reading the preqclr file(s)
 	for s_preqclr_file in preqclr_file:
 		color = colors.pop(0)
 		marker = markers.pop(0)
 		with open(s_preqclr_file) as json_file:
 			data = json.load(json_file)
+			for c in calcs:
+				if not c in data.keys():
+					print "ERROR: " + c + " not calculated, try running the most recent version of preqc-lr calculate again."
+					sys.exit(1)
 			s = data['sample_name']
 			est_genome_sizes[s] = (color, data['est_genome_size'], marker)													# bar graph
 			per_read_read_length[s] = (color, data['per_read_read_length'], marker)											# histogram
