@@ -3,10 +3,13 @@ preqc-lr is a software tool that reports on quality control metrics for long rea
 
 ## Dependencies
 
+For the calculation step:
+* C++ compiler with C++11 support
+
+For the report generation step:
 * Python2.7
 * matplotlib
 * BioPython
-* C++ compiler with C++11 support
 * setuptools (to download report script dependencies)
 
 ## Install
@@ -19,6 +22,8 @@ make
 
 # download report script dependencies
 # create virtual environment
+virtualenv preqc-lr-venv
+source preqc-lr-venv/bin/activate
 python setup.py install
 ```
 
@@ -30,6 +35,20 @@ There are two components to preqc-lr:
 
     1. calculate
     2. report
+
+## Quick usage
+
+```bash
+#STEP 1: calculate data for plots
+./preqclr 	-r reads.fq \
+			-p overlaps.paf \
+			-t pb \
+			-n ecoli_sample.pacbio \
+			--verbose
+
+#STEP 2: create a PDF report
+python preqc-lr-report.py -i ecoli_sample.pacbio.preqclr --verbose 
+```
 
 ## Learn
 
