@@ -17,7 +17,7 @@
 #include <stdio.h>
 #include <getopt.h>
 
-#include "seqtk/kseq.h"
+#include "kseq.h"
 #include "readpaf/paf.h"
 #include "readpaf/sdict.h"
 
