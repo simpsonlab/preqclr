@@ -15,12 +15,13 @@ try:
 	import json
 	import time
 	import collections
+	import operator
 	from mpl_toolkits.axes_grid1 import make_axes_locatable
 except ImportError:
 	print('Missing package(s)')	
 	quit()
 
-plots_available = ['ngx', 'est_genome_size', 'read_length_dist', 'est_cov_dist', 'est_cov_vs_read_length', 'per_read_GC_content_dist', 'total_num_bases_vs_min_read_length']
+plots_available = ['est_genome_size', 'read_length_dist', 'est_cov_dist', 'est_cov_vs_read_length', 'per_read_GC_content_dist', 'total_num_bases_vs_min_read_length']
 save_png=False
 max_percentile=90
 log=list()
@@ -108,7 +109,7 @@ def main():
 	custom_print( "========================================================" )
 	custom_print("[+] Preqc-lr report pdf: " + output_prefix + ".pdf")
 	custom_print("[ Done ]")
-	custom_print( "[+] Total time: " + str(total_time) + " seconds" )
+	custom_print("[+] Total time: " + str(total_time) + " seconds" )
 	global log
 	outfile = output_prefix + "_preqclr-report.log"
 	with open(outfile, 'wb') as f:
@@ -154,12 +155,17 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	# this will affect downstream processes
 	ngx_calculated=False
 
+	calcs = ['sample_name', 'est_genome_size', 'per_read_read_length', 'per_read_est_cov_and_read_length', 'est_cov_post_filter_info', 'read_counts_per_GC_content', 'total_num_bases_vs_min_read_length']
 	# start reading the preqclr file(s)
 	for s_preqclr_file in preqclr_file:
 		color = colors.pop(0)
 		marker = markers.pop(0)
 		with open(s_preqclr_file) as json_file:
 			data = json.load(json_file)
+			for c in calcs:
+				if not c in data.keys():
+					print "ERROR: " + c + " not calculated, try running the most recent version of preqc-lr calculate again."
+					sys.exit(1)
 			s = data['sample_name']
 			est_genome_sizes[s] = (color, data['est_genome_size'], marker)													# bar graph
 			per_read_read_length[s] = (color, data['per_read_read_length'], marker)											# histogram
@@ -167,9 +173,9 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			est_cov_post_filter_info[s] = data['est_cov_post_filter_info']
 			per_read_GC_content[s] = (color, data['read_counts_per_GC_content'], marker) 									# histogram
 			total_num_bases_vs_min_read_length[s] = (color, data['total_num_bases_vs_min_read_length'], marker)				# line
-			if 'NGX_values' in data.keys():
+			if 'ngx_values' in data.keys():
 				ngx_calculated=True
-				ngx_values[s] = (color, data['NGX_values'], marker)
+				ngx_values[s] = (color, data['ngx_values'], marker)
 
 	# --------------------------------------------------------
 	# PART 2: Calculate the number of plots to be created
@@ -183,7 +189,9 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	num_ss = len(preqclr_file)
 
 	# calculate a
-	a = len(plots_requested) - 2
+	a = len(plots_requested)
+	if 'est_cov_vs_read_length' in plots_requested:
+		a -= 1
 
 	# calculate b
 	if 'est_cov_vs_read_length' in plots_requested:
@@ -193,7 +201,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 
 	# calculate the number of samples that had ngx_calculations
 	if ngx_calculated:
-		b+=len(ngx_values)
+		b+=1
 
 	num_plots = a + b
 
@@ -265,15 +273,15 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 		for s in per_read_est_cov_and_read_length:
 			ax = subplots.pop(0)
 			ax_temp = plot_per_read_est_cov_vs_read_length(ax, per_read_est_cov_and_read_length, s, output_prefix)
-			if save_png:
-				temp_fig = ax_temp[0].get_figure()
-				extent = ax_temp[0].get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
-				ax_png_file = "./" + output_prefix + "/png/plot_est_cov_vs_read_length_" + s +".png" 
-				temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 			# add color bar
 			divider = make_axes_locatable(ax)
 			cax = divider.append_axes("right", size="5%", pad=0.05)
-        	ax.figure.colorbar(ax_temp[1], cax=cax)
+			ax.figure.colorbar(ax_temp[1], cax=cax)
+			if save_png:
+				temp_fig = ax_temp[0].get_figure()
+				extent = ax_temp[0].get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+				ax_png_file = "./" + output_prefix + "/png/plot_est_cov_vs_read_length_" + s +".png"
+				temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'total_num_bases_vs_min_read_length' in plots_requested:
 		ax = subplots.pop(0)
 		ax_temp = plot_total_num_bases_vs_min_read_length(ax, total_num_bases_vs_min_read_length, output_prefix)
@@ -282,7 +290,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
 			ax_png_file = "./" + output_prefix + "/png/plot_total_num_bases_vs_min_read_length.png"
 			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
-	if 'ngx' in plots_requested and ngx_values:
+	if ngx_values and ngx_calculated:
 		ax = subplots.pop(0)
 		ax_temp = plot_ngx(ax, ngx_values, output_prefix)
 		if save_png:
@@ -315,7 +323,6 @@ def plot_read_length_distribution(ax, data, output_prefix):
 		s_color = read_lengths[s][0]
 		sd = read_lengths[s][1]
 
-		# round the read lengths to nearest 100 for smoother graph
 		base = 100
 		sd_rounded = [ int(base * round(float(x)/base)) for x in sd ]
 		labels, values = zip(*sorted(collections.Counter(sorted(sd_rounded)).items()))
@@ -358,40 +365,33 @@ def plot_est_cov(ax, data, est_cov_post_filter_info, output_prefix):
 
 	# identify limits and bins based on max calues across all samples
 	max_cov = 0
+	max_y = 0
 	binwidth = 0
 	num_bins = 0
 	for s in data:
-		sd = data[s]													# list of tuples (read_cov, read_len)
-		sd_est_cov_read_length = data[s][1]
-		sd_est_cov = [i[0] for i in data[s][1]]							# retrieving only coverage information from list of tuples
-		sd_est_cov_post_filter_info = est_cov_post_filter_info[s]		# tuple (lowerbound cov, upperbound cov, num reads, IQR covs)
-		sd_upperbound = sd_est_cov_post_filter_info[1]					# precalculated est. cov. upperbound 
-		sd_num_reads = sd_est_cov_post_filter_info[2]					# number of reads after filtering
-		sd_IQR = sd_est_cov_post_filter_info[3]							# IQR cov after filtering
+		sd = data[s]												# list of tuples (read_cov, read_len)
+		sd_est_cov_read_length = data[s][1] 						# this returns a dictionary with key = est_cov and value =read length this is for each read
+		sd_est_cov = [ round(float(x),0) for x in sd_est_cov_read_length.keys() ]
+		sd_max_cov = float(max(sd_est_cov))
+		filter_info = est_cov_post_filter_info[s]        # tuple (lowerbound cov, upperbound cov, num reads, IQR covs)
+		sd_upperbound = float(filter_info[1])                    # precalculated est. cov. upperbound 
 		if sd_upperbound > max_cov:
-			max_cov = sd_upperbound
-			IQR = float(sd_IQR) 
-			n = float(sd_num_reads)
-			binwidth = int(float(2 * IQR) / float(n ** (1/3)))
-			num_bins = int(float(max_cov)/binwidth)
-	bins = np.arange(0, max_cov + binwidth, num_bins)
+			max_cov = float(sd_upperbound)
 
-	# now start plotting for each sample
-	for s in data:
+		# now start plotting for each sample
 		s_name = s
 		s_color = data[s][0]
-		sd = data[s][1]
-		sd_est_cov = [i[0] for i in sd]
-		sd_est_cov_post_filter_info = est_cov_post_filter_info[s]
-		sd_upperbound = sd_est_cov_post_filter_info[1]
-		x, y = zip(*collections.Counter(sd_est_cov).items())
+		d = sorted(sd_est_cov)
+		x, y = zip(*sorted(collections.Counter(sorted(sd_est_cov)).items()))
 
 		# normalize
 		sy = sum(y)
 		ny = list()
 		for i in y:
-			ni = float(i)/float(sy)
+			ni = float(i)/sy
 			ny.append(ni)
+			if ni > max_y:
+				max_y = ni
 
 		# plot!
 		ax.plot(x, ny, color=s_color, label=s_name)
@@ -401,6 +401,7 @@ def plot_est_cov(ax, data, est_cov_post_filter_info, output_prefix):
 	ax.grid(True, linestyle='-', linewidth=0.3)
 	ax.set_xlabel('Est. cov.')
 	ax.set_ylabel('Proportion')   
+	global max_percentile
 	ax.set_xlim(0, max_cov)
 	ax.legend(loc='upper right')
 	return ax
@@ -416,17 +417,20 @@ def plot_per_read_est_cov_vs_read_length(ax, data, s, output_prefix):
 	sd = data[s][1]
 	s_marker = data[s][2]
 
-	# get x and y values from list of tuples
-	y,x = zip(*sd)
+	# get info from json file produced from preqclr v2.0
+	sd = data[s]                                                # list of tuples (read_cov, read_len)
+	sd_est_cov_read_length = data[s][1]                         # this returns a dictionary with key = est_cov and value =read length 
+	sd_read_lengths = [ float(x) for x in sd_est_cov_read_length.keys() ]
+	sd_est_cov = [ float(y) for y in sd_est_cov_read_length.values() ]
 
 	# setting limits
-	mx = np.mean(x)
-	my = np.mean(y)
+	mx = np.mean(sd_est_cov)
+	my = np.mean(sd_read_lengths)
 	len_lim = mx*3
 	cov_lim = my*3
 
 	# create heat map
-	heatmap, xedges, yedges = np.histogram2d(x, y, bins=(20,20), range=[[0, len_lim], [0, cov_lim]])
+	heatmap, xedges, yedges = np.histogram2d(sd_est_cov, sd_read_lengths,  bins=(20,20), range=[[0, len_lim], [0, cov_lim]])
 	extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]	
 	im = ax.imshow(heatmap.T, extent=extent, interpolation='nearest', origin='lower', aspect='auto')
 	
@@ -451,13 +455,19 @@ def plot_per_read_GC_content(ax, data, output_prefix):
 		per_read_GC_content = {}
 		s_name = s
 		s_color = data[s][0]
-		sd = data[s][1]
-		s = sum(sd.values())
-		for GC_content_level in sd:
-			value = sd[GC_content_level]
-			nvalue = float(value)/float(s)
-			per_read_GC_content[int(float(GC_content_level))] = nvalue
-		ax.plot(per_read_GC_content.keys(), per_read_GC_content.values(), color=s_color, label=s_name)
+		sd = [ round(float(i),0) for i in data[s][1] ]
+		# reading json data from preqc-lr v2.0
+		x, y = zip(*sorted(collections.Counter(sorted(sd)).items()))
+		
+		# normalize yvalues
+		sy = sum(y)
+		ny = list()
+		for i in y:
+			j = float(i)/float(sy)
+			ny.append(j)
+		
+		# and plot!
+		ax.plot(x, ny, color=s_color, label = s)
 
 	# configure subplot
 	ax.set_title('Per read GC content')
@@ -522,19 +532,26 @@ def plot_total_num_bases_vs_min_read_length(ax, data, output_prefix):
 		s_color = data[s][0]
 		sd = data[s][1]		# dictionary: key = min read length cut off, value = total bases
 		s_marker = data[s][2]
-		# get x and y values from list of tuples
-		x,y=zip(*sd)
+		x = list()
+		y = list()
+		for key, value in sorted(sd.iteritems(), key=lambda (k,v): (v,k)):
+			x.append(float(key))
+			y.append(float(value))
 
 		# let's normalize the y values
 		ny = list()
 		s = max(y)
 		for i in y:
-			ny.append(float(i)/float(s))	
+			ny.append(float(i)/float(s))
+			if ( float(i)/float(s) < 0 ):
+				print i
 		
-		# record if current highest x-value
+		# record if current highest x-value across all samples
 		mx = max(x)
 		if mx > max_min_read_length:
 			max_min_read_length = mx
+
+		# plot!
 		ax.plot(x, ny, label=s_name, color=s_color)
 
 	# set x limit
@@ -571,7 +588,8 @@ def plot_ngx(ax, data, output_prefix):
 	# configure subplot
 	ax.grid(True, linestyle='-', linewidth=0.3)
 	ax.set_xlabel('X (%)')
-	ax.set_ylabel('Contig length (bps)')
+	ax.set_ylabel('Contig length (Mbps)')
+	ax.set_xlim(0,100)
 	ax.legend(loc='upper right')
 	return ax
 
