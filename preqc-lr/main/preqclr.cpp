@@ -288,7 +288,7 @@ void parse_args ( int argc, char *argv[])
             opt::verbose = 1; // set verbose flag
             break;
         case OPT_VERSION:
-            out(PREQCLR_CALCULATE_VERSION_MESSAGE);
+            cout << PREQCLR_CALCULATE_VERSION_MESSAGE << endl;
             exit(0);
         case 'r':
             if ( rflag == 1 ) {
