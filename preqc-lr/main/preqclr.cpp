@@ -42,11 +42,6 @@ using namespace rapidjson;
 typedef PrettyWriter<StringBuffer> JSONWriter;
 typedef std::chrono::duration<float> fsec;
 
-bool myComparison(const pair<double,int> &a,const pair<double,int> &b)
-{
-       return a.second<b.second;
-}
-
 namespace opt
 {
     static unsigned int verbose;
@@ -578,7 +573,7 @@ void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer)
         // detect for potential overflow issues:
         // SO: https://stackoverflow.com/questions/199333/how-to-detect-integer-overflow
         // curr_longest * nr may have encountered an overflow issue
-        //     leading to a negative number. We do not include negative nb. 
+        // leading to a negative number. We do not include negative nb. 
             if (!(nb > 0) || !(tot_num_bases > INT_MAX - nb)) {
                 // would not overflow 
                 tot_num_bases += nb;
