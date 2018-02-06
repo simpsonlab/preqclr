@@ -6,7 +6,3 @@
 	path = include/rapidjson
 	url = https://github.com/Tencent/rapidjson.git
 	branch = master
-[submodule "include/seqtk"]
-	path = include/seqtk
-	url = https://github.com/lh3/seqtk.git
-	branch = master
