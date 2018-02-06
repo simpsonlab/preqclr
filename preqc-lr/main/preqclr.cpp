@@ -5,12 +5,12 @@
 #include <iostream>
 #include <list>
 #include <map>
-#include <math.h>
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include <limits.h>
+#include <math.h>
 #include "preqclr.hpp"
 
 #include <zlib.h>
@@ -50,7 +50,9 @@ namespace opt
     static string gfa_file = "";
     static string type;
     static string sample_name;
+    static int rlen_cutoff = 0;
 }
+
 bool endFile = false;
 void out( string o )
 {
@@ -240,7 +242,7 @@ void parse_args ( int argc, char *argv[])
     // getopt
     extern char *optarg;
     extern int optind, opterr, optopt;
-    const char* const short_opts = ":g:hvr:t:n:p:";
+    const char* const short_opts = ":g:c:hvr:t:n:p:";
     const option long_opts[] = {
         {"verbose",         no_argument,        NULL,   'v'},
         {"version",         no_argument,        NULL,   OPT_VERSION},
@@ -250,6 +252,7 @@ void parse_args ( int argc, char *argv[])
         {"paf",         required_argument,  NULL,   'p'},
         {"gfa",         required_argument,  NULL,   'g'},
         {"help",            no_argument,    NULL,   'h'},
+        {"rlen_cutoff",     required_argument,    NULL,   'c'},
         { NULL,         0,  NULL,   0}
     };
 
@@ -268,7 +271,8 @@ void parse_args ( int argc, char *argv[])
     "-r, --reads				Fasta, fastq, fasta.gz, or fastq.gz files containing reads\n"
     "-t, --type				Type of long read sequencer. Either pacbio (pb) or oxford nanopore technology data (ont)\n"
     "-n, --sample_name			Sample name; you can use the name of species for example. This will be used as output prefix\n"
-    "-p, --paf				Minimap2 pairwise alignment file (PAF). This is produced using \'minimap2 -x ava-ont sample.fastq sample.fasta"
+    "-p, --paf				Minimap2 pairwise alignment file (PAF). This is produced using \'minimap2 -x ava-ont sample.fastq sample.fasta\n"
+    "    --rlen_cutoff=INT      Use overlaps with read lengths >= INT\n"
     "\n"
     "-g, --gfa				Miniasm graph fragment assembly (GFA) file. This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
     "\n";
@@ -339,6 +343,9 @@ void parse_args ( int argc, char *argv[])
         case 'h':
             cout << PREQCLR_CALCULATE_USAGE_MESSAGE << endl;
             exit(0);
+        case 'c':
+            arg >> opt::rlen_cutoff;
+            break;
         case ':':
             fprintf(stderr, "preqclr %s: option `-%c' is missing a required argument\n", SUBPROGRAM, optopt);
             fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
@@ -415,7 +422,7 @@ map<string, sequence> parse_paf()
         unsigned int tstart = r.ts;
         unsigned int tend = r.te;
 
-        if ( qname.compare(tname) != 0 ) {
+        if ( ( qname.compare(tname) != 0 ) && ( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff ) ) {
             unsigned int qprefix_len = qstart;
             unsigned int qsuffix_len = qlen - qend - 1;
             unsigned int tprefix_len = tstart;
@@ -442,27 +449,26 @@ map<string, sequence> parse_paf()
   
             // add this information to paf_records dictionary
             auto i = paf_records.find(qname);
+            double cov = double(overlap_len) / double(qlen);
             if ( i == paf_records.end() ) {
                 // if read not found initialize in paf_records
                 sequence qr;
-                double cov = double(overlap_len) / double(qlen);
                 qr.set(qname, qlen, cov);
                 paf_records.insert(pair<string,sequence>(qname, qr));
             } else {
                 // if read found, update the overlap info
-                double cov = double(overlap_len) / double(qlen);
                 i->second.updateCov(cov);
             }
+
             auto j = paf_records.find(tname);
+            cov = double(overlap_len) / double(tlen); 
             if ( j == paf_records.end() ) {
-                // if target read not found initialize in paf_records
+                 // if target read not found initialize in paf_records
                 sequence tr;
-                double cov = double(overlap_len) / double(tlen);
                 tr.set(tname, tlen, cov);
                 paf_records.insert(pair<string,sequence>(tname, tr));
             } else {
                 // if target read found, update the overlap info
-                double cov = double(overlap_len) / double(tlen);
                 j->second.updateCov(cov);
             }
         }
