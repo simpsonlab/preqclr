@@ -30,7 +30,7 @@ For the report generation step:
 To install from source:
 
 ```bash
-git clone https://github.com/simpsonlab/preqc-lr.git
+git clone --recursive https://github.com/simpsonlab/preqc-lr.git
 cd preqc-lr
 make
 
