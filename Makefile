@@ -1,7 +1,7 @@
 #
 
 # Sub directories containing source code, except for the main programs
-SUBDIRS := include preqc-lr include/readpaf include/rapidjson/include include/zstr/src include/seqtk
+SUBDIRS := include preqc-lr include/readpaf include/rapidjson/include include/zstr/src
 
 #
 # Set libraries, paths, flags and options
