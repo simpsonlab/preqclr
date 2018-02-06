@@ -3,7 +3,7 @@
 #include <string.h>
 #include "paf.h"
 
-#include "seqtk/kseq.h"
+#include "kseq.h"
 KSTREAM_INIT(gzFile, gzread, 0x10000)
 #define _POSIX_C_SOURCE 1
 paf_file_t *paf_open(const char *fn)
