@@ -1,2 +1,2 @@
-# kseq test files
-include/readfq/kseq_test.c
+# seqtk program
+include/seqtk/seqtk.c

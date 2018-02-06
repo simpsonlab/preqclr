@@ -8,7 +8,7 @@ SUBDIRS := include preqc-lr include/readpaf include/rapidjson/include include/zs
 #
 
 #Basic flags every build needs
-LIBS = -lz -lboost_iostreams
+LIBS = -lz
 CXXFLAGS ?= -g -O3
 CXXFLAGS += -std=c++11 
 CFLAGS ?= -O3 -std=c99
