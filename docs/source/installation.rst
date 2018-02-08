@@ -33,6 +33,7 @@ Installing dependencies
 First we need to make sure we have everything to properly use pip or the setup.py script.
 
 ::
+
     # create virtual environment
     virtualenv preqclr-venv
     source preqclr-venv/bin/activate
@@ -52,6 +53,7 @@ First we need to make sure we have everything to properly use pip or the setup.p
 Okay, we are ready to install dependencies.
 
 ::   
+
     # download report script dependencies 
     python setup.py install
 
