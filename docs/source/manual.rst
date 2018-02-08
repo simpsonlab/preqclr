@@ -31,7 +31,7 @@ Usage example
 
 ::
 
-   python preqc-lr-calculate.py [-h/--help] -r/--reads <fasta|fastq|fasta.gz|fastq.gz> \
+   ./preqclr [-h/--help] -r/--reads <fasta|fastq|fasta.gz|fastq.gz> \
            -t/--type {pb, ont} -n/--sample_name sample_name \
            -p/--paf <PAF> -g/--gfa <GFA> \
            --csv --verbose -v/--version  
