@@ -63,17 +63,17 @@ Usage example
    * - ``-p``, ``--paf``
      - N
      - NA
-     - Minimap2 pairwise alignment file (PAF). This is produced using ``minimap2 -x ava-ont sample.fastq sample.fastq``. This is **REQUIRED** for analysis. However, if users do not pass a PAF file as input, preqc-lr will attempt to run minimap2. This requires minimap2 to be installed and found via PATH variable. We recommend running minimap2 on your own and passing the PAF file.
+     - Minimap2 Pairwise mApping Format (PAF) file. This is produced using \'minimap2 -x ava-ont sample.fastq sample.fasta.
 
    * - ``-g``, ``--gfa``
      - N
      - NA
-     - Miniasm graph gragment assembly (GFA) file. This is produced using ``miniasm -f reads.fasta overlaps.paf``. This is required only if user wants to generate an NGX plot. If not given, it will **NOT CALCULATE NGX STATISTICS**.
+     - Miniasm Graph Fragment Assembly (GFA) file. This is produced using ``miniasm -f reads.fasta overlaps.paf``. This is required only if user wants to generate an NGX plot. If not given, it will **NOT CALCULATE NGX STATISTICS**.
 
    * - ``--verbose``
      - N
      - False
-     - Use to output preqc-lr prorgress to stdout.
+     - Use to output preqc-lr progress to stdout.
 
 Report
 ---------
@@ -87,7 +87,7 @@ Generates a report with plots describing QC metrics for long read data sets.
 Input
 """""""""""""""""""""""
 
-    * JSON file(s) containing data for a sample needed to generate plots created by preqc-lr-calculate 
+    * JSON file(s) containing data for a sample needed to generate plots created in preqclr calculate 
 
 Output
 """""""""""""""""""""""
@@ -99,18 +99,23 @@ Plots:
 1. Estimated genome size
    This is a bar plot that shows the estimated genome size for one or more samples. As coverage was inferred from overlap information, we can use this to calculate genome size with Lander-waterman statistics. 
 2. Read length distribution
-   This is the distribution of read lengths. preqc-lr imposes an x-limit such that 90% of all of the read lengths falls under this limit. This was done to avoid extremely long tails.
+   This is the distribution of read lengths calculated from the READS file. preqc-lr imposes an x-limit such that 90% of all of the read lengths falls under this limit. This was done to avoid extremely long tails.
 3. Estimated coverage distribution
    This shows the distribution of coverage for each read inferred from the overlap information file (PAF). 
 4. Per read GC content distribution
    In this plot we show the distribution of GC content per read. To calculate this for each read, we summed the number of C and G nucleotides then divided by the read length.
+5. Total number of bases vs minimum read length
+   We show the total number of bases with reads of a minimum length of x.
+6. NGX
+   This shows the contigiuity of the data. Miniasm produces contigs from your sequencing data. To interpret this let's look at x=50 and it's NG(50) value on the y-axis. The contig length on the y-axis describes the length at which 50% of the genome size estimate is capture in contigs with length greater than or equal to the NG(50) value.
+
 
 Usage example
 """""""""""""""""""""""
 
 ::
 
-   python preqc-lr-report.py [-h/--help] -i/--input <*.preqclr> \
+   python preqclr-report.py [-h/--help] -i/--input <*.preqclr> \
         --save_png --list_plots -o/--output <output_prefix> --plot <list of user specified plots> \
         --verbose 
 
@@ -126,7 +131,7 @@ Usage example
    * - ``-i``, ``--input``
      - Y
      - NA
-     - Output of preqc-lr-calculate. JSON formatted file with '.preqclr' extension.
+     - Output of preqclr calculate step. JSON formatted file with '.preqclr' extension.
 
    * - ``-o``, ``--output``
      - N
