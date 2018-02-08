@@ -7,17 +7,20 @@ Requirements
 -------------
 
 To generate files needed:
-* minimap2 - required to create required input PAF file
-* miniasm - required if NG(X) plots requested
+
+- minimap2 (required to create required input PAF file)
+- miniasm (required if NG(X) plots requested)
 
 For the calculation step:
-* C++ compiler with C++11 support
+
+- C++ compiler with C++11 support
 
 For the report generation step:
-* Python 2.7.11
-* setuptools - required for installation
-* BioPython
-* matplotlib v2.0.0
+
+- Python 2.7.11
+- setuptools - required for installation
+- BioPython
+- matplotlib v2.0.0
 
 Installing the latest code from github
 ----------------------------------------
