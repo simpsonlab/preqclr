@@ -32,14 +32,19 @@ def main():
 	# --------------------------------------------------------
 	# PART 0: Pre-process arguments
 	# --------------------------------------------------------
-	parser = argparse.ArgumentParser(description='Display Pre-QC Long Read report')
+	parser = argparse.ArgumentParser(description='Generate preqclr PDF report')
 	parser.add_argument('-i', '--input', action="store", required=True, dest="preqc_file", nargs='+', help="preqclr file(s)")
-	parser.add_argument('-o', '--output', action="store", dest="output_prefix", help="Prefix for output pdf")
-	parser.add_argument('--plot', action="store", required=False, dest="plots_requested", nargs='+', choices=plots_available, help="List of plots wanted by name.")
-	parser.add_argument('--list_plots', action="store_true", dest="list_plots", default=False, help="Use to see the plots available")
-	parser.add_argument('--save_png', action="store_true", dest="save_png", default=False, help= "Use to save png for each plot.")
-	parser.add_argument('--verbose', action="store_true", dest="verbose", help= "Use to print progress to stdout.")
-	parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.2')
+	parser.add_argument('-o', '--output', action="store", dest="output_prefix", 
+                        help="Prefix for output pdf")
+	parser.add_argument('--plot', action="store", required=False, dest="plots_requested", nargs='+', choices=plots_available, 
+                        help="List of plots wanted by name")
+	parser.add_argument('--list_plots', action="store_true", dest="list_plots", default=False, 
+                        help="Use to see the plots available")
+	parser.add_argument('--save_png', action="store_true", dest="save_png", default=False, 
+                        help="Use to save png for each plot.")
+	parser.add_argument('--verbose', action="store_true", dest="verbose", 
+                        help="Use to print progress to stdout")
+	parser.add_argument('-v', '--version', action='version', version='%(prog)s 2.0')
 	args = parser.parse_args()
 
 	# list plots if requested
@@ -148,14 +153,14 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 
 	# each sample will be represented with a unique marker and color
 	markers = ['s', 'o', '^', 'p', '+', '*', 'v']
-	colors = ['#FC614C', '#2DBDD8', '#B4E23D', '#F7C525', '#5B507A', '#0A2463' ] 
+	colors = ['#FC614C', '#2DBDD8', '#B4E23D', '#F7C525', '#5B507A', '#0A2463', '#E16036' ] 
 
 	# check to see if ngx values for any of the samples were found
 	# in preqc-lr-calculate, users needed to pass a GFA file in order for NGX values to be calculated
 	# this will affect downstream processes
 	ngx_calculated=False
 
-	calcs = ['sample_name', 'est_genome_size', 'per_read_read_length', 'per_read_est_cov_and_read_length', 'est_cov_post_filter_info', 'read_counts_per_GC_content', 'total_num_bases_vs_min_read_length']
+	calcs = ['sample_name', 'est_genome_size', 'read_lengths', 'per_read_est_cov_and_read_length', 'est_cov_post_filter_info', 'read_counts_per_GC_content', 'total_num_bases_vs_min_read_length']
 	# start reading the preqclr file(s)
 	for s_preqclr_file in preqclr_file:
 		color = colors.pop(0)
@@ -168,7 +173,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 					sys.exit(1)
 			s = data['sample_name']
 			est_genome_sizes[s] = (color, data['est_genome_size'], marker)													# bar graph
-			per_read_read_length[s] = (color, data['per_read_read_length'], marker)											# histogram
+			per_read_read_length[s] = (color, data['read_lengths'], marker)											# histogram
 			per_read_est_cov_and_read_length[s] = (color, data['per_read_est_cov_and_read_length'], marker) 				# histogram
 			est_cov_post_filter_info[s] = data['est_cov_post_filter_info']
 			per_read_GC_content[s] = (color, data['read_counts_per_GC_content'], marker) 									# histogram
@@ -181,23 +186,23 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	# PART 2: Calculate the number of plots to be created
 	# --------------------------------------------------------
 	# total number of plots = a + b
-	# a = number of plots in plots_requested not including ngx plots and est. cov vs read length
+	# a = number of plots in plots_requested not including ngx plots, est. cov vs read length, and tot_num_bases
 	# b = est. cov vs read length * number of samples + number of samples with ngx values calculated
+	# b += number of tot_num_bases plot = number of sumples
 	# if est. cov vs read length requested, we need to create one for each sample
 
 	# calculate num of samples
 	num_ss = len(preqclr_file)
 
-	# calculate a
+	# calculate a and b
 	a = len(plots_requested)
+	b = 0
 	if 'est_cov_vs_read_length' in plots_requested:
 		a -= 1
-
-	# calculate b
-	if 'est_cov_vs_read_length' in plots_requested:
 		b = num_ss
-	else:
-		b = 0
+	if 'total_num_bases_vs_min_read_length' in plots_requested:
+		a -= 1
+		b += num_ss
 
 	# calculate the number of samples that had ngx_calculations
 	if ngx_calculated:
@@ -218,7 +223,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 		fig.suptitle("Preqc Long Read Results : " + output_prefix )
 		fig.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.5, hspace=0.5)
 
-	# six subplots per pdf page
+	    # six subplots per pdf page
 		ax1 = fig.add_subplot(321)
 		ax2 = fig.add_subplot(322)
 		ax3 = fig.add_subplot(323)
@@ -283,13 +288,14 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 				ax_png_file = "./" + output_prefix + "/png/plot_est_cov_vs_read_length_" + s +".png"
 				temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'total_num_bases_vs_min_read_length' in plots_requested:
-		ax = subplots.pop(0)
-		ax_temp = plot_total_num_bases_vs_min_read_length(ax, total_num_bases_vs_min_read_length, output_prefix)
-		if save_png:
-			temp_fig = ax_temp.get_figure()
-			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
-			ax_png_file = "./" + output_prefix + "/png/plot_total_num_bases_vs_min_read_length.png"
-			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
+		for s in total_num_bases_vs_min_read_length:
+			ax = subplots.pop(0)
+			ax_temp = plot_total_num_bases_vs_min_read_length(ax, total_num_bases_vs_min_read_length, s, output_prefix)
+			if save_png:
+				temp_fig = ax_temp.get_figure()
+				extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+				ax_png_file = "./" + output_prefix + "/png/plot_total_num_bases_vs_min_read_length_" + s + ".png"
+				temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if ngx_values and ngx_calculated:
 		ax = subplots.pop(0)
 		ax_temp = plot_ngx(ax, ngx_values, output_prefix)
@@ -521,48 +527,38 @@ def plot_est_genome_size(ax, data, output_prefix):
 	ax.legend(loc='upper right')
 	return ax
 
-def plot_total_num_bases_vs_min_read_length(ax, data, output_prefix):
+def plot_total_num_bases_vs_min_read_length(ax, data, s, output_prefix):
 	# ========================================================
 	custom_print( "[ Plotting total number of bases as a function of minimum read length ]" )
 	# ========================================================
 
-	max_min_read_length = 0
-	for s in data:
-		s_name = s
-		s_color = data[s][0]
-		sd = data[s][1]		# dictionary: key = min read length cut off, value = total bases
-		s_marker = data[s][2]
-		x = list()
-		y = list()
-		for key, value in sorted(sd.iteritems(), key=lambda (k,v): (v,k)):
-			x.append(float(key))
-			y.append(float(value))
+	s_name = s
+	s_color = data[s][0]
+	sd = data[s][1]		# dictionary: key = min read length cut off, value = total bases
+	s_marker = data[s][2]
+	x = list()
+	y = list()
+	for key, value in sorted(sd.iteritems(), key=lambda (k,v): (v,k)):
+		x.append(float(key))
+		y.append(float(value))
 
-		# let's normalize the y values
-		ny = list()
-		s = max(y)
-		for i in y:
-			ny.append(float(i)/float(s))
-			if ( float(i)/float(s) < 0 ):
-				print i
+	# let's change the total base values to gigabases
+	ny = list()
+	for i in y:
+		ny.append(float(i)/float(1000000000))
 		
-		# record if current highest x-value across all samples
-		mx = max(x)
-		if mx > max_min_read_length:
-			max_min_read_length = mx
-
-		# plot!
-		ax.plot(x, ny, label=s_name, color=s_color)
+	# plot!
+	ax.plot(x, ny, label=s_name, color=s_color)
 
 	# set x limit
 	global max_percentile
-	x_lim = max_min_read_length*(float(max_percentile)/100.0)
+	x_lim = max(x)*(float(max_percentile)/100.0)
 
 	# configure subplot
-	ax.set_title('Total number of bases')
+	ax.set_title('Total number of bases (' + s + ')' )
 	ax.grid(True, linestyle='-', linewidth=0.3)
 	ax.set_xlabel('Min. read length (bps)')
-	ax.set_ylabel('Proportion')
+	ax.set_ylabel('Total num. bases (Gbps)')
 	ax.legend(loc='upper right')
 	ax.set_xlim(0, x_lim)
 	return ax
