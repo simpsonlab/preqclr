@@ -42,7 +42,7 @@ First we need to make sure we have everything to properly use pip or the setup.p
     which pip
 
     # check that setuptools is installed
-    pip list    
+    pip freeze    
 
     # update setuptools if needed
     python -m pip install --upgrade pip setuptools
@@ -57,19 +57,25 @@ Okay, we are ready to install dependencies.
     # download report script dependencies 
     python setup.py install
 
-    # or we can use pip
+    # OR we can use pip
     pip install preqc-lr
 
-    pip list
+To check that we have installed all the packages and the right versions we run `pip freeze` and we should see the following:
 
-    # update setuptools
-    python -m pip install --upgrade pip setuptools wheel
+::
 
-    # download report script dependencies
-    pip install preqc-lr
+    biopython==1.70
+    cycler==0.10.0
+    functools32==3.2.3.post2
+    gevent==1.3a1
+    greenlet==0.4.13
+    matplotlib==2.0.0
+    numpy==1.14.0
+    preqc-lr==2.0
+    pyparsing==2.2.0
+    python-dateutil==2.6.1
+    pytz==2017.3
+    six==1.11.0
+    subprocess32==3.5.0rc1 
 
-This will install the following packages with all their dependencies:
-
-* matplotlib v2.0.0
-* BioPython
 
