@@ -738,7 +738,7 @@ void calculate_read_length( vector<pair<double, int>> fq, JSONWriter* writer)
     ========================================================
     */
 
-    writer->Key("per_read_read_length");
+    writer->Key("read_lengths");
     writer->StartArray();
 
     // loop through the map of reads and get read lengths
