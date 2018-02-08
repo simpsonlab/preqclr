@@ -9,7 +9,7 @@ preqc-lr generates a PDF report containing several plots such as estimated genom
 
 **Requirements:**
 
-* `preqc-lr v1.2 <https://github.com/simpsonlab/preqc-lr>`_ 
+* `preqc-lr v2.0 <https://github.com/simpsonlab/preqc-lr>`_ 
 * `minimap2 v2.6 <https://github.com/lh3/minimap2>`_
 * `miniasm v0.2 <https://github.com/lh3/miniasm/>`_
 
@@ -63,7 +63,7 @@ Perform calculations
 We now have the necessary files to run preqc-lr (``albacore_v2.0.1-merged.fasta``, ``overlaps.paf``, and ``layout.gfa``). 
 To generate the data needed for the report we first run preqc-lr-calculate ::
 
-    python /PATH/TO/preqc-lr-calculate.py \
+    ./preqclr \
         --reads albacore_v2.0.1-merged.fasta \
         --type ont \
         --sample_name ecoli.ONT \
@@ -76,9 +76,9 @@ This will produce a JSON formatted file (``ecoli.ONT.preqclr``) and a log of cal
 Generate report
 """""""""""""""""""
 
-Now we are ready to run preqc-lr-report to generate a PDF file describing quality metrics of the sequencing data: ::
+Now we are ready to run preqclr-report to generate a PDF file describing quality metrics of the sequencing data: ::
 
-    python /PATH/TO/preqc-lr-report.py \
+    python preqclr-report.py \
         -i ecoli.ONT.preqclr --verbose
 
 This will produce a PDF file: ``ecoli.ONT.pdf``.
