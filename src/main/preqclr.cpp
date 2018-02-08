@@ -266,14 +266,16 @@ void parse_args ( int argc, char *argv[])
     "Usage: ./preqclr [OPTIONS] --reads reads.fa --type {ont|pb} --paf overlaps.paf --gfa layout.gfa \n"
     "Calculate information for preqclr report\n"
     "\n"
-    "-v, --verbose				display verbose output\n"
-    "    --version				display version\n"
+    "-v, --verbose				Display verbose output\n"
+    "    --version				Display version\n"
     "-r, --reads				Fasta, fastq, fasta.gz, or fastq.gz files containing reads\n"
     "-t, --type				Type of long read sequencer. Either pacbio (pb) or oxford nanopore technology data (ont)\n"
     "-n, --sample_name			Sample name; you can use the name of species for example. This will be used as output prefix\n"
-    "-p, --paf				Minimap2 Pairwise mApping Format (PAF) file. This is produced using \'minimap2 -x ava-ont sample.fastq sample.fasta\n"
+    "-p, --paf				Minimap2 Pairwise mApping Format (PAF) file \n"
+    "                                        This is produced using \'minimap2 -x ava-ont sample.fastq sample.fasta\n"
     "    --rlen_cutoff=INT                   Use overlaps with read lengths >= INT\n"
-    "-g, --gfa				Miniasm Graph Fragment Assembly (GFA) file. This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
+    "-g, --gfa				Miniasm Graph Fragment Assembly (GFA) file\n"
+    "                                        This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
     "\n";
 
     int rflag=0, tflag=0, nflag=0, pflag=0, gflag=0, verboseflag=0, versionflag=0;
