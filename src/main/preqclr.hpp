@@ -1,3 +1,11 @@
+//---------------------------------------------------------
+// Copyright 2017 Ontario Institute for Cancer Research
+// Written by Joanna Pineda (joanna.pineda@oicr.on.ca)
+//---------------------------------------------------------
+//
+// preqc-lr.hpp 
+// calculates basic QC statistics
+
 #include <map>
 #include <string>
 #include <stdio.h>

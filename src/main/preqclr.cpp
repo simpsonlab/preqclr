@@ -1,3 +1,11 @@
+//---------------------------------------------------------
+// Copyright 2017 Ontario Institute for Cancer Research
+// Written by Joanna Pineda (joanna.pineda@oicr.on.ca)
+//---------------------------------------------------------
+//
+// preqclr.cpp -- main program
+// calculates basic QC statistics
+
 #include <algorithm>
 #include <chrono>
 #include <fstream>
@@ -34,7 +42,7 @@
 KSEQ_INIT(gzFile, gzread)
 
 #define VERSION "2.0"
-#define SUBPROGRAM "calculate"
+#efine SUBPROGRAM "calculate"
 
 using namespace std;
 using namespace rapidjson;
@@ -474,7 +482,12 @@ map<string, sequence> parse_paf()
             }
         }
     }
-    
+
+    cout << "TOTAL NUMBER OF READS: "<< paf_records.size() << endl;
+    for ( auto const& r : paf_records ) {
+        sequence temp = r.second;
+        cout << temp.cov << "," << temp.read_len << endl;
+    } 
    return paf_records;
 }
 
