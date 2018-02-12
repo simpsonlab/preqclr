@@ -13,6 +13,7 @@
 #include <iostream>
 #include <list>
 #include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -41,8 +42,9 @@
 
 KSEQ_INIT(gzFile, gzread)
 
+
 #define VERSION "2.0"
-#efine SUBPROGRAM "calculate"
+#define SUBPROGRAM "calculate"
 
 using namespace std;
 using namespace rapidjson;
@@ -191,6 +193,7 @@ int main( int argc, char *argv[])
         elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
         out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
     }
+
     // convert JSON document to string and print
     writer.EndObject();
     ofstream preqclrFILE;
@@ -416,78 +419,92 @@ map<string, sequence> parse_paf()
         exit(1);
     }
     d = sd_init();
-
+    set<string> hits;
     map<string, sequence> paf_records;
     while (paf_read(fp, &r) >= 0) { 
 
         // read each line/overlap and save each column into variable
         string qname = r.qn;
-        unsigned int qlen = r.ql;
-        unsigned int qstart = r.qs;
-        unsigned int qend = r.qe;
-        unsigned int strand = r.rev;
         string tname = r.tn;
-        unsigned int tlen = r.tl;
-        unsigned int tstart = r.ts;
-        unsigned int tend = r.te;
+        string qt = qname + tname;
+        string tq = tname + qname;
 
-        if ( ( qname.compare(tname) != 0 ) && ( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff ) ) {
-            unsigned int qprefix_len = qstart;
-            unsigned int qsuffix_len = qlen - qend - 1;
-            unsigned int tprefix_len = tstart;
-            unsigned int tsuffix_len = tlen - tend - 1;
+        // sometimes Minimap2 may report the same pair of overlaps multiple times
+        // here we check if we have already seen the pair of reads reported
+        // if this is the case, we do not want to proceed
+        if ( (qname.compare(tname) != 0) && (hits.count(qt) == 0 || hits.count(tq) == 0) ) {
+            hits.insert(qt);
+            unsigned int qlen = r.ql;
+            unsigned int qstart = r.qs;
+            unsigned int qend = r.qe;
+            unsigned int strand = r.rev;
+            unsigned int tlen = r.tl;
+            unsigned int tstart = r.ts;
+            unsigned int tend = r.te;
 
-            // calculate overlap length, we need to take into account minimap2's softclipping
-            int left_clip = 0, right_clip = 0;
-            if ( ( qstart != 0 ) && ( tstart != 0 ) ){
-                if ( strand == 0 ) {
-                    left_clip += min(qprefix_len, tprefix_len);
-                } else {
-                    left_clip += min(qprefix_len, tsuffix_len);
+            if ( ( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff ) ) {
+                unsigned int qprefix_len = qstart;
+                unsigned int qsuffix_len = qlen - qend - 1;
+                unsigned int tprefix_len = tstart;
+                unsigned int tsuffix_len = tlen - tend - 1;
+
+                // calculate overlap length, we need to take into account minimap2's softclipping
+                int left_clip = 0, right_clip = 0;
+                if ( ( qstart != 0 ) && ( tstart != 0 ) ){
+                    if ( strand == 0 ) {
+                        left_clip += min(qprefix_len, tprefix_len);
+                    } else {
+                        left_clip += min(qprefix_len, tsuffix_len);
+                    }
                 }
-            }
-            if ( ( qend != 0 ) && ( tend != 0 ) ){
-                if ( strand == 0 ) {
-                    right_clip += min(qsuffix_len, tsuffix_len);
-                } else {
-                    right_clip += min(qsuffix_len, tprefix_len);
+                if ( ( qend != 0 ) && ( tend != 0 ) ){
+                    if ( strand == 0 ) {
+                        right_clip += min(qsuffix_len, tsuffix_len);
+                    } else {
+                        right_clip += min(qsuffix_len, tprefix_len);
+                    }  
                 }
-            }
             
-            unsigned int overlap_len = abs(qend - qstart) + left_clip + right_clip;
+                unsigned int overlap_len = abs(qend - qstart) + left_clip + right_clip;
   
-            // add this information to paf_records dictionary
-            auto i = paf_records.find(qname);
-            double cov = double(overlap_len) / double(qlen);
-            if ( i == paf_records.end() ) {
-                // if read not found initialize in paf_records
-                sequence qr;
-                qr.set(qname, qlen, cov);
-                paf_records.insert(pair<string,sequence>(qname, qr));
-            } else {
-                // if read found, update the overlap info
-                i->second.updateCov(cov);
-            }
+                // add this information to paf_records dictionary
+                auto i = paf_records.find(qname);
+                double cov = double(overlap_len) / double(qlen);
+                if ( i == paf_records.end() ) {
+                    // if read not found initialize in paf_records
+                    sequence qr;
+                    qr.set(qname, qlen, cov);
+                    paf_records.insert(pair<string,sequence>(qname, qr));
+                } else {
+                    // if read found, update the overlap info
+                    i->second.updateCov(cov);
+                }
 
-            auto j = paf_records.find(tname);
-            cov = double(overlap_len) / double(tlen); 
-            if ( j == paf_records.end() ) {
-                 // if target read not found initialize in paf_records
-                sequence tr;
-                tr.set(tname, tlen, cov);
-                paf_records.insert(pair<string,sequence>(tname, tr));
-            } else {
-                // if target read found, update the overlap info
-                j->second.updateCov(cov);
+                auto j = paf_records.find(tname);
+                cov = double(overlap_len) / double(tlen); 
+                if ( j == paf_records.end() ) {
+                     // if target read not found initialize in paf_records
+                    sequence tr;
+                    tr.set(tname, tlen, cov);
+                    paf_records.insert(pair<string,sequence>(tname, tr));
+                } else {
+                    // if target read found, update the overlap info
+                    j->second.updateCov(cov);
+                }
             }
         }
     }
 
-    cout << "TOTAL NUMBER OF READS: "<< paf_records.size() << endl;
-    for ( auto const& r : paf_records ) {
-        sequence temp = r.second;
-        cout << temp.cov << "," << temp.read_len << endl;
-    } 
+   // XXXXXXXXXXXXXXXXXXX
+   // DEBUGGING ZONE
+   // XXXXXXXXXXXXXXXXXXX
+   cout << "TOTAL NUMBER OF READS: "<< paf_records.size() << endl;
+   for ( auto const& r : paf_records ) {
+       sequence temp = r.second;
+       cout << r.first << "\t" << temp.cov << "\t" << temp.read_len << endl;
+   } 
+   // XXXXXXXXXXXXXXXXXXX
+
    return paf_records;
 }
 
@@ -681,10 +698,9 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
         string key = to_string(r_cov);
         writer->Key(key.c_str());
         writer->Int(r_len);
-        covs.push_back(make_pair(round(r_cov),r_len));        
+        covs.push_back(make_pair(r_cov, r_len));        
     }
     writer->EndObject();
-
 
     // filter the coverage: remove if outside 1.5*interquartile_range
     // calculate IQR
@@ -708,36 +724,48 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     vector <double> filtered_covs;
     for( auto it = covs.begin(); it != covs.end(); ++it ) {
         double co = round(it->first);
-        if (( co > lowerbound ) && ( co < upperbound )) {
-            unsigned long long le = it->second;
-            sum_len += le;
+        //if ( co < upperbound ) {
             sum_cov += co;
             tot_reads += 1;
-            filtered_covs.push_back(co);
-        }
+            sum_len += it->second;
+            //FILT.push_back(it->second);  // add to global vector
+            //filtered_covs.push_back(co); // add coverage
+        //}
     }
-    // get the median coverage
-    sort(filtered_covs.begin(), filtered_covs.end());
-    int i50 = ceil(filtered_covs.size() * 0.50);
-    double median_cov = double(filtered_covs[i50]);
 
+    // get the median coverage
+    //sort(filtered_covs.begin(), filtered_covs.end());
+    //int i50 = ceil(filtered_covs.size() * 0.50);
+    //double median_cov = double(filtered_covs[i50]);
+
+    sort(covs.begin(), covs.end());
+    int i50 = ceil(covs.size() * 0.50);
+    double median_cov = double(covs[i50].first);
+    //median_cov = double(sum_cov)/tot_reads;
     // calculate estimated genome size
     double mean_read_len = double(sum_len) / double(tot_reads);
     double est_genome_size = ( tot_reads * mean_read_len ) / median_cov;
-    //cout << "median cov: " << median_cov << endl;
-    //cout << "mean read length: " << mean_read_len << endl;
-    //cout << "est genome size: " << est_genome_size << endl;
+    cout << "median cov: " << median_cov << endl;
+    cout << "mean read length: " << mean_read_len << endl;
+    cout << "est genome size: " << est_genome_size << endl;
+    cout << "tot reads: " << tot_reads << endl;
 
     // now store in JSON object
-    writer->Key("est_cov_post_filter_info");
-    writer->StartArray();
-    writer->Double(lowerbound);
-    writer->Double(upperbound);
-    writer->Int(tot_reads);
-    writer->Double(IQR);
-    writer->EndArray();
+    //writer->Key("est_cov_post_filter_info");
+    //writer->StartArray();
+    //writer->Double(lowerbound);
+    //writer->Double(upperbound);
+    //writer->Int(tot_reads);
+    //writer->Double(IQR);
+    //writer->EndArray();
     writer->Key("est_genome_size");
     writer->Double(est_genome_size);    
+    writer->Key("mean_read_len");
+    writer->Double(mean_read_len);
+    writer->Key("median_cov");
+    writer->Double(median_cov);
+    writer->Key("tot_reads");
+    writer->Int(tot_reads);
     return est_genome_size;
 }
 
