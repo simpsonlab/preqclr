@@ -58,9 +58,9 @@ namespace opt
     static string reads_file;
     static string paf_file;
     static string gfa_file = "";
-    static string type;
     static string sample_name;
     static int rlen_cutoff = 0;
+    static double dv_cutoff = 1;
 }
 
 bool endFile = false;
@@ -195,13 +195,8 @@ int main( int argc, char *argv[])
     }
 
     // convert JSON document to string and print
-    writer.EndObject();
-    ofstream preqclrFILE;
-    string filename = opt::sample_name + ".preqclr"; 
-    preqclrFILE.open( filename );
-    preqclrFILE << s.GetString() << endl;
-    preqclrFILE.close();
- 
+    string filename = opt::sample_name + ".preqclr";
+
     // wrap it up
     out("[ Done ]");
     out("[+] Resulting preqclr file: " + filename );
@@ -209,6 +204,16 @@ int main( int argc, char *argv[])
     auto tot_end_cpu = clock();
     fsec tot_elapsed = tot_end - tot_start;
     double tot_elapsed_cpu = (tot_end_cpu - tot_start_cpu)/(double)CLOCKS_PER_SEC;
+
+    writer.Key("tot_cpu_time");
+    writer.Double(tot_elapsed_cpu);
+
+    writer.EndObject();
+    ofstream preqclrFILE;
+    preqclrFILE.open( filename );
+    preqclrFILE << s.GetString() << endl;
+    preqclrFILE.close();
+
     endFile = true;
     out("[+] Total time: " + to_string(tot_elapsed.count()) + "s, CPU time: " + to_string(tot_elapsed_cpu) + "s");
 }
@@ -219,7 +224,7 @@ vector<double> parse_gfa()
     string line;
     ifstream infile(opt::gfa_file);
     if (!infile.is_open()) {
-        fprintf(stderr, "preqclr %s: GFA failed to open. Check to see if it exists, is readable, and is non-empty.\n\n", SUBPROGRAM);
+        fprintf(stderr, "ERROR: GFA failed to open. Check to see if it exists, is readable, and is non-empty.\n\n");
         exit(1);
     }
     vector <double> contig_lengths;
@@ -235,7 +240,7 @@ vector<double> parse_gfa()
             const string toErase = "LN:i:";
             size_t pos = contig_len.find(toErase);
 
-            // Search for the substring in string in a loop untill nothing is found
+            // Search for the substring in string in a loop until nothing is found
             if (pos != string::npos)
             {
                 // If found then erase it from string
@@ -253,18 +258,18 @@ void parse_args ( int argc, char *argv[])
     // getopt
     extern char *optarg;
     extern int optind, opterr, optopt;
-    const char* const short_opts = ":g:c:hvr:t:n:p:";
+    const char* const short_opts = ":g:c:hvr:n:p:d:";
     const option long_opts[] = {
         {"verbose",         no_argument,        NULL,   'v'},
         {"version",         no_argument,        NULL,   OPT_VERSION},
         {"reads",           required_argument,  NULL,   'r'},
-        {"type",            required_argument,  NULL,   't'},
         {"sample_name", required_argument,  NULL,   'n'},
         {"paf",         required_argument,  NULL,   'p'},
         {"gfa",         required_argument,  NULL,   'g'},
         {"help",            no_argument,    NULL,   'h'},
-        {"rlen_cutoff",     required_argument,    NULL,   'c'},
-        { NULL,         0,  NULL,   0}
+        {"rlen_cutoff",     required_argument,    NULL,   OPT_RLENCUTOFF},
+        {"dv_cutoff",       required_argument, NULL, OPT_DVCUTOFF},
+        { NULL, 0, NULL, 0 }
     };
 
     static const char* PREQCLR_CALCULATE_VERSION_MESSAGE =
@@ -280,13 +285,13 @@ void parse_args ( int argc, char *argv[])
     "-v, --verbose				Display verbose output\n"
     "    --version				Display version\n"
     "-r, --reads				Fasta, fastq, fasta.gz, or fastq.gz files containing reads\n"
-    "-t, --type				Type of long read sequencer. Either pacbio (pb) or oxford nanopore technology data (ont)\n"
     "-n, --sample_name			Sample name; you can use the name of species for example. This will be used as output prefix\n"
     "-p, --paf				Minimap2 Pairwise mApping Format (PAF) file \n"
     "                                        This is produced using \'minimap2 -x ava-ont sample.fastq sample.fasta\n"
-    "    --rlen_cutoff=INT                   Use overlaps with read lengths >= INT\n"
-    "-g, --gfa				Miniasm Graph Fragment Assembly (GFA) file\n"
+    "-g, --gfa              Miniasm Graph Fragment Assembly (GFA) file\n"
     "                                        This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
+    "    --rlen_cutoff=INT                   Use overlaps with read lengths >= INT\n"
+    "    --dv_cutoff=INT                     Use overlaps with sequence divergence < INT\n"
     "\n";
 
     int rflag=0, tflag=0, nflag=0, pflag=0, gflag=0, verboseflag=0, versionflag=0;
@@ -304,30 +309,16 @@ void parse_args ( int argc, char *argv[])
             exit(0);
         case 'r':
             if ( rflag == 1 ) {
-                fprintf(stderr, "preqclr %s: multiple instances of option -r,--reads. \n\n", SUBPROGRAM);
+                fprintf(stderr, "./preqclr: multiple instances of option -r,--reads. \n\n");
                 fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]); 
                 exit(1);
             }
             rflag = 1;
             arg >> opt::reads_file;
             break;
-        case 't':
-            if ( tflag == 1 ) {
-                fprintf(stderr, "preqclr %s: multiple instances of option -t,--type. \n\n", SUBPROGRAM);
-                fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
-                exit(1);
-            }
-            tflag = 1;
-            if (( arg.str().compare("ont")    != 0 ) && ( arg.str().compare("pb") != 0 )) {
-                fprintf(stderr, "preqclr %s: option -t,--type is missing a valid argument {ont,pb}. \n\n", SUBPROGRAM);
-                fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
-                exit(1);
-            }
-            arg >> opt::type;
-            break;
         case 'n':
             if ( nflag == 1 ) {
-                fprintf(stderr, "preqclr %s: multiple instances of option -n,--sample_name. \n\n", SUBPROGRAM);
+                fprintf(stderr, "./preqclr: multiple instances of option -n,--sample_name. \n\n");
                 fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
                 exit(1);
             }
@@ -336,7 +327,7 @@ void parse_args ( int argc, char *argv[])
             break;
         case 'p':
             if ( pflag == 1 ) {
-                fprintf(stderr, "preqclr %s: multiple instances of option -p,--paf. \n\n", SUBPROGRAM);
+                fprintf(stderr, "./preqclr: multiple instances of option -p,--paf. \n\n");
                 fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
                 exit(1);
             }
@@ -345,7 +336,7 @@ void parse_args ( int argc, char *argv[])
             break;
         case 'g':
             if ( gflag == 1 ) {
-                fprintf(stderr, "preqclr %s: multiple instances of option -g,--gfa. \n\n", SUBPROGRAM);
+                fprintf(stderr, "./preqclr: multiple instances of option -g,--gfa. \n\n");
                 fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
                 exit(1);
             }
@@ -355,17 +346,19 @@ void parse_args ( int argc, char *argv[])
         case 'h':
             cout << PREQCLR_CALCULATE_USAGE_MESSAGE << endl;
             exit(0);
-        case 'c':
+        case OPT_RLENCUTOFF:
             arg >> opt::rlen_cutoff;
             break;
+        case OPT_DVCUTOFF:
+            arg >> opt::dv_cutoff;
+            break;
         case ':':
-            fprintf(stderr, "preqclr %s: option `-%c' is missing a required argument\n", SUBPROGRAM, optopt);
+            fprintf(stderr, "./preqclr: option `-%c' is missing a required argument\n", optopt);
             fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
             exit(1);
         case '?':
             // invalid option: getopt_long already printed an error message
-            fprintf(stderr, "preqclr %s: option `-%c' is invalid: ignored\n", SUBPROGRAM, optopt);
-            fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
+            fprintf(stderr, "./preqclr: option `-%c' is invalid: ignored\n", optopt);
             break;
         }
     }
@@ -374,31 +367,19 @@ void parse_args ( int argc, char *argv[])
         exit(1);
     }
 
-    // print any remaining command line arguments
-    if (optind < argc) {
-        for (; optind < argc; optind++)
-            cerr << "preqclr " << SUBPROGRAM << ": too many arguments: "
-                 << argv[optind] << endl;
-    }
-
     // check mandatory variables and assign defaults
     if ( rflag == 0 ) {
-        fprintf(stderr, "preqclr %s: missing -r,--reads option\n\n", SUBPROGRAM);
+        fprintf(stderr, "./preqclr: missing -r,--reads option\n\n");
         fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
         exit(1);
     }
     if ( nflag == 0 ) {
-        fprintf(stderr, "preqclr %s: missing -n,--sample_name option\n\n", SUBPROGRAM);
+        fprintf(stderr, "./preqclr: missing -n,--sample_name option\n\n");
         fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE);
         exit(1);
     }
     if ( pflag == 0 ) {
-        fprintf(stderr, "preqclr %s: missing -p,--paf option\n\n", SUBPROGRAM);
-        fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE);
-        exit(1);
-    }
-    if ( tflag == 0 ) {
-        fprintf(stderr, "preqclr %s: missing -t,--type option\n\n", SUBPROGRAM);
+        fprintf(stderr, "./preqclr: missing -p,--paf option\n\n");
         fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE);
         exit(1);
     }
@@ -415,34 +396,31 @@ map<string, sequence> parse_paf()
     sdict_t *d;
     fp = paf_open(c);
     if (!fp) {
-        fprintf(stderr, "ERROR: could not open PAF file %s\n", __func__, c);
+        fprintf(stderr, "ERROR: PAF file failed to open. Check to see if it exists, is readable, and is non-empty.\n\n");
         exit(1);
     }
     d = sd_init();
     set<string> hits;
     map<string, sequence> paf_records;
     while (paf_read(fp, &r) >= 0) { 
-
         // read each line/overlap and save each column into variable
         string qname = r.qn;
         string tname = r.tn;
         string qt = qname + tname;
         string tq = tname + qname;
-
+        unsigned int qlen = r.ql;
+        unsigned int qstart = r.qs;
+        unsigned int qend = r.qe;
+        unsigned int strand = r.rev;
+        unsigned int tlen = r.tl;
+        unsigned int tstart = r.ts;
+        unsigned int tend = r.te;
+        double dv = r.dv;
         // sometimes Minimap2 may report the same pair of overlaps multiple times
         // here we check if we have already seen the pair of reads reported
-        // if this is the case, we do not want to proceed
-        if ( (qname.compare(tname) != 0) && (hits.count(qt) == 0 || hits.count(tq) == 0) ) {
+        // if this is the case, we do not want to proceedi
+        if ( (qname.compare(tname) != 0) && ( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff ) && ( dv < opt::dv_cutoff) && (hits.count(qt) == 0 || hits.count(tq) == 0) ) {
             hits.insert(qt);
-            unsigned int qlen = r.ql;
-            unsigned int qstart = r.qs;
-            unsigned int qend = r.qe;
-            unsigned int strand = r.rev;
-            unsigned int tlen = r.tl;
-            unsigned int tstart = r.ts;
-            unsigned int tend = r.te;
-
-            if ( ( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff ) ) {
                 unsigned int qprefix_len = qstart;
                 unsigned int qsuffix_len = qlen - qend - 1;
                 unsigned int tprefix_len = tstart;
@@ -464,9 +442,9 @@ map<string, sequence> parse_paf()
                         right_clip += min(qsuffix_len, tprefix_len);
                     }  
                 }
-            
+                            
                 unsigned int overlap_len = abs(qend - qstart) + left_clip + right_clip;
-  
+
                 // add this information to paf_records dictionary
                 auto i = paf_records.find(qname);
                 double cov = double(overlap_len) / double(qlen);
@@ -491,7 +469,6 @@ map<string, sequence> parse_paf()
                     // if target read found, update the overlap info
                     j->second.updateCov(cov);
                 }
-            }
         }
     }
 
@@ -499,10 +476,10 @@ map<string, sequence> parse_paf()
    // DEBUGGING ZONE
    // XXXXXXXXXXXXXXXXXXX
    cout << "TOTAL NUMBER OF READS: "<< paf_records.size() << endl;
-   for ( auto const& r : paf_records ) {
-       sequence temp = r.second;
-       cout << r.first << "\t" << temp.cov << "\t" << temp.read_len << endl;
-   } 
+   //for ( auto const& r : paf_records ) {
+   //    sequence temp = r.second;
+   //    cout << r.first << "\t" << temp.cov << "\t" << temp.read_len << endl;
+   //} 
    // XXXXXXXXXXXXXXXXXXX
 
    return paf_records;
@@ -514,7 +491,7 @@ void calculate_ngx( vector<double> contig_lengths, double genome_size_est, JSONW
     Calculating NGX
     --------------------------------------------------------
     Uses GFA information to evaluate the assembly quality
-    Input:      All the contig lengths
+    Input:      All the contig lengths in MB ****
     Output:     NGX values in a dictionary:
                 key   = X
                 value = contig length where summing contigs 
@@ -580,7 +557,7 @@ void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer)
     ========================================================
     */
 
-    // bin the reads by read length, and sort in decreasing order
+    // bin the reads by read length in BASES, and sort in decreasing order
     map < unsigned int, int, greater<unsigned int>> read_lengths;
     for( auto it = paf.begin(); it != paf.end(); it++) {
         string id = it->first;
@@ -599,14 +576,15 @@ void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer)
 
     writer->Key("total_num_bases_vs_min_read_length");
     writer->StartObject();
-    unsigned long long curr_longest;
+    double curr_longest;   // current longest readlength in GIGABASES
     unsigned int nr;       // number of reads with read length
-    unsigned long long nb; // total number of bases of reads with current longest read length
-    unsigned long long tot_num_bases = 0;
+    double nb;             // total number of bases of reads with current longest read length
+    double tot_num_bases = 0;
     for (const auto& p : read_lengths) {
-        curr_longest = p.first;
+        curr_longest = double(p.first)/1000;
         nr = p.second;
         nb = curr_longest * nr;
+
         // detect for potential overflow issues:
         // SO: https://stackoverflow.com/questions/199333/how-to-detect-integer-overflow
         // curr_longest * nr may have encountered an overflow issue
@@ -618,6 +596,7 @@ void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer)
                 writer->Key(key.c_str());
                 writer->Int(tot_num_bases);
             }
+        cout << curr_longest << "," << tot_num_bases << endl;
     }
     writer->EndObject();
 }
@@ -629,7 +608,7 @@ vector <pair< double, int >> parse_fq( string file )
     const char *c = file.c_str();
     fp = gzopen(c, "r");
     if (fp == 0) {
-        fprintf(stderr, "preqclr %s: reads file failed to open. Check to see if it exists, is readable, and is non-empty.\n\n", SUBPROGRAM);
+        fprintf(stderr, "ERROR: reads file failed to open. Check to see if it exists, is readable, and is non-empty.\n\n");
         exit(1);
     }
     seq = kseq_init(fp);
@@ -637,11 +616,17 @@ vector <pair< double, int >> parse_fq( string file )
     while (kseq_read(seq) >= 0) {
          string id = seq->name.s;
          string sequence = seq->seq.s;
-         size_t C_count = count(sequence.begin(), sequence.end(), 'C');
-         size_t G_count = count(sequence.begin(), sequence.end(), 'G');
          int r_len = sequence.length();
-         double gc_cont = (double( C_count + G_count ) / double(r_len)) *100.0;
-         fq_records.push_back(make_pair(gc_cont, r_len));
+         int gc = 0;
+         if (((rand() % 10) + 1) < 4) {
+             for ( int i=0; i<r_len; i++) {
+                 gc += sequence[i] == 'G' || sequence[i] == 'C' ? 1 : 0;
+             }
+             double gc_cont = (double(gc) / double(r_len)) *100.0;
+             fq_records.push_back(make_pair(gc_cont, r_len));
+         } else {
+             fq_records.push_back(make_pair(0, r_len));
+         }
     }
     kseq_destroy(seq);
     gzclose(fp);         
@@ -664,7 +649,9 @@ void calculate_GC_content( vector <pair< double, int >> fq, JSONWriter* writer )
     writer->Key("read_counts_per_GC_content");
     writer->StartArray();
     for (auto &r : fq) {
-         writer->Double(r.first);
+         if ( r.first != 0 ) {
+             writer->Double(r.first);
+         }
     }
     writer->EndArray();
 }
@@ -684,11 +671,14 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     ========================================================
     */
 
-    vector<pair <double, int>> covs;
+    vector<double> covs;
 
     // make an object that will hold pair of coverage and read length
     writer->Key("per_read_est_cov_and_read_length");
     writer->StartObject();
+    long long sum_len = 0;
+    long double sum_cov = 0;
+    int tot_reads = 0;
     for( auto it = paf.begin(); it != paf.end(); it++)
     {
         string id = it->first;
@@ -698,74 +688,61 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
         string key = to_string(r_cov);
         writer->Key(key.c_str());
         writer->Int(r_len);
-        covs.push_back(make_pair(r_cov, r_len));        
+        covs.push_back(r_cov);        
+        sum_cov += r_cov;
+        tot_reads += 1;
+        sum_len += r_len;
     }
     writer->EndObject();
 
-    // filter the coverage: remove if outside 1.5*interquartile_range
-    // calculate IQR
+    // calculate IQR to use as limits in plotting script
     // sort the estimated coverages
     sort(covs.begin(), covs.end());
 
     // get the index of the 25th and 75th percentile item
     int i25 = ceil(covs.size() * 0.25);
-    int i75 = ceil(covs.size() * 0.75);
-    
-    double IQR = covs[i75].first - covs[i25].first;
+    int i75 = ceil(covs.size() * 0.75); 
+    double IQR = covs[i75] - covs[i25];
     double bd = IQR*1.5;
-    double lowerbound = round(double(covs[i25].first) - bd);
-    double upperbound = round(double(covs[i75].first) + bd);
-
-    // create a new set after applying this filter
-    // stores info of set of reads after filtering:
-    long long sum_len = 0;
-    long double sum_cov = 0;
-    int tot_reads = 0;
-    vector <double> filtered_covs;
-    for( auto it = covs.begin(); it != covs.end(); ++it ) {
-        double co = round(it->first);
-        //if ( co < upperbound ) {
-            sum_cov += co;
-            tot_reads += 1;
-            sum_len += it->second;
-            //FILT.push_back(it->second);  // add to global vector
-            //filtered_covs.push_back(co); // add coverage
-        //}
-    }
+    double upperbound = round(double(covs[i75]) + bd);
+    double lowerbound = round(double(covs[i25]) - bd);
+ 
+    // get the mean read length
+    double mean_read_len = sum_len/double(tot_reads);
 
     // get the median coverage
-    //sort(filtered_covs.begin(), filtered_covs.end());
-    //int i50 = ceil(filtered_covs.size() * 0.50);
-    //double median_cov = double(filtered_covs[i50]);
-
-    sort(covs.begin(), covs.end());
     int i50 = ceil(covs.size() * 0.50);
-    double median_cov = double(covs[i50].first);
-    //median_cov = double(sum_cov)/tot_reads;
+    double median_cov = double(covs[i50]);
+
     // calculate estimated genome size
-    double mean_read_len = double(sum_len) / double(tot_reads);
     double est_genome_size = ( tot_reads * mean_read_len ) / median_cov;
+
     cout << "median cov: " << median_cov << endl;
     cout << "mean read length: " << mean_read_len << endl;
     cout << "est genome size: " << est_genome_size << endl;
     cout << "tot reads: " << tot_reads << endl;
 
     // now store in JSON object
-    //writer->Key("est_cov_post_filter_info");
-    //writer->StartArray();
-    //writer->Double(lowerbound);
-    //writer->Double(upperbound);
-    //writer->Int(tot_reads);
-    //writer->Double(IQR);
-    //writer->EndArray();
+    writer->Key("est_cov_post_filter_info");
+    writer->StartArray();
+    writer->Double(lowerbound);
+    writer->Double(upperbound);
+    writer->Int(tot_reads);
+    writer->Double(IQR);
+    writer->EndArray();
+
     writer->Key("est_genome_size");
     writer->Double(est_genome_size);    
+
     writer->Key("mean_read_len");
     writer->Double(mean_read_len);
+
     writer->Key("median_cov");
     writer->Double(median_cov);
+
     writer->Key("tot_reads");
     writer->Int(tot_reads);
+
     return est_genome_size;
 }
 
