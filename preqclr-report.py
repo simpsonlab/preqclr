@@ -160,7 +160,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	# this will affect downstream processes
 	ngx_calculated=False
 
-	calcs = ['sample_name', 'est_genome_size', 'read_lengths', 'per_read_est_cov_and_read_length', 'est_cov_post_filter_info', 'read_counts_per_GC_content', 'total_num_bases_vs_min_read_length']
+	calcs = ['sample_name', 'est_genome_size', 'read_lengths', 'per_read_est_cov_and_read_length', 'read_counts_per_GC_content', 'total_num_bases_vs_min_read_length']
 	# start reading the preqclr file(s)
 	for s_preqclr_file in preqclr_file:
 		color = colors.pop(0)
@@ -175,7 +175,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			est_genome_sizes[s] = (color, data['est_genome_size'], marker)													# bar graph
 			per_read_read_length[s] = (color, data['read_lengths'], marker)											# histogram
 			per_read_est_cov_and_read_length[s] = (color, data['per_read_est_cov_and_read_length'], marker) 				# histogram
-			est_cov_post_filter_info[s] = data['est_cov_post_filter_info']
+			#est_cov_post_filter_info[s] = data['est_cov_post_filter_info']
 			per_read_GC_content[s] = (color, data['read_counts_per_GC_content'], marker) 									# histogram
 			total_num_bases_vs_min_read_length[s] = (color, data['total_num_bases_vs_min_read_length'], marker)				# line
 			if 'ngx_values' in data.keys():
@@ -209,7 +209,8 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 		b+=1
 
 	num_plots = a + b
-
+	if num_plots > 6:
+		num_plots +=1
 	# --------------------------------------------------------
 	# PART 3: Initialize the figures and subplots within
 	# --------------------------------------------------------
@@ -242,7 +243,13 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	# --------------------------------------------------------
 	# PART 4: Let's start plotting
 	# --------------------------------------------------------
+	num_plots_fin=0
 	if 'est_genome_size' in plots_requested:
+		if ( num_ss > 1 and num_plots_fin%6 == 0 and num_plots_fin > 6):
+			ax = subplots.pop(0)
+			plot_legend(ax, est_genome_sizes)
+			num_plots_fin+=1
+		num_plots_fin+=1
 		ax = subplots.pop(0)
 		ax_temp = plot_est_genome_size(ax, est_genome_sizes, output_prefix)
 		if save_png:
@@ -251,6 +258,11 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			ax_png_file = "./" + output_prefix + "/png/plot_est_genome_size.png"
 			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)	
 	if 'read_length_dist' in plots_requested:
+		if ( num_ss > 1 and num_plots_fin%6 == 0 and num_plots_fin > 6):
+			ax = subplots.pop(0)
+			plot_legend(ax, est_genome_sizes)
+			num_plots_fin+=1
+		num_plots_fin+=1
 		ax = subplots.pop(0)
 		ax_temp = plot_read_length_distribution(ax, per_read_read_length, output_prefix)
 		if save_png:
@@ -259,14 +271,24 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			ax_png_file = "./" + output_prefix + "/png/plot_read_length_distribution.png"
 			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'est_cov_dist' in plots_requested:
+		if ( num_ss > 1 and num_plots_fin%6 == 0 and num_plots_fin >= 6):
+			ax = subplots.pop(0)
+			plot_legend(ax, est_genome_sizes)
+			num_plots_fin+=1
+		num_plots_fin+=1
 		ax = subplots.pop(0)
-		ax_temp = plot_est_cov(ax, per_read_est_cov_and_read_length, est_cov_post_filter_info, output_prefix)
+		ax_temp = plot_est_cov(ax, per_read_est_cov_and_read_length, output_prefix)
 		if save_png:
 			temp_fig = ax_temp.get_figure()
 			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
 			ax_png_file = "./" + output_prefix + "/png/plot_est_cov.png"
 			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'per_read_GC_content_dist' in plots_requested:
+		if ( num_ss > 1 and num_plots_fin%6 == 0 and num_plots_fin >= 6):
+			ax = subplots.pop(0)
+			plot_legend(ax, est_genome_sizes)
+			num_plots_fin+=1
+		num_plots_fin+=1
 		ax = subplots.pop(0)
 		ax_temp = plot_per_read_GC_content(ax, per_read_GC_content, output_prefix)
 		if save_png:
@@ -276,19 +298,26 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'est_cov_vs_read_length' in plots_requested:
 		for s in per_read_est_cov_and_read_length:
+			if ( num_ss > 1 and num_plots_fin%6 == 0 and num_plots_fin >= 6):
+				ax = subplots.pop(0)
+				plot_legend(ax, est_genome_sizes)
+				num_plots_fin+=1
 			ax = subplots.pop(0)
+			num_plots_fin+=1
 			ax_temp = plot_per_read_est_cov_vs_read_length(ax, per_read_est_cov_and_read_length, s, output_prefix)
-			# add color bar
-			divider = make_axes_locatable(ax)
-			cax = divider.append_axes("right", size="5%", pad=0.05)
-			ax.figure.colorbar(ax_temp[1], cax=cax)
 			if save_png:
 				temp_fig = ax_temp[0].get_figure()
 				extent = ax_temp[0].get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
 				ax_png_file = "./" + output_prefix + "/png/plot_est_cov_vs_read_length_" + s +".png"
 				temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'total_num_bases_vs_min_read_length' in plots_requested:
+		print num_plots_fin
 		for s in total_num_bases_vs_min_read_length:
+			if ( num_ss > 1 and num_plots_fin%6 == 0 and num_plots_fin >= 6):
+				ax = subplots.pop(0)
+				plot_legend(ax, est_genome_sizes)
+				num_plots_fin+=1
+			num_plots_fin+=1
 			ax = subplots.pop(0)
 			ax_temp = plot_total_num_bases_vs_min_read_length(ax, total_num_bases_vs_min_read_length, s, output_prefix)
 			if save_png:
@@ -297,7 +326,12 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 				ax_png_file = "./" + output_prefix + "/png/plot_total_num_bases_vs_min_read_length_" + s + ".png"
 				temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if ngx_values and ngx_calculated:
+		if ( num_ss > 1 and num_plots_fin%6 == 0 and num_plots_fin >= 6):
+			ax = subplots.pop(0)
+			plot_legend(ax, est_genome_sizes)
+			num_plots_fin+=1
 		ax = subplots.pop(0)
+		num_plots_fin+=1
 		ax_temp = plot_ngx(ax, ngx_values, output_prefix)
 		if save_png:
 			temp_fig = ax_temp.get_figure()
@@ -312,6 +346,25 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 		f.savefig(pp, format='pdf', dpi=1000)
 
 	pp.close()
+
+def plot_legend(ax, data):
+	custom_print( "plot legend" )
+	# sample names
+	s = []
+	# colors
+	c = []
+
+	for n in data:
+		s.append(n)
+		c.append(MPL.lines.Line2D((0,0),(1,1),
+				linestyle='-', marker=data[n][2],
+				color=data[n][0]))
+
+	ax.set_title("Legend", loc='left')
+	ax.legend(c, s, loc=2, bbox_to_anchor=(0,1), borderaxespad=0)
+	ax.tick_params(axis='x', which='both', bottom='off', top='off', labelbottom='off')
+	ax.tick_params(axis='y', which='both', left='off', top='off', labelleft='off')
+	ax.set_frame_on(False)
 
 def plot_read_length_distribution(ax, data, output_prefix):
 	# ========================================================
@@ -364,7 +417,7 @@ def plot_read_length_distribution(ax, data, output_prefix):
 	ax.legend(loc='upper right')
 	return ax
 
-def plot_est_cov(ax, data, est_cov_post_filter_info, output_prefix):
+def plot_est_cov(ax, data, output_prefix):
 	# ========================================================
 	custom_print( "[ Plotting est cov per read ]" )
 	# ========================================================
@@ -379,10 +432,9 @@ def plot_est_cov(ax, data, est_cov_post_filter_info, output_prefix):
 		sd_est_cov_read_length = data[s][1] 						# this returns a dictionary with key = est_cov and value =read length this is for each read
 		sd_est_cov = [ round(float(x),0) for x in sd_est_cov_read_length.keys() ]
 		sd_max_cov = float(max(sd_est_cov))
-		filter_info = est_cov_post_filter_info[s]        # tuple (lowerbound cov, upperbound cov, num reads, IQR covs)
-		sd_upperbound = float(filter_info[1])                    # precalculated est. cov. upperbound 
-		if sd_upperbound > max_cov:
-			max_cov = float(sd_upperbound)
+		print s + ", max_cov:" + str(max_cov)
+		if sd_max_cov > max_cov:
+			max_cov = sd_max_cov
 
 		# now start plotting for each sample
 		s_name = s
@@ -396,8 +448,6 @@ def plot_est_cov(ax, data, est_cov_post_filter_info, output_prefix):
 		for i in y:
 			ni = float(i)/sy
 			ny.append(ni)
-			if ni > max_y:
-				max_y = ni
 
 		# plot!
 		ax.plot(x, ny, color=s_color, label=s_name)
@@ -408,7 +458,7 @@ def plot_est_cov(ax, data, est_cov_post_filter_info, output_prefix):
 	ax.set_xlabel('Est. cov.')
 	ax.set_ylabel('Proportion')   
 	global max_percentile
-	ax.set_xlim(0, max_cov)
+	ax.set_xlim(0, max_cov*60.0/100.0)
 	ax.legend(loc='upper right')
 	return ax
 
@@ -443,12 +493,11 @@ def plot_per_read_est_cov_vs_read_length(ax, data, s, output_prefix):
 	# configure subplot
 	ax.set_title('Est. cov vs read length (' + s + ')')
 	ax.grid(True, linestyle='-', linewidth=0.3)
-	#divider = make_axes_locatable(ax)
-	#cax = divider.append_axes("right", size="5%", pad=0.05)
-	#ax.figure.colorbar(im, cax=cax)
+	divider = make_axes_locatable(ax)
+	cax = divider.append_axes("right", size="5%", pad=0.05)
+	ax.figure.colorbar(im, cax=cax)
 	ax.set_xlabel('Read length (bps)')
 	ax.set_ylabel('Est. cov')
-	ax.legend(loc='upper right')
 	return (ax,im)
 
 def plot_per_read_GC_content(ax, data, output_prefix):
@@ -461,7 +510,10 @@ def plot_per_read_GC_content(ax, data, output_prefix):
 		per_read_GC_content = {}
 		s_name = s
 		s_color = data[s][0]
-		sd = [ round(float(i),0) for i in data[s][1] ]
+		sd = list()
+		for i in data[s][1]:
+			if i != 0:
+				sd.append(round(float(i),0))
 		# reading json data from preqc-lr v2.0
 		x, y = zip(*sorted(collections.Counter(sorted(sd)).items()))
 		
@@ -480,7 +532,6 @@ def plot_per_read_GC_content(ax, data, output_prefix):
 	ax.set_xlabel('% GC content')
 	ax.set_ylabel('Proportion')
 	ax.grid(True, linestyle='-', linewidth=0.3)
-	ax.legend(loc='upper right')
 	return ax
 
 def plot_est_genome_size(ax, data, output_prefix):
@@ -559,7 +610,6 @@ def plot_total_num_bases_vs_min_read_length(ax, data, s, output_prefix):
 	ax.grid(True, linestyle='-', linewidth=0.3)
 	ax.set_xlabel('Min. read length (bps)')
 	ax.set_ylabel('Total num. bases (Gbps)')
-	ax.legend(loc='upper right')
 	ax.set_xlim(0, x_lim)
 	return ax
 
@@ -586,7 +636,6 @@ def plot_ngx(ax, data, output_prefix):
 	ax.set_xlabel('X (%)')
 	ax.set_ylabel('Contig length (Mbps)')
 	ax.set_xlim(0,100)
-	ax.legend(loc='upper right')
 	return ax
 
 def custom_print(s):
