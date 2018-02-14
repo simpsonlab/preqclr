@@ -175,7 +175,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			est_genome_sizes[s] = (color, data['est_genome_size'], marker)													# bar graph
 			per_read_read_length[s] = (color, data['read_lengths'], marker)											# histogram
 			per_read_est_cov_and_read_length[s] = (color, data['per_read_est_cov_and_read_length'], marker) 				# histogram
-			#est_cov_post_filter_info[s] = data['est_cov_post_filter_info']
+			est_cov_post_filter_info[s] = data['est_cov_post_filter_info']
 			per_read_GC_content[s] = (color, data['read_counts_per_GC_content'], marker) 									# histogram
 			total_num_bases_vs_min_read_length[s] = (color, data['total_num_bases_vs_min_read_length'], marker)				# line
 			if 'ngx_values' in data.keys():
@@ -277,7 +277,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			num_plots_fin+=1
 		num_plots_fin+=1
 		ax = subplots.pop(0)
-		ax_temp = plot_est_cov(ax, per_read_est_cov_and_read_length, output_prefix)
+		ax_temp = plot_est_cov(ax, per_read_est_cov_and_read_length, est_cov_post_filter_info, output_prefix)
 		if save_png:
 			temp_fig = ax_temp.get_figure()
 			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
@@ -414,10 +414,9 @@ def plot_read_length_distribution(ax, data, output_prefix):
 	ax.grid(True, linestyle='-', linewidth=0.3)
 	ax.get_xaxis().get_major_formatter().set_scientific(False)
 	ax.get_xaxis().get_major_formatter().set_useOffset(False)
-	ax.legend(loc='upper right')
 	return ax
 
-def plot_est_cov(ax, data, output_prefix):
+def plot_est_cov(ax, data, filter_info, output_prefix):
 	# ========================================================
 	custom_print( "[ Plotting est cov per read ]" )
 	# ========================================================
@@ -431,10 +430,10 @@ def plot_est_cov(ax, data, output_prefix):
 		sd = data[s]												# list of tuples (read_cov, read_len)
 		sd_est_cov_read_length = data[s][1] 						# this returns a dictionary with key = est_cov and value =read length this is for each read
 		sd_est_cov = [ round(float(x),0) for x in sd_est_cov_read_length.keys() ]
-		sd_max_cov = float(max(sd_est_cov))
-		print s + ", max_cov:" + str(max_cov)
-		if sd_max_cov > max_cov:
-			max_cov = sd_max_cov
+		sd_upperbound_cov = filter_info[s][1]
+		print s + ", max_cov:" + str(sd_upperbound_cov)
+		if sd_upperbound_cov > max_cov:
+			max_cov = sd_upperbound_cov
 
 		# now start plotting for each sample
 		s_name = s
@@ -458,8 +457,7 @@ def plot_est_cov(ax, data, output_prefix):
 	ax.set_xlabel('Est. cov.')
 	ax.set_ylabel('Proportion')   
 	global max_percentile
-	ax.set_xlim(0, max_cov*60.0/100.0)
-	ax.legend(loc='upper right')
+	ax.set_xlim(0, max_cov*max_percentile/100.0)
 	return ax
 
 def plot_per_read_est_cov_vs_read_length(ax, data, s, output_prefix):
@@ -491,7 +489,7 @@ def plot_per_read_est_cov_vs_read_length(ax, data, s, output_prefix):
 	im = ax.imshow(heatmap.T, extent=extent, interpolation='nearest', origin='lower', aspect='auto')
 	
 	# configure subplot
-	ax.set_title('Est. cov vs read length (' + s + ')')
+	ax.set_title('Est. cov vs read length \n(' + s + ')')
 	ax.grid(True, linestyle='-', linewidth=0.3)
 	divider = make_axes_locatable(ax)
 	cax = divider.append_axes("right", size="5%", pad=0.05)
@@ -596,7 +594,7 @@ def plot_total_num_bases_vs_min_read_length(ax, data, s, output_prefix):
 	# let's change the total base values to gigabases
 	ny = list()
 	for i in y:
-		ny.append(float(i)/float(1000000000))
+		ny.append(float(i)/float(1000000))
 		
 	# plot!
 	ax.plot(x, ny, label=s_name, color=s_color)
@@ -606,7 +604,7 @@ def plot_total_num_bases_vs_min_read_length(ax, data, s, output_prefix):
 	x_lim = max(x)*(float(max_percentile)/100.0)
 
 	# configure subplot
-	ax.set_title('Total number of bases (' + s + ')' )
+	ax.set_title('Total number of bases \n(' + s + ')' )
 	ax.grid(True, linestyle='-', linewidth=0.3)
 	ax.set_xlabel('Min. read length (bps)')
 	ax.set_ylabel('Total num. bases (Gbps)')
