@@ -21,7 +21,7 @@ For the calculation step:
 * C++ compiler with C++11 support
 
 For the report generation step:
-* Python2.7
+* Python2.7.11
 * matplotlib
 * BioPython
 * setuptools (to download report script dependencies)
@@ -61,7 +61,6 @@ There are two components to preqc-lr:
     ./preqclr -r reads.fq \
               --paf overlaps.paf \
               --gfa layout.gfa \
-              -t pb \
               -n ecoli_sample.pacbio \
               --verbose
 
@@ -73,9 +72,8 @@ python preqc-lr-report.py -i ecoli_sample.pacbio.preqclr --verbose
 
 ### When using minimap2
 
-* Overlap detection with large data sets may take many CPU hours. To speed up the usage, you can run minimap2 with a subset of reads or imposing a read length cut off. Genome size estimates from preqc-lr are robust to varying coverage levels and read lengths with the human pacbio dataset.
+* Overlap detection with large data sets may take many CPU hours. To speed up the usage, you can run minimap2 with a subset of reads or imposing a read length cut off. Genome size estimates from preqc-lr are robust to read length cutoffs with the human pacbio dataset.
 
-[INSERT GENOME SIZE ESTIMATE PLOTS WITH VARYING COVERAGE LEVELS]
 [INSERT GENOME SIZE ESTIMATE PLOTS WITH VARYING READ LENGTH LEVELS]
 [minimap2 CPU time vs number of reads plot]
 
@@ -88,4 +86,4 @@ python preqc-lr-report.py -i ecoli_sample.pacbio.preqclr --verbose
 
 ## Acknowledgements
 
-preqc-lr uses overlap and assembly information from minimap2 and miniasm, respectively. To parse the output PAF file, and efficiently read fasta files we used kseq and PAF parser in miniasm. Therefore, I would like to thank Heng Li for developing these tools.
+preqc-lr uses overlap and assembly information from minimap2 and miniasm, respectively. To parse the output PAF file, and efficiently read fasta files we used kseq and PAF parser in miniasm. I would like to thank Heng Li for developing these tools.
