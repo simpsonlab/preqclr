@@ -20,6 +20,8 @@
 #include "rapidjson/prettywriter.h"
 #include "rapidjson/filereadstream.h"
 #include "rapidjson/filewritestream.h"
+#include "spoa/spoa.hpp"
+
 
 using namespace std;
 using namespace rapidjson;
@@ -38,3 +40,5 @@ void parse_args( int argc, char *argv[]);
 map<string, sequence> parse_paf();
 vector<double> parse_gfa();
 vector<pair<double,int>> parse_fq( string readsFile );
+
+void calculate_heterozygosity( const char * a, const char * b, const char * c, const char * d, const char * e);

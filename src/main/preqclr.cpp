@@ -767,3 +767,34 @@ void calculate_read_length( vector<pair<double, int>> fq, JSONWriter* writer)
     }
     writer->EndArray();
 }
+
+
+void calculate_heterozygosity(const char * a, const char * b, const char * c, const char * d, const char * e)
+{
+     std::vector<std::string> sequences = {
+            "CATAAAAGAACGTAGGTCGCCCGTCCGTAACCTGTCGGATCACCGGAAAGGACCCGTAAAGTGATAATGAT",
+            "ATAAAGGCAGTCGCTCTGTAAGCTGTCGATTCACCGGAAAGATGGCGTTACCACGTAAAGTGATAATGATTAT",
+            "ATCAAAGAACGTGTAGCCTGTCCGTAATCTAGCGCATTTCACACGAGACCCGCGTAATGGG",
+            "CGTAAATAGGTAATGATTATCATTACATATCACAACTAGGGCCGTATTAATCATGATATCATCA",
+            "GTCGCTAGAGGCATCGTGAGTCGCTTCCGTACCGCAAGGATGACGAGTCACTTAAAGTGATAAT",
+            "CCGTAACCTTCATCGGATCACCGGAAAGGACCCGTAAATAGACCTGATTATCATCTACAT"
+     };
+
+     auto params = SPOA::AlignmentParams(atoi(a), atoi(b), atoi(c),
+         atoi(d), (SPOA::AlignmentType) atoi(e));
+
+     std::string consensus = SPOA::generate_consensus(sequences, params, true);
+
+     fprintf(stderr, "Consensus (%zu)\n", consensus.size());
+     fprintf(stderr, "%s\n", consensus.c_str());
+
+     std::vector<std::string> msa;
+     SPOA::generate_msa(msa, sequences, params, true);
+
+     fprintf(stderr, "Multiple sequence alignment\n");
+     for (const auto& it: msa) {
+        fprintf(stderr, "%s\n", it.c_str());
+     }
+        
+}
+
