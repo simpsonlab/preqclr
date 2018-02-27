@@ -447,7 +447,7 @@ map<string, sequence> parse_paf()
 
                 // add this information to paf_records dictionary
                 auto i = paf_records.find(qname);
-                double cov = double(overlap_len) / double(qlen);
+                double cov = double(abs(qend - qstart) + left_clip + right_clip) / double(qlen);
                 if ( i == paf_records.end() ) {
                     // if read not found initialize in paf_records
                     sequence qr;
@@ -459,7 +459,7 @@ map<string, sequence> parse_paf()
                 }
 
                 auto j = paf_records.find(tname);
-                cov = double(overlap_len) / double(tlen); 
+                cov = double(abs(tend - tstart) + left_clip + right_clip) / double(tlen); 
                 if ( j == paf_records.end() ) {
                      // if target read not found initialize in paf_records
                     sequence tr;
@@ -581,9 +581,9 @@ void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer)
     double nb;             // total number of bases of reads with current longest read length
     double tot_num_bases = 0;
     for (const auto& p : read_lengths) {
-        curr_longest = double(p.first)/1000;
+        curr_longest = double(p.first);
         nr = p.second;
-        nb = curr_longest * nr;
+        nb = (curr_longest/double(1000.0)) * nr;
 
         // detect for potential overflow issues:
         // SO: https://stackoverflow.com/questions/199333/how-to-detect-integer-overflow
@@ -596,7 +596,6 @@ void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer)
                 writer->Key(key.c_str());
                 writer->Int(tot_num_bases);
             }
-        cout << curr_longest << "," << tot_num_bases << endl;
     }
     writer->EndObject();
 }
