@@ -6,6 +6,11 @@
 // preqclr.cpp -- main program
 // calculates basic QC statistics
 
+
+#ifdef _OPENMP
+# include <omp.h>
+#endif
+
 #include <algorithm>
 #include <chrono>
 #include <fstream>
@@ -52,9 +57,21 @@ using namespace rapidjson;
 typedef PrettyWriter<StringBuffer> JSONWriter;
 typedef std::chrono::duration<float> fsec;
 
+namespace htzy
+{
+    //Vector to store n random reads 
+    vector <string> rreads;
+    //Map structure to store each PAF record
+    map<string, vector<sequence>> full_paf_records;     
+    //Map structure to store fastq records
+    map<string, string> parsed_fq; 
+}
+
 namespace opt
 {
+    unsigned nThrd=1;
     static unsigned int verbose;
+    static unsigned int htzgy;
     static string reads_file;
     static string paf_file;
     static string gfa_file = "";
@@ -64,6 +81,21 @@ namespace opt
 }
 
 bool endFile = false;
+
+
+vector<string> random_reads(int num, map<string, vector<sequence>> &temp_map){
+    vector <string> temp;
+    for(auto it = temp_map.begin(); it != temp_map.end(); ++it) {
+        temp.push_back((*it).first);
+    }
+    std::srand(std::time(0));
+    std::random_shuffle (temp.begin(), temp.end());
+    std::vector<string> ran_reads(temp.begin(), temp.begin() + num);
+    return ran_reads;
+}
+
+
+
 void out( string o )
 {
     // Let's handle the verbose option
@@ -85,6 +117,10 @@ int main( int argc, char *argv[])
     // parse the input arguments, if successful it will save all the arguments
     // in the global struct opts
     parse_args(argc, argv);
+
+    #ifdef _OPENMP
+    omp_set_num_threads(opt::nThrd);
+    #endif
 
     // clear any previous log files with same name
     ofstream ofs;
@@ -194,6 +230,20 @@ int main( int argc, char *argv[])
         out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
     }
 
+    //Calculate heterozygosity
+    if(opt::htzgy == 1){
+        out("[ Calculating Heterozygosity ]");
+        swc = chrono::system_clock::now();
+        scpu = clock();
+        estimate_heterozygosity();
+        calculate_heterozygosity(const_cast<char*>("5"), const_cast<char*>("-4"), const_cast<char*>("-8"), const_cast<char*>("-6"), const_cast<char*>("0"));
+        ewc = chrono::system_clock::now();
+        ecpu = clock();
+        elapsedwc = ewc - swc;
+        elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
+        out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
+    }
+
     // convert JSON document to string and print
     string filename = opt::sample_name + ".preqclr";
 
@@ -258,9 +308,11 @@ void parse_args ( int argc, char *argv[])
     // getopt
     extern char *optarg;
     extern int optind, opterr, optopt;
-    const char* const short_opts = ":g:c:hvr:n:p:d:";
+    const char* const short_opts = "t:g:c:hvzr:n:p:d:";
     const option long_opts[] = {
         {"verbose",         no_argument,        NULL,   'v'},
+        {"threads",     required_argument,      NULL,   't' },
+        {"htzgy",           no_argument,        NULL,   'z'},
         {"version",         no_argument,        NULL,   OPT_VERSION},
         {"reads",           required_argument,  NULL,   'r'},
         {"sample_name", required_argument,  NULL,   'n'},
@@ -282,16 +334,18 @@ void parse_args ( int argc, char *argv[])
     "Usage: ./preqclr [OPTIONS] --reads reads.fa --type {ont|pb} --paf overlaps.paf --gfa layout.gfa \n"
     "Calculate information for preqclr report\n"
     "\n"
-    "-v, --verbose				Display verbose output\n"
-    "    --version				Display version\n"
-    "-r, --reads				Fasta, fastq, fasta.gz, or fastq.gz files containing reads\n"
-    "-n, --sample_name			Sample name; you can use the name of species for example. This will be used as output prefix\n"
-    "-p, --paf				Minimap2 Pairwise mApping Format (PAF) file \n"
-    "                                        This is produced using \'minimap2 -x ava-ont sample.fastq sample.fasta\n"
-    "-g, --gfa              Miniasm Graph Fragment Assembly (GFA) file\n"
-    "                                        This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
-    "    --rlen_cutoff=INT                   Use overlaps with read lengths >= INT\n"
-    "    --dv_cutoff=INT                     Use overlaps with sequence divergence < INT\n"
+    "-v, --verbose                      Display verbose output\n"
+    "    --version                      Display version\n"
+    "-r, --reads                        Fasta, fastq, fasta.gz, or fastq.gz files containing reads\n"
+    "-n, --sample_name                  Sample name; you can use the name of species for example (This will be used as an output prefix)\n"
+    "-p, --paf                          Minimap2 Pairwise mapping Format (PAF) file \n"
+    "                                   (This is produced using \'minimap2 -x ava-ont sample.fastq sample.fasta)\n"
+    "-g, --gfa                          Miniasm Graph Fragment Assembly (GFA) file\n"
+    "                                   This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
+    "    --rlen_cutoff=INT              Use overlaps with read lengths >= INT\n"
+    "    --dv_cutoff=INT                Use overlaps with sequence divergence < INT\n"
+    "-z, --htzgy                        Calculate heterozygosity\n"
+    "-t, --threads=N                    Use N parallel threads [1]\n" 
     "\n";
 
     int rflag=0, tflag=0, nflag=0, pflag=0, gflag=0, verboseflag=0, versionflag=0;
@@ -303,6 +357,12 @@ void parse_args ( int argc, char *argv[])
     switch(c) {
         case 'v':
             opt::verbose = 1; // set verbose flag
+            break;
+        case 'z':
+            opt::htzgy = 1; // set verbose flag
+            break;
+        case 't':
+            arg >> opt::nThrd;
             break;
         case OPT_VERSION:
             cout << PREQCLR_CALCULATE_VERSION_MESSAGE << endl;
@@ -401,6 +461,7 @@ map<string, sequence> parse_paf()
     }
     d = sd_init();
     set<string> hits;
+
     map<string, sequence> paf_records;
     while (paf_read(fp, &r) >= 0) { 
         // read each line/overlap and save each column into variable
@@ -426,6 +487,7 @@ map<string, sequence> parse_paf()
                 unsigned int tprefix_len = tstart;
                 unsigned int tsuffix_len = tlen - tend - 1;
 
+      
                 // calculate overlap length, we need to take into account minimap2's softclipping
                 int left_clip = 0, right_clip = 0;
                 if ( ( qstart != 0 ) && ( tstart != 0 ) ){
@@ -444,15 +506,31 @@ map<string, sequence> parse_paf()
                 }
                             
                 unsigned int overlap_len = abs(qend - qstart) + left_clip + right_clip;
+                              
+                //Declare two sequence objects, one for query and one for target record    
+                sequence qrec;
+                sequence trec;
+                qrec.set_paf(qname,tname,qlen,qstart,qend,strand,tlen,tstart,tend);
+                trec.set_paf(tname,qname,tlen,tstart,tend,strand,qlen,qstart,qend);
+                //cout << "prec.qname = " << prec.qname << endl;
+                //cout << "prec.strand = " << prec.strand << endl;
+                //cout << "prec.tname = " << prec.tname << endl;
+                //cout << "prec.qlen = " << prec.qlen << endl;
+                //cout << "prec.qstart = " << prec.qstart << endl;
+                //cout << "prec.qend = " << prec.qend << endl;
 
+                htzy::full_paf_records[qname].push_back(qrec);
+                htzy::full_paf_records[tname].push_back(trec);
+                 
                 // add this information to paf_records dictionary
                 auto i = paf_records.find(qname);
                 double cov = double(overlap_len) / double(qlen);
                 if ( i == paf_records.end() ) {
                     // if read not found initialize in paf_records
                     sequence qr;
-                    qr.set(qname, qlen, cov);
-                    paf_records.insert(pair<string,sequence>(qname, qr));
+                    qr.set(qname, qlen, cov);  
+                    paf_records.insert(pair<string,sequence>(qname, qr));            
+
                 } else {
                     // if read found, update the overlap info
                     i->second.updateCov(cov);
@@ -471,6 +549,16 @@ map<string, sequence> parse_paf()
                 }
         }
     }
+   /** Print full_paf_records
+   for(auto it = full_paf_records.begin(); it != full_paf_records.end(); ++it) {
+       std::cout << (*it).first << "\n";
+       for(auto it2 = 0; it2 < (*it).second.size(); ++it2)
+           cout << (*it).second[it2].tname << " ";
+       cout <<"\n";
+   }
+   */
+
+   htzy::rreads = random_reads(10, htzy::full_paf_records);
 
    // XXXXXXXXXXXXXXXXXXX
    // DEBUGGING ZONE
@@ -596,7 +684,7 @@ void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer)
                 writer->Key(key.c_str());
                 writer->Int(tot_num_bases);
             }
-        cout << curr_longest << "," << tot_num_bases << endl;
+        //cout << curr_longest << "," << tot_num_bases << endl;
     }
     writer->EndObject();
 }
@@ -616,6 +704,7 @@ vector <pair< double, int >> parse_fq( string file )
     while (kseq_read(seq) >= 0) {
          string id = seq->name.s;
          string sequence = seq->seq.s;
+         htzy::parsed_fq[id] = sequence;
          int r_len = sequence.length();
          int gc = 0;
          if (((rand() % 10) + 1) < 4) {
@@ -699,6 +788,12 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     // sort the estimated coverages
     sort(covs.begin(), covs.end());
 
+    /**Print Covs 
+    cout <<"PRINTING Covs" << endl;
+    for (std::vector<double>::const_iterator i = covs.begin(); i != covs.end(); ++i)
+    std::cout << *i << ' ';
+    */ 
+
     // get the index of the 25th and 75th percentile item
     int i25 = ceil(covs.size() * 0.25);
     int i75 = ceil(covs.size() * 0.75); 
@@ -768,9 +863,28 @@ void calculate_read_length( vector<pair<double, int>> fq, JSONWriter* writer)
     writer->EndArray();
 }
 
+void estimate_heterozygosity(){
+        /*
+    ========================================================
+    Estimating heterozygosity
+    --------------------------------------------------------
+    For each read in the PAF file generate SPOA MSA and calculate 
+    allele ratio while considering cutoffs
+    Input:      - 
+    Output:     File with allele ratio for each column
+    ========================================================
+    */
+   
+    cout << "Random reads = " << endl;
+    for(auto it = 0; it < htzy::rreads.size(); ++it)
+        cout << htzy::rreads[it] << " ";
 
-void calculate_heterozygosity(const char * a, const char * b, const char * c, const char * d, const char * e)
-{
+    cout << "Testing parsed_fq" << endl;
+    cout << "S1HapA_1 = " << htzy::parsed_fq["S1HapA_1"] << endl;
+}
+
+
+void calculate_heterozygosity(const char * a, const char * b, const char * c, const char * d, const char * e) {
      std::vector<std::string> sequences = {
             "CATAAAAGAACGTAGGTCGCCCGTCCGTAACCTGTCGGATCACCGGAAAGGACCCGTAAAGTGATAATGAT",
             "ATAAAGGCAGTCGCTCTGTAAGCTGTCGATTCACCGGAAAGATGGCGTTACCACGTAAAGTGATAATGATTAT",

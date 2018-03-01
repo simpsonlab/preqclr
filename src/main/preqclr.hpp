@@ -23,6 +23,7 @@
 #include "spoa/spoa.hpp"
 
 
+//using namespace htzy;
 using namespace std;
 using namespace rapidjson;
 
@@ -41,4 +42,6 @@ map<string, sequence> parse_paf();
 vector<double> parse_gfa();
 vector<pair<double,int>> parse_fq( string readsFile );
 
+vector<string> random_reads(int i, map<string, vector<sequence>> &temp_map);
+void estimate_heterozygosity();
 void calculate_heterozygosity( const char * a, const char * b, const char * c, const char * d, const char * e);
