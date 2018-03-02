@@ -9,6 +9,10 @@
 
 using namespace std;
 
+typedef std::string Seq;
+
+
+
 class sequence
 {
   public:
@@ -31,3 +35,7 @@ class sequence
     unsigned int tend;
     double dv;
 };
+
+
+Seq reverseComplement(const Seq& s);
+

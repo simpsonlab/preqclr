@@ -44,4 +44,4 @@ vector<pair<double,int>> parse_fq( string readsFile );
 
 vector<string> random_reads(int i, map<string, vector<sequence>> &temp_map);
 void estimate_heterozygosity();
-void calculate_heterozygosity( const char * a, const char * b, const char * c, const char * d, const char * e);
+void calculate_heterozygosity(vector<string> sequences, const char * a, const char * b, const char * c, const char * d, const char * e);

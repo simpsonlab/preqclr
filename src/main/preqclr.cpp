@@ -64,7 +64,9 @@ namespace htzy
     //Map structure to store each PAF record
     map<string, vector<sequence>> full_paf_records;     
     //Map structure to store fastq records
-    map<string, string> parsed_fq; 
+    map<string, string> parsed_fq;
+    //Map structure to store reads and target seqs to construct SPOA
+    map<string,vector<string>> seqs_for_spoa; 
 }
 
 namespace opt
@@ -236,7 +238,7 @@ int main( int argc, char *argv[])
         swc = chrono::system_clock::now();
         scpu = clock();
         estimate_heterozygosity();
-        calculate_heterozygosity(const_cast<char*>("5"), const_cast<char*>("-4"), const_cast<char*>("-8"), const_cast<char*>("-6"), const_cast<char*>("0"));
+        //calculate_heterozygosity(const_cast<char*>("5"), const_cast<char*>("-4"), const_cast<char*>("-8"), const_cast<char*>("-6"), const_cast<char*>("0"));
         ewc = chrono::system_clock::now();
         ecpu = clock();
         elapsedwc = ewc - swc;
@@ -875,24 +877,61 @@ void estimate_heterozygosity(){
     ========================================================
     */
    
-    cout << "Random reads = " << endl;
-    for(auto it = 0; it < htzy::rreads.size(); ++it)
-        cout << htzy::rreads[it] << " ";
+    cout << "Random reads total= " <<htzy::rreads.size() << endl;
+        
+    for(auto it = 0; it < htzy::rreads.size(); ++it){
+        cout <<"\n"<< htzy::rreads[it] << " \n";
+        vector <int> qstarts, qends;
+        vector <string> subreads;
+        string qn;
+        for (auto it2 = 0; it2 < htzy::full_paf_records[htzy::rreads[it]].size(); ++it2){
+            qn = htzy::full_paf_records[htzy::rreads[it]][it2].qname;
+            string tn = htzy::full_paf_records[htzy::rreads[it]][it2].tname;          
+            unsigned int qs = htzy::full_paf_records[htzy::rreads[it]][it2].qstart;
+            unsigned int qe =  htzy::full_paf_records[htzy::rreads[it]][it2].qend;
+            unsigned int ts = htzy::full_paf_records[htzy::rreads[it]][it2].tstart;
+            unsigned int te = htzy::full_paf_records[htzy::rreads[it]][it2].tend;
+            unsigned int ql = htzy::full_paf_records[htzy::rreads[it]][it2].qlen;
+            unsigned int tl = htzy::full_paf_records[htzy::rreads[it]][it2].tlen;
+            unsigned int sd = htzy::full_paf_records[htzy::rreads[it]][it2].strand;
 
-    cout << "Testing parsed_fq" << endl;
-    cout << "S1HapA_1 = " << htzy::parsed_fq["S1HapA_1"] << endl;
+            cout << qn <<" " << ql << " "<< qs <<" "<< qe <<" "<<tn <<" "<< tl<<" "<< ts <<" "<< te <<" "<<sd << endl;
+            //string test = "CATAAAAGAACG";
+            //string rctest = reverseComplement(test);
+            //cout <<"String = " << test << " Reverse Comp = "<< rctest <<endl;  
+          
+            qstarts.push_back(qs);
+            qends.push_back(qe);
+            //cout <<"Target read is = " << htzy::parsed_fq[tn] << "\nSize of read is = " << htzy::parsed_fq[tn].size()<< endl;
+            //cout << "Substr start = "<< ts << ", Substr to =" << (te-ts+1)<< endl;
+            //cout << "Substr string is = " <<htzy::parsed_fq[tn].substr(ts,(te-ts+1)) << endl;
+            if(sd==0)
+                subreads.push_back(htzy::parsed_fq[tn].substr(ts,(te-ts+1))); 
+            else
+                subreads.push_back(reverseComplement(htzy::parsed_fq[tn].substr(ts,(te-ts+1))));
+                
+        }
+                 
+        auto min_qstart = *min_element(std::begin(qstarts), std::end(qstarts)); 
+        auto max_qend = *max_element(std::begin(qends), std::end(qends));
+        cout <<"min_qstart = " << min_qstart << " , max_qend =" << max_qend<<endl;
+        subreads.push_back((htzy::parsed_fq[qn]).substr(min_qstart,(max_qend-min_qstart)));  
+        calculate_heterozygosity(subreads, const_cast<char*>("5"), const_cast<char*>("-4"), const_cast<char*>("-8"), const_cast<char*>("-6"), const_cast<char*>("0"));
+    }
+    
 }
 
 
-void calculate_heterozygosity(const char * a, const char * b, const char * c, const char * d, const char * e) {
-     std::vector<std::string> sequences = {
+void calculate_heterozygosity( vector<string> sequences, const char * a, const char * b, const char * c, const char * d, const char * e) {
+     
+     /*std::vector<std::string> sequences = {
             "CATAAAAGAACGTAGGTCGCCCGTCCGTAACCTGTCGGATCACCGGAAAGGACCCGTAAAGTGATAATGAT",
             "ATAAAGGCAGTCGCTCTGTAAGCTGTCGATTCACCGGAAAGATGGCGTTACCACGTAAAGTGATAATGATTAT",
             "ATCAAAGAACGTGTAGCCTGTCCGTAATCTAGCGCATTTCACACGAGACCCGCGTAATGGG",
             "CGTAAATAGGTAATGATTATCATTACATATCACAACTAGGGCCGTATTAATCATGATATCATCA",
             "GTCGCTAGAGGCATCGTGAGTCGCTTCCGTACCGCAAGGATGACGAGTCACTTAAAGTGATAAT",
             "CCGTAACCTTCATCGGATCACCGGAAAGGACCCGTAAATAGACCTGATTATCATCTACAT"
-     };
+     };*/
 
      auto params = SPOA::AlignmentParams(atoi(a), atoi(b), atoi(c),
          atoi(d), (SPOA::AlignmentType) atoi(e));

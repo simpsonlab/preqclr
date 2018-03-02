@@ -8,6 +8,8 @@
 #include "sequence.hpp"
 #include <string>
 #include <iostream>
+#include <algorithm>
+#include <cassert>
 
 using namespace std;
 
@@ -41,3 +43,41 @@ void sequence::set_paf(string qname,string tname,unsigned int qlen,\
 
 }
 
+/* Return the complement of a given nucleotide. */
+char complementBaseChar(char c)
+{
+    char rc;
+    switch (toupper(c)) {
+    case 'A':
+        rc = 'T';
+        break;
+    case 'C':
+        rc = 'G';
+        break;
+    case 'G':
+        rc = 'C';
+        break;
+    case 'T':
+        rc = 'A';
+        break;
+    case 'N':
+        rc = 'N';
+        break;
+    default:
+        cerr << "error: unexpected character: `" << c << "'\n";
+        assert(false);
+        abort();
+    }
+    return islower(c) ? tolower(rc) : rc;
+}
+
+
+/* Return the reverse complement of a given sequence. */
+Seq reverseComplement(const Seq& s)
+{
+    Seq rc(s);
+    reverse(rc.begin(), rc.end());
+    transform(rc.begin(), rc.end(), rc.begin(),
+              complementBaseChar);
+    return rc;
+}
