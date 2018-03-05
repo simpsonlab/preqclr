@@ -938,8 +938,8 @@ void calculate_heterozygosity( vector<string> sequences, const char * a, const c
 
      std::string consensus = SPOA::generate_consensus(sequences, params, true);
 
-     fprintf(stderr, "Consensus (%zu)\n", consensus.size());
-     fprintf(stderr, "%s\n", consensus.c_str());
+     //fprintf(stderr, "Consensus (%zu)\n", consensus.size());
+     //fprintf(stderr, "%s\n", consensus.c_str());
 
      std::vector<std::string> msa;
      SPOA::generate_msa(msa, sequences, params, true);

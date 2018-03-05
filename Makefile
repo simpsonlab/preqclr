@@ -8,7 +8,7 @@ SUBDIRS := include src include/readpaf include/rapidjson/include include/zstr/sr
 #
 
 #Basic flags every build needs
-LIBS = -lz -Llib/ -lspoa
+LIBS = -lz 
 CXXFLAGS ?= -g -O3
 CXXFLAGS += -std=c++11 
 CFLAGS ?= -O3 -std=c99
@@ -53,3 +53,4 @@ $(PROGRAM): ./src/main/preqclr.o $(CPP_OBJ) $(C_OBJ)
 
 clean:
 	rm -f $(PROGRAM) $(CPP_OBJ) $(C_OBJ) src/main/preqclr.o src/sequence.o
+
