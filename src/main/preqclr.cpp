@@ -44,6 +44,7 @@
 #include "rapidjson/prettywriter.h"
 #include "rapidjson/filereadstream.h"
 #include "rapidjson/filewritestream.h"
+#include <typeinfo>
 
 KSEQ_INIT(gzFile, gzread)
 
@@ -67,6 +68,10 @@ namespace htzy
     map<string, string> parsed_fq;
     //Map structure to store reads and target seqs to construct SPOA
     map<string,vector<string>> seqs_for_spoa; 
+    //Map structure to store SPOA MSA for a read and its targets
+    map<string,vector<string>> read_msa;
+    //Map structure to store allele ratios
+    map<float,int> allele_ratio;
 }
 
 namespace opt
@@ -86,6 +91,15 @@ bool endFile = false;
 
 
 vector<string> random_reads(int num, map<string, vector<sequence>> &temp_map){
+    /* 
+    ========================================================
+    Returns 'num' random reads from the given map structure of reads
+    --------------------------------------------------------
+    Input:      number of random reads; map of reads and sequence vector
+    Output:     Vector of strings containing random read IDs
+    ========================================================
+ 
+    */
     vector <string> temp;
     for(auto it = temp_map.begin(); it != temp_map.end(); ++it) {
         temp.push_back((*it).first);
@@ -95,6 +109,110 @@ vector<string> random_reads(int num, map<string, vector<sequence>> &temp_map){
     std::vector<string> ran_reads(temp.begin(), temp.begin() + num);
     return ran_reads;
 }
+
+
+void allele_ratio_from_msa(vector<string> msa, const char * depth_threshold, const char * percent_gaps){
+    /* 
+    ===========================================================================
+    Calculate the allele ratio per column of an MSA
+    ----------------------------------------------------------------------------
+    Input:      MSA (vector of strings of equal length), depth threshold, percent 
+                allowed gap threshold in a column
+    Output:     Prints allele ratios and writes it to allele_ratio map structure
+    =============================================================================
+    */        
+    int MSA_len = (msa.front()).length();
+    vector<map<char, int>> allele_count;
+    cout << "MSA_len" << MSA_len<<endl;
+    
+    for (vector<string>::const_iterator v = msa.begin(); v != msa.end(); ++v){
+         std::cout <<"SEQ = "<<*v << "\n";
+         assert ((*v).length()==MSA_len);
+        
+         //Store first and last occurence of ATGC to know true gaps
+         int first_found = (*v).find_first_of("ATGC");
+         int last_found = (*v).find_last_of("ATGC");         
+         cout << "first_found = " << first_found << endl;
+         cout << "last_found = " << last_found << endl;         
+
+         if(v==msa.begin()){
+             for (unsigned int q=0; q<MSA_len; q++){
+                 cout << "q=" << q << endl;
+                 map<char, int> t;
+                 if(((*v).at(q))=='-' && q>=first_found && q<=last_found){
+                     cout << "\nTrue gap "  << (*v).at(q) << endl;
+                     t.insert(pair<char,int>((*v).at(q),1));
+                     allele_count.push_back(t);
+                 }
+                 if( ( (((*v).at(q))=='-') && (q<first_found) ) || ( (((*v).at(q))=='-') && (q>last_found) )) {
+                     cout << "False gap "  << (*v).at(q) << endl;
+                     t.insert(pair<char,int>((*v).at(q),0));                   
+                     allele_count.push_back(t);
+                 }
+                 if((((*v).at(q))!='-')) {
+                     cout << "Char = " << (*v).at(q) << endl;
+                     t.insert(pair<char,int>((*v).at(q),1));
+                     allele_count.push_back(t);
+                 }
+             } 
+
+         }
+         else {
+             for (unsigned int q=first_found; q<=last_found; q++){
+             map<char, int> t;          
+             auto f = allele_count[q].find((*v).at(q));
+                 if ( f == allele_count[q].end() ) {
+                     allele_count[q][(*v).at(q)]=1;
+                 }
+                 else {
+                     allele_count[q][(*v).at(q)] +=1;  
+                 }            
+             }   
+         }
+
+    }
+    cout << "\n\nallele_count.size() = " << allele_count.size() << endl;
+    
+    /*
+    Print the allele count vector
+    */     
+    int count = 0;
+    for (vector<map<char, int>>::const_iterator r = allele_count.begin(); r != allele_count.end(); ++r){ 
+         cout << "POS = " << count << endl; count ++; 
+         pair<char,int> max_allele ('X', 0), second_max_allele('Y', 0);           
+         for(map<char, int>::const_iterator s = (*r).begin(); s!= (*r).end(); ++s){
+             std::cout << s->first << " " << s->second << " ";
+             if((s->second > max_allele.second) && (s->second > second_max_allele.second) && (s->first!='-')){
+                 second_max_allele.first = max_allele.first; second_max_allele.second= max_allele.second;
+                 max_allele.first = s->first; max_allele.second= s->second;               
+                }
+             if((s->second <= max_allele.second) && (s->second > second_max_allele.second) && (s->first!='-') && (s->first!=max_allele.first)){
+                 second_max_allele.first = s->first; second_max_allele.second= s->second;
+                }              
+         }
+         cout << "\nmax_allele = " << max_allele.first <<"="<< max_allele.second << endl;
+         cout << "second_max_allele = " << second_max_allele.first <<"="<< second_max_allele.second << endl;
+         
+         
+         auto g = (*r).find('-');
+         if ( g == (*r).end()){
+             if ((msa.size()>=(atoi(depth_threshold))) &&  (second_max_allele.first!='X' && second_max_allele.first!='Y' 
+                  && max_allele.first!='X' && max_allele.first!='Y')){
+                  cout << "No true gaps, Allele Ratio=" << roundf((float(max_allele.second)/float(second_max_allele.second+max_allele.second))*100)/100  << endl;
+              }          
+
+         }
+         else {
+              cout << "Gaps ratio=" << roundf((float((*r).at('-'))/float(msa.size()))*100)/100  << endl;
+              if((float((*r).at('-'))/(float(msa.size())))<=((atof(percent_gaps))/100.00) && (msa.size()>=(atoi(depth_threshold))) && 
+                  (second_max_allele.first!='X' && second_max_allele.first!='Y' && max_allele.first!='X' && max_allele.first!='Y')){
+                  cout << "Allele Ratio=" << roundf((float(max_allele.second)/float(second_max_allele.second+max_allele.second))*100)/100  << endl; 
+              } 
+         } 
+         cout << endl;
+    }    
+}     
+     
 
 
 
@@ -560,7 +678,7 @@ map<string, sequence> parse_paf()
    }
    */
 
-   htzy::rreads = random_reads(10, htzy::full_paf_records);
+   htzy::rreads = random_reads(2, htzy::full_paf_records);
 
    // XXXXXXXXXXXXXXXXXXX
    // DEBUGGING ZONE
@@ -916,14 +1034,28 @@ void estimate_heterozygosity(){
         auto max_qend = *max_element(std::begin(qends), std::end(qends));
         cout <<"min_qstart = " << min_qstart << " , max_qend =" << max_qend<<endl;
         subreads.push_back((htzy::parsed_fq[qn]).substr(min_qstart,(max_qend-min_qstart)));  
-        calculate_heterozygosity(subreads, const_cast<char*>("5"), const_cast<char*>("-4"), const_cast<char*>("-8"), const_cast<char*>("-6"), const_cast<char*>("0"));
+        vector<string> msa = calculate_heterozygosity(subreads, const_cast<char*>("5"), const_cast<char*>("-4"),\
+        const_cast<char*>("-8"), const_cast<char*>("-6"), const_cast<char*>("0"));
+        htzy::read_msa[qn] = msa;
+        allele_ratio_from_msa(msa, const_cast<char*>("20"), const_cast<char*>("10"));
     }
     
 }
 
 
-void calculate_heterozygosity( vector<string> sequences, const char * a, const char * b, const char * c, const char * d, const char * e) {
-     
+vector<std::string> calculate_heterozygosity( vector<string> sequences, const char * a, const char * b, const char * c, const char * d, const char * e) {
+    /*
+    ========================================================
+    Calculate SPOA MSA from a set of reads
+    --------------------------------------------------------
+    Input:      Set of reads/strings, score for matching bases
+                score for mis-matching bases, gap-open penalty, gap-extend penalty,
+                alignment mode: 0 - local, 1 - global, 2 - semi-global
+    Output:     Prints MSA to stdout
+                Returns MSA in the form of vector of strings
+    ========================================================
+    */
+
      /*std::vector<std::string> sequences = {
             "CATAAAAGAACGTAGGTCGCCCGTCCGTAACCTGTCGGATCACCGGAAAGGACCCGTAAAGTGATAATGAT",
             "ATAAAGGCAGTCGCTCTGTAAGCTGTCGATTCACCGGAAAGATGGCGTTACCACGTAAAGTGATAATGATTAT",
@@ -948,6 +1080,7 @@ void calculate_heterozygosity( vector<string> sequences, const char * a, const c
      for (const auto& it: msa) {
         fprintf(stderr, "%s\n", it.c_str());
      }
+     return msa;
         
 }
 

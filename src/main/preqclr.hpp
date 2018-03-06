@@ -43,5 +43,7 @@ vector<double> parse_gfa();
 vector<pair<double,int>> parse_fq( string readsFile );
 
 vector<string> random_reads(int i, map<string, vector<sequence>> &temp_map);
+void allele_ratio_from_msa(vector<string> msa, const char * depth, const char * percent_gaps);
 void estimate_heterozygosity();
-void calculate_heterozygosity(vector<string> sequences, const char * a, const char * b, const char * c, const char * d, const char * e);
+vector<string> calculate_heterozygosity(vector<string> sequences, const char * a, const char * b, const char * c, const char * d, const char * e);
+
