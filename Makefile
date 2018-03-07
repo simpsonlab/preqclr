@@ -18,6 +18,10 @@ CC ?= gcc
 # Include the src subdirectories
 NP_INCLUDE=$(addprefix -I./, $(SUBDIRS))
 
+#OPENMP
+OPENMP_FLAG= -fopenmp
+CPPFLAGS += $(OPENMP_FLAG)
+
 # Add include flags
 CPPFLAGS += $(NP_INCLUDE)
 

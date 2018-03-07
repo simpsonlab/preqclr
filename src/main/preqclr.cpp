@@ -1,6 +1,7 @@
 //---------------------------------------------------------
 // Copyright 2018 Ontario Institute for Cancer Research
 // Written by Joanna Pineda (joanna.pineda@oicr.on.ca)
+// Hamza Khan (Hamza.Khan@oicr.on.ca)
 //---------------------------------------------------------
 //
 // preqclr.cpp -- main program
@@ -472,7 +473,7 @@ void parse_args ( int argc, char *argv[])
 
     static const char* PREQCLR_CALCULATE_VERSION_MESSAGE =
     "preqclr " SUBPROGRAM " version " VERSION "\n"
-    "Written by Joanna Pineda.\n"
+    "Written by Joanna Pineda and Hamza Khan.\n"
     "\n"
     "Copyright 2018 Ontario Institute for Cancer Research\n";
 
@@ -626,67 +627,45 @@ map<string, sequence> parse_paf()
         if ( (qname.compare(tname) != 0) && ( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff ) && (hits.count(qt) == 0 || hits.count(tq) == 0) ) {
             hits.insert(qt);
 
-                unsigned int qprefix_len = qstart;
-                unsigned int qsuffix_len = qlen - qend - 1;
-                unsigned int tprefix_len = tstart;
-                unsigned int tsuffix_len = tlen - tend - 1;
+            unsigned int qprefix_len = qstart;
+            unsigned int qsuffix_len = qlen - qend - 1;
+            unsigned int tprefix_len = tstart;
+            unsigned int tsuffix_len = tlen - tend - 1;
 
       
-                // calculate overlap length, we need to take into account minimap2's softclipping
-                int left_clip = 0, right_clip = 0;
-                if ( ( qstart != 0 ) && ( tstart != 0 ) ){
-                    if ( strand == 0 ) {
-                        left_clip += min(qprefix_len, tprefix_len);
-                    } else {
-                        left_clip += min(qprefix_len, tsuffix_len);
-                    }
-                }
-                if ( ( qend != 0 ) && ( tend != 0 ) ){
-                    if ( strand == 0 ) {
-                        right_clip += min(qsuffix_len, tsuffix_len);
-                    } else {
-                        right_clip += min(qsuffix_len, tprefix_len);
-                    }  
-                }
-                            
-                unsigned int overlap_len = abs(qend - qstart) + left_clip + right_clip;
-                              
-                //Declare two sequence objects, one for query and one for target record    
-                sequence qrec;
-                sequence trec;
-                qrec.set_paf(qname,tname,qlen,qstart,qend,strand,tlen,tstart,tend);
-                trec.set_paf(tname,qname,tlen,tstart,tend,strand,qlen,qstart,qend);
-                //cout << "prec.qname = " << prec.qname << endl;
-                //cout << "prec.strand = " << prec.strand << endl;
-                //cout << "prec.tname = " << prec.tname << endl;
-                //cout << "prec.qlen = " << prec.qlen << endl;
-                //cout << "prec.qstart = " << prec.qstart << endl;
-                //cout << "prec.qend = " << prec.qend << endl;
-
-                htzy::full_paf_records[qname].push_back(qrec);
-                htzy::full_paf_records[tname].push_back(trec);
-                 
-                // add this information to paf_records dictionary
-                auto i = paf_records.find(qname);
-                double cov = double(overlap_len) / double(qlen);
-                if ( i == paf_records.end() ) {
-                    // if read not found initialize in paf_records
-                    sequence qr;
-                    qr.set(qname, qlen, cov);  
-                    paf_records.insert(pair<string,sequence>(qname, qr));            
-
+            // calculate overlap length, we need to take into account minimap2's softclipping
+            int left_clip = 0, right_clip = 0;
+            if ( ( qstart != 0 ) && ( tstart != 0 ) ){
+                if ( strand == 0 ) {
+                    left_clip += min(qprefix_len, tprefix_len);
                 } else {
                     left_clip += min(qprefix_len, tsuffix_len);
                 }
-             }
+            }
             if ( ( qend != 0 ) && ( tend != 0 ) ){
                 if ( strand == 0 ) {
                     right_clip += min(qsuffix_len, tsuffix_len);
                 } else {
                     right_clip += min(qsuffix_len, tprefix_len);
                 }  
-             }
-             
+            }
+                            
+                              
+            //Declare two sequence objects, one for query and one for target record    
+            sequence qrec;
+            sequence trec;
+            qrec.set_paf(qname,tname,qlen,qstart,qend,strand,tlen,tstart,tend);
+            trec.set_paf(tname,qname,tlen,tstart,tend,strand,qlen,qstart,qend);
+            //cout << "prec.qname = " << prec.qname << endl;
+            //cout << "prec.strand = " << prec.strand << endl;
+            //cout << "prec.tname = " << prec.tname << endl;
+            //cout << "prec.qlen = " << prec.qlen << endl;
+            //cout << "prec.qstart = " << prec.qstart << endl;
+            //cout << "prec.qend = " << prec.qend << endl;
+         
+            htzy::full_paf_records[qname].push_back(qrec);
+            htzy::full_paf_records[tname].push_back(trec);
+                        
             // calculate coverage per read               
             // add this information to paf_records dictionary
             auto i = paf_records.find(qname);
