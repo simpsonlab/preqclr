@@ -120,7 +120,7 @@ int main( int argc, char *argv[])
 
     // start calculations
     // SO: Calculating CPU time. (https://stackoverflow.com/questions/17432502/how-can-i-measure-cpu-time-and-wall-clock-time-on-both-linux-windows)
-    out("[ Parse reads file ]");
+    out("\n[ Parse reads file ]");
     swc = chrono::system_clock::now();
     scpu = clock();
     auto fq_records = parse_fq ( opt::reads_file );
@@ -132,7 +132,7 @@ int main( int argc, char *argv[])
 
     swc = chrono::system_clock::now();
     scpu = clock();
-    out("[ Calculating read length distribution ]");
+    out("\n[ Calculating read length distribution ]");
     calculate_read_length( fq_records, &writer);
     ewc = chrono::system_clock::now();
     ecpu = clock();
@@ -140,7 +140,7 @@ int main( int argc, char *argv[])
     elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
     out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) + "s");
 
-    out("[ Calculating est cov per read and est genome size ]");
+    out("\n[ Calculating est cov per read and est genome size ]");
     swc = chrono::system_clock::now();
     scpu = clock();
     int genome_size_est = calculate_est_cov_and_est_genome_size( paf_records, &writer);
@@ -150,7 +150,7 @@ int main( int argc, char *argv[])
     elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;
     out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
-    out("[ Calculating GC-content per read ]");
+    out("\n[ Calculating GC-content per read ]");
     swc = chrono::system_clock::now();
     scpu = clock();
     calculate_GC_content( fq_records, &writer);
@@ -160,7 +160,7 @@ int main( int argc, char *argv[])
     elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
     out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
-    out("[ Calculating total number of bases as a function of min read length ]");
+    out("\n[ Calculating total number of bases as a function of min read length ]");
     swc = chrono::system_clock::now();
     scpu = clock();
     calculate_tot_bases( paf_records, &writer);
@@ -171,7 +171,7 @@ int main( int argc, char *argv[])
     out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
     if ( !opt::gfa_file.empty() ) {
-        out("[ Parse GFA file ] ");
+        out("\n[ Parse GFA file ] ");
         swc = chrono::system_clock::now();
         scpu = clock();
         auto contigs = parse_gfa();
@@ -181,7 +181,7 @@ int main( int argc, char *argv[])
         elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
         out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
-        out("[ Calculating NGX ]");
+        out("\n[ Calculating NGX ]");
         swc = chrono::system_clock::now();
         scpu = clock();
         calculate_ngx( contigs, genome_size_est, &writer );
@@ -196,7 +196,7 @@ int main( int argc, char *argv[])
     string filename = opt::sample_name + ".preqclr";
 
     // wrap it up
-    out("[ Done ]");
+    out("\n[ Done ]");
     out("[+] Resulting preqclr file: " + filename );
     auto tot_end = chrono::system_clock::now();
     auto tot_end_cpu = clock();
@@ -279,15 +279,18 @@ void parse_args ( int argc, char *argv[])
     "Usage: ./preqclr [OPTIONS] --sample_name ecoli --reads reads.fa --paf overlaps.paf --gfa layout.gfa \n"
     "Calculate information for preqclr report\n"
     "\n"
-    "-v, --verbose				Display verbose output\n"
-    "    --version				Display version\n"
-    "-r, --reads				Fasta, fastq, fasta.gz, or fastq.gz files containing reads\n"
-    "-n, --sample_name			Sample name; we recommend using the name of species for example. This will be used as output prefix\n"
-    "-p, --paf				Minimap2 Pairwise mApping Format (PAF) file \n"
-    "                                        This is produced using \'minimap2 -x ava-ont sample.fastq sample.fasta\n"
-    "-g, --gfa              Miniasm Graph Fragment Assembly (GFA) file\n"
-    "                                        This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
-    "    --rlen_cutoff=INT                   Use overlaps with read lengths >= INT\n"
+    "    -v, --verbose		Display verbose output\n"
+    "        --version		Display version\n"
+    "    -r, --reads			Fasta, fastq, fasta.gz, or fastq.gz files containing reads\n"
+    "    -n, --sample_name		Sample name; we recommend using the name of species for example\n" 
+    "		               	This will be used as output prefix\n"
+    "    -p, --paf			Minimap2 Pairwise mApping Format (PAF) file \n"
+    "		                This is produced using \'minimap2 -x ava-ont sample.fasta sample.fasta\'\n"
+    "    -g, --gfa			Miniasm Graph Fragment Assembly (GFA) file\n"
+    "		                This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
+    "    --rlen_cutoff=INT		Use overlaps with read lengths >= INT\n"
+    "\n"
+    "Report bugs to https://github.com/simpsonlab/preqc-lr/issues"
     "\n";
 
     int rflag=0, nflag=0, pflag=0, gflag=0, verboseflag=0, versionflag=0;
