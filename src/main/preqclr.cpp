@@ -120,6 +120,10 @@ vector<string> random_reads(int num, map<string, vector<sequence>> &temp_map){
     std::random_shuffle (temp.begin(), temp.end());
     std::vector<string> ran_reads(temp.begin(), temp.begin() + num);
     return ran_reads;
+    /*Testing OMP
+    std::vector<string> test_ran_reads = {"S1HapC_999", "S1HapA_1", "S1HapA_1002"};
+    return test_ran_reads;
+    */
 }
 
 
@@ -136,7 +140,8 @@ void allele_ratio_from_msa(vector<string> &msa, const char * depth_threshold, co
     int MSA_len = (msa.front()).length();
     vector<map<char, int>> allele_count;
     //cout << "MSA_len" << MSA_len<<endl;
-    
+    //cout << "Thread ID inside allele_ratio_from_msa = " << omp_get_thread_num() << endl;    
+
     for (vector<string>::const_iterator v = msa.begin(); v != msa.end(); ++v){
          //std::cout <<"SEQ = "<<*v << "\n";
          assert ((*v).length()==MSA_len);
@@ -704,7 +709,7 @@ map<string, sequence> parse_paf()
    }
    */
 
-   htzy::rreads = random_reads(3, htzy::full_paf_records);
+   htzy::rreads = random_reads(1000, htzy::full_paf_records);
 
    // XXXXXXXXXXXXXXXXXXX
    // DEBUGGING ZONE
@@ -1036,9 +1041,10 @@ void estimate_heterozygosity(){
     */
    
     //cout << "Random reads total= " <<htzy::rreads.size() << endl;
-           
+    #pragma omp parallel for schedule(guided) shared (htzy::full_paf_records, htzy::parsed_fq, htzy::read_msa, htzy::allele_ratio)       
     for(auto it = 0; it < htzy::rreads.size(); ++it){
-        //cout <<"\n"<< htzy::rreads[it] << " \n";
+        //cout <<"\nRead = "<< htzy::rreads[it] << " \n";
+        //cout << "Thread ID  = " << omp_get_thread_num() << endl;
         vector <int> qstarts, qends;
         vector <string> subreads;
         string qn;
@@ -1046,7 +1052,7 @@ void estimate_heterozygosity(){
             qn = htzy::full_paf_records[htzy::rreads[it]][it2].qname;
             string tn = htzy::full_paf_records[htzy::rreads[it]][it2].tname;          
             unsigned int qs = htzy::full_paf_records[htzy::rreads[it]][it2].qstart;
-            unsigned int qe =  htzy::full_paf_records[htzy::rreads[it]][it2].qend;
+            unsigned int qe = htzy::full_paf_records[htzy::rreads[it]][it2].qend;
             unsigned int ts = htzy::full_paf_records[htzy::rreads[it]][it2].tstart;
             unsigned int te = htzy::full_paf_records[htzy::rreads[it]][it2].tend;
             unsigned int ql = htzy::full_paf_records[htzy::rreads[it]][it2].qlen;
@@ -1104,7 +1110,7 @@ vector<std::string> calculate_heterozygosity( vector<string> &sequences, const c
             "GTCGCTAGAGGCATCGTGAGTCGCTTCCGTACCGCAAGGATGACGAGTCACTTAAAGTGATAAT",
             "CCGTAACCTTCATCGGATCACCGGAAAGGACCCGTAAATAGACCTGATTATCATCTACAT"
      };*/
-
+     //cout << "Thread ID inside calulate_heterozygosity = " << omp_get_thread_num() << endl;
      auto params = SPOA::AlignmentParams(atoi(a), atoi(b), atoi(c),
          atoi(d), (SPOA::AlignmentType) atoi(e));
 
