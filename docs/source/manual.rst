@@ -32,7 +32,7 @@ Usage example
 ::
 
    ./preqclr [-h/--help] -r/--reads <fasta|fastq|fasta.gz|fastq.gz> \
-           -t/--type {pb, ont} -n/--sample_name sample_name \
+           -n/--sample_name sample_name \
            -p/--paf <PAF> -g/--gfa <GFA> \
            --csv --verbose -v/--version  
 
@@ -49,11 +49,6 @@ Usage example
      - Y
      - NA
      - Fasta, fastq, fasta.gz, or fastq.gz files containing reads.
-
-   * - ``-t``, ``--type``
-     - Y
-     - NA
-     - Type of sequencing performed to achieve reads file. Either pacbio (pb) or oxford nanopore technology data (ont).
 
    * - ``-n``, ``--sample_name``
      - Y
