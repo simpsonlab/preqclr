@@ -311,7 +311,6 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 				ax_png_file = "./" + output_prefix + "/png/plot_est_cov_vs_read_length_" + s +".png"
 				temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'total_num_bases_vs_min_read_length' in plots_requested:
-		print num_plots_fin
 		for s in total_num_bases_vs_min_read_length:
 			if ( num_ss > 1 and num_plots_fin%6 == 0 and num_plots_fin >= 6):
 				ax = subplots.pop(0)
@@ -348,7 +347,6 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	pp.close()
 
 def plot_legend(ax, data):
-	custom_print( "plot legend" )
 	# sample names
 	s = []
 	# colors
@@ -431,7 +429,6 @@ def plot_est_cov(ax, data, filter_info, output_prefix):
 		sd_est_cov_read_length = data[s][1] 						# this returns a dictionary with key = est_cov and value =read length this is for each read
 		sd_est_cov = [ round(float(x),0) for x in sd_est_cov_read_length.keys() ]
 		sd_upperbound_cov = filter_info[s][1]
-		print s + ", max_cov:" + str(sd_upperbound_cov)
 		if sd_upperbound_cov > max_cov:
 			max_cov = sd_upperbound_cov
 
