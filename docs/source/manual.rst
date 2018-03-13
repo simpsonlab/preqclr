@@ -130,7 +130,7 @@ Usage example
 
    * - ``-o``, ``--output``
      - N
-     - If only one preqclr file given, it will infer from prefix. Else if multiple, prefix will be "preqc-lr-output".
+     - If only one preqclr file given, \n it will infer from prefix. \nElse if multiple, prefix will be "preqc-lr-output".
      - Prefix for output PDF.
 
    * - ``--plot``
