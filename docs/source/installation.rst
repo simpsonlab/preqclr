@@ -26,7 +26,7 @@ Installing the latest code from github
 ----------------------------------------
 ::
 
-    git clone https://github.com/simpsonlab/preqc-lr.git
+    git clone --recursive  https://github.com/simpsonlab/preqc-lr.git
     cd preqc-lr
     make
 
@@ -50,7 +50,7 @@ First we need to make sure we have everything to properly use pip or the setup.p
     # update setuptools if needed
     python -m pip install --upgrade pip setuptools
 
-    # check that we are using the right version of python
+    # check that we are using the right version of python (2.7.11+)
     python -V
 
 Okay, we are ready to install dependencies.
