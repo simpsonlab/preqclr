@@ -36,8 +36,8 @@ make
 
 # download report script dependencies
 # create virtual environment
-virtualenv preqc-lr-venv
-source preqc-lr-venv/bin/activate
+virtualenv preqclr-venv
+source preqclr-venv/bin/activate
 python setup.py install
 ```
 
@@ -65,7 +65,7 @@ There are two components to preqc-lr:
               --verbose
 
 # STEP 2: create a PDF report
-python preqc-lr-report.py -i ecoli_sample.pacbio.preqclr --verbose 
+python preqclr-report.py -i ecoli_sample.pacbio.preqclr --verbose 
 ```
 
 ## Example report
