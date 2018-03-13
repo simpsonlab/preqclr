@@ -101,7 +101,7 @@ The report produces plots as seen below.
 
 **Plot 2:**
 
-.. figure: _static/plot_est_cov.png
+.. figure:: _static/plot_est_cov.png
   :scale: 60%
   :alt: plot_est_cov
 
