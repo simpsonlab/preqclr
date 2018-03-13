@@ -216,7 +216,7 @@ int main( int argc, char *argv[])
     out("[+] Total time: " + to_string(tot_elapsed.count()) + "s, CPU time: " + to_string(tot_elapsed_cpu) + "s");
 }
 
-vector<double> parse_gfa()
+map<string, contig> parse_gfa()
 {
     // parse gfa to get the contig lengths in MB
     string line;
@@ -226,6 +226,7 @@ vector<double> parse_gfa()
         exit(1);
     }
     vector <double> contig_lengths;
+    map <string, contig> ctgs;
     while( getline(infile, line) ) {
         char spec;
         stringstream ss(line);
@@ -238,9 +239,12 @@ vector<double> parse_gfa()
             ss >> spec >> ctgName >> ctgLen >> nreads;
             double len = double(ctgLen)/1000000;
             contig_lengths.push_back(len);
+            contig c;
+            c.set(ctgLen, nreads);
+            ctgs.insert(pair<string, contig>(ctgName, c));
         }
     }
-    return contig_lengths;
+    return ctgs;
 }
 
 void parse_args ( int argc, char *argv[])
@@ -475,7 +479,7 @@ map<string, sequence> parse_paf()
    return paf_records;
 }
 
-void calculate_ngx( vector<double> contig_lengths, double genome_size_est, JSONWriter* writer ){
+void calculate_ngx( map<string, contig> ctgs, double genome_size_est, JSONWriter* writer ){
     /*
     ========================================================
     Calculating NGX
@@ -501,7 +505,13 @@ void calculate_ngx( vector<double> contig_lengths, double genome_size_est, JSONW
         gx.insert( make_pair((double(x) * genome_size_est)/100, x) );
         x += 1;
     }
-    
+
+    // copy only contig lengths ...
+    vector<int> contig_lengths;
+    for ( auto const& c: ctgs ) {
+        contig_lengths.push_back(c.second.len);
+    } 
+
     // sort in descending order the contig_lengths
     sort(contig_lengths.rbegin(), contig_lengths.rend());
    
