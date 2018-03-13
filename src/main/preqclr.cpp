@@ -231,20 +231,12 @@ vector<double> parse_gfa()
         stringstream ss(line);
         ss >> spec;
 
-        // get only lines that have information on the contig length
-        if ( spec == 'S' ) {
-            string contig_id, contig_seq, contig_len;
-            ss >> spec >> contig_id >> contig_seq >> contig_len;
-            const string toErase = "LN:i:";
-            size_t pos = contig_len.find(toErase);
-
-            // Search for the substring in string in a loop until nothing is found
-            if (pos != string::npos)
-            {
-                // If found then erase it from string
-                contig_len.erase(pos, toErase.length());
-            }
-            double len = double(stoi(contig_len))/1000000;
+        // get only lines that have summary information on the contig length
+        if ( spec == 'x' ) {
+            string ctgName;
+            int ctgLen, nreads;
+            ss >> spec >> ctgName >> ctgLen >> nreads;
+            double len = double(ctgLen)/1000000;
             contig_lengths.push_back(len);
         }
     }
