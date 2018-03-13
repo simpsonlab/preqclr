@@ -68,16 +68,16 @@ There are two components to preqc-lr:
 python preqc-lr-report.py -i ecoli_sample.pacbio.preqclr --verbose 
 ```
 
+## Example report
+
+![](example_report/example_report1.png?raw=true)
+![](example_report/example_report2.png?raw=true)
+![](example_report/example_report3.png?raw=true)
+![](example_report/example_report4.png?raw=true)
+
 ## Tips
 
-### When using minimap2
-
-* Overlap detection with large data sets may take many CPU hours. To speed up the usage, you can run minimap2 with a subset of reads or imposing a read length cut off. Genome size estimates from preqc-lr are robust to read length cutoffs with the human pacbio dataset.
-
-[INSERT GENOME SIZE ESTIMATE PLOTS WITH VARYING READ LENGTH LEVELS]
-[minimap2 CPU time vs number of reads plot]
-
-* We recommend using the settings optimized for PacBio reads (`-x ava-pb`) and ONT reads (`-x ava-ont`).
+* When using minimaps, we recommend using the settings optimized for PacBio reads (`-x ava-pb`) and ONT reads (`-x ava-ont`).
 
 ## Learn
 
