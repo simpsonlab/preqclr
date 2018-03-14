@@ -65,7 +65,6 @@ To generate the data needed for the report we first run preqc-lr-calculate ::
 
     ./preqclr \
         --reads albacore_v2.0.1-merged.fasta \
-        --type ont \
         --sample_name ecoli.ONT \
         --paf overlaps.paf \
         --gfa layout.gfa \
@@ -91,41 +90,41 @@ The report produces plots as seen below.
 **Plot 0:**
 
 .. figure:: _static/plot_est_genome_size.png
-  :scale: 70%
+  :scale: 60%
   :alt: plot_est_genome_size
 
 **Plot 1:**
 
 .. figure:: _static/plot_read_length_distribution.png
-  :scale: 70%
+  :scale: 60%
   :alt: plot_read_length_distribution
 
 **Plot 2:**
 
 .. figure:: _static/plot_est_cov.png
-  :scale: 70%
+  :scale: 60%
   :alt: plot_est_cov
 
 **Plot 3:**
 
 .. figure:: _static/plot_per_read_GC_content.png
-  :scale: 70%
+  :scale: 60%
   :alt: plot_per_read_GC_content
 
 **Plot 4:**
 
 .. figure:: _static/plot_est_cov_vs_read_length.png
-  :scale: 70%
+  :scale: 60%
   :alt: plot_est_cov_vs_read_length
 
 **Plot 5:**
 
 .. figure:: _static/plot_total_num_bases.png
-  :scale: 70%
+  :scale: 60%
   :alt: plot_total_num_bases
 
 **Plot 6:**
 
 .. figure:: _static/plot_NGX.png
-  :scale: 70%
+  :scale: 60%
   :alt: plot_NGX.png

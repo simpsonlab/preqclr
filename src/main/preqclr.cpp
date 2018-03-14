@@ -311,7 +311,7 @@ int main( int argc, char *argv[])
 
     // start calculations
     // SO: Calculating CPU time. (https://stackoverflow.com/questions/17432502/how-can-i-measure-cpu-time-and-wall-clock-time-on-both-linux-windows)
-    out("[ Parse reads file ]");
+    out("\n[ Parse reads file ]");
     swc = chrono::system_clock::now();
     scpu = clock();
     auto fq_records = parse_fq ( opt::reads_file );
@@ -323,7 +323,7 @@ int main( int argc, char *argv[])
 
     swc = chrono::system_clock::now();
     scpu = clock();
-    out("[ Calculating read length distribution ]");
+    out("\n[ Calculating read length distribution ]");
     calculate_read_length( fq_records, &writer);
     ewc = chrono::system_clock::now();
     ecpu = clock();
@@ -331,7 +331,7 @@ int main( int argc, char *argv[])
     elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
     out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) + "s");
 
-    out("[ Calculating est cov per read and est genome size ]");
+    out("\n[ Calculating est cov per read and est genome size ]");
     swc = chrono::system_clock::now();
     scpu = clock();
     int genome_size_est = calculate_est_cov_and_est_genome_size( paf_records, &writer);
@@ -341,7 +341,7 @@ int main( int argc, char *argv[])
     elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;
     out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
-    out("[ Calculating GC-content per read ]");
+    out("\n[ Calculating GC-content per read ]");
     swc = chrono::system_clock::now();
     scpu = clock();
     calculate_GC_content( fq_records, &writer);
@@ -351,7 +351,7 @@ int main( int argc, char *argv[])
     elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
     out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
-    out("[ Calculating total number of bases as a function of min read length ]");
+    out("\n[ Calculating total number of bases as a function of min read length ]");
     swc = chrono::system_clock::now();
     scpu = clock();
     calculate_tot_bases( paf_records, &writer);
@@ -362,7 +362,7 @@ int main( int argc, char *argv[])
     out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
     if ( !opt::gfa_file.empty() ) {
-        out("[ Parse GFA file ] ");
+        out("\n[ Parse GFA file ] ");
         swc = chrono::system_clock::now();
         scpu = clock();
         auto contigs = parse_gfa();
@@ -372,7 +372,7 @@ int main( int argc, char *argv[])
         elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
         out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
-        out("[ Calculating NGX ]");
+        out("\n[ Calculating NGX ]");
         swc = chrono::system_clock::now();
         scpu = clock();
         calculate_ngx( contigs, genome_size_est, &writer );
@@ -401,7 +401,7 @@ int main( int argc, char *argv[])
     string filename = opt::sample_name + ".preqclr";
 
     // wrap it up
-    out("[ Done ]");
+    out("\n[ Done ]");
     out("[+] Resulting preqclr file: " + filename );
     auto tot_end = chrono::system_clock::now();
     auto tot_end_cpu = clock();
@@ -436,20 +436,12 @@ vector<double> parse_gfa()
         stringstream ss(line);
         ss >> spec;
 
-        // get only lines that have information on the contig length
-        if ( spec == 'S' ) {
-            string contig_id, contig_seq, contig_len;
-            ss >> spec >> contig_id >> contig_seq >> contig_len;
-            const string toErase = "LN:i:";
-            size_t pos = contig_len.find(toErase);
-
-            // Search for the substring in string in a loop until nothing is found
-            if (pos != string::npos)
-            {
-                // If found then erase it from string
-                contig_len.erase(pos, toErase.length());
-            }
-            double len = double(stoi(contig_len))/1000000;
+        // get only lines that have summary information on the contig length
+        if ( spec == 'x' ) {
+            string ctgName;
+            int ctgLen, nreads;
+            ss >> spec >> ctgName >> ctgLen >> nreads;
+            double len = double(ctgLen)/1000000;
             contig_lengths.push_back(len);
         }
     }
@@ -611,12 +603,11 @@ map<string, sequence> parse_paf()
     set<string> hits;
 
     map<string, sequence> paf_records;
+    string prev_ol = "start";
     while (paf_read(fp, &r) >= 0) { 
         // read each line/overlap and save each column into variable
         string qname = r.qn;
         string tname = r.tn;
-        string qt = qname + tname;
-        string tq = tname + qname;
         unsigned int qlen = r.ql;
         unsigned int qstart = r.qs;
         unsigned int qend = r.qe;
@@ -626,12 +617,20 @@ map<string, sequence> parse_paf()
         unsigned int tend = r.te;
 
         // CASE 0: sometimes Minimap2 may report the same pair of overlaps multiple times
-        // here we check if we have already seen the pair of reads reported
-        // CASE 1: we also handle cases of self-overlaps
+        // here we check if we have already seen the pair of reads reported (duplicate overlaps)
+        // CASE 1: we also handle cases of self overlaps
         // we do not want to proceed if the reported overlap is either CASE 0 or 1
-        if ( (qname.compare(tname) != 0) && ( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff ) && (hits.count(qt) == 0 || hits.count(tq) == 0) ) {
-            hits.insert(qt);
 
+        // old method for removing duplicate overlaps:
+        //string qt = qname + tname;
+        //string tq = tname + qname;
+        //if ( (qname.compare(tname) != 0) && ( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff ) && (hits.count(qt) == 0 || hits.count(tq) == 0) ) {
+        //  hits.insert(qt);
+
+        // new method for removing duplicate overlaps:
+        string qt = qname + tname;
+        if (( qname.compare(tname) != 0 ) && ( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff ) && ( prev_ol.compare(qt) != 0 )) {
+            prev_ol = qt;
             unsigned int qprefix_len = qstart;
             unsigned int qsuffix_len = qlen - qend - 1;
             unsigned int tprefix_len = tstart;
@@ -679,7 +678,7 @@ map<string, sequence> parse_paf()
             if ( i == paf_records.end() ) {
                 // if read not found initialize in paf_records
                 sequence qr;
-                qr.set(qname, qlen, cov);
+                qr.set(qlen, cov);
                 paf_records.insert(pair<string,sequence>(qname, qr));
             } else {
                 // if read found, update the overlap info
@@ -692,13 +691,14 @@ map<string, sequence> parse_paf()
             if ( j == paf_records.end() ) {
                 // if target read not found initialize in paf_records
                 sequence tr;
-                tr.set(tname, tlen, cov);
+                tr.set(tlen, cov);
                 paf_records.insert(pair<string,sequence>(tname, tr));
             } else {
                 // if target read found, update the overlap info
                 j->second.updateCov(cov);
             }
         }
+   //   } //temp brack
     }
    /** Print full_paf_records
    for(auto it = full_paf_records.begin(); it != full_paf_records.end(); ++it) {

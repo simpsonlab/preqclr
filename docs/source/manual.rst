@@ -15,16 +15,15 @@ Generates data needed to create plots in preqc-lr-report.
 Input
 """""""""""""""""""""""
 
-    * READ file: long read sequences
-    * PAF file: information on overlaps between reads in READ file
-    * GFA file: graph assembly
+    * READS file: long read sequences in fasta or fastq format
+    * PAF file: information on overlaps between reads in READS file
+    * GFA file: graph assembly that contains contig information
 
 Output
 """""""""""""""""""""""
 
-    * JSON file containing data needed to generate plots in preqc-lr-report
+    * JSON file containing data needed to generate plots in preqclr-report
     * Log file summarizing statistics calculated, input, and output
-    * Directory of csv files optionally given that contains all calculations
 
 Usage example
 """""""""""""""""""""""
@@ -32,9 +31,10 @@ Usage example
 ::
 
    ./preqclr [-h/--help] -r/--reads <fasta|fastq|fasta.gz|fastq.gz> \
-           -t/--type {pb, ont} -n/--sample_name sample_name \
+           -n/--sample_name sample_name \
            -p/--paf <PAF> -g/--gfa <GFA> \
-           --csv --verbose -v/--version  
+           --rlen_cutoff INT \
+           --verbose -v/--version  
 
 .. list-table:: 
    :widths: 20 10 20 50
@@ -50,11 +50,6 @@ Usage example
      - NA
      - Fasta, fastq, fasta.gz, or fastq.gz files containing reads.
 
-   * - ``-t``, ``--type``
-     - Y
-     - NA
-     - Type of sequencing performed to achieve reads file. Either pacbio (pb) or oxford nanopore technology data (ont).
-
    * - ``-n``, ``--sample_name``
      - Y
      - NA
@@ -63,12 +58,12 @@ Usage example
    * - ``-p``, ``--paf``
      - N
      - NA
-     - Minimap2 Pairwise mApping Format (PAF) file. This is produced using \'minimap2 -x ava-ont sample.fastq sample.fasta.
+     - Minimap2 Pairwise mApping Format (PAF) file. This is produced using ``minimap2 -x ava-ont sample.fastq sample.fasta``.
 
    * - ``-g``, ``--gfa``
      - N
      - NA
-     - Miniasm Graph Fragment Assembly (GFA) file. This is produced using ``miniasm -f reads.fasta overlaps.paf``. This is required only if user wants to generate an NGX plot. If not given, it will **NOT CALCULATE NGX STATISTICS**.
+     - Miniasm Graph Fragment Assembly (GFA) file. This is produced using ``miniasm -f reads.fasta overlaps.paf > layout.gfa``. This is required only if user wants to generate an NGX plot. If not given, it will **NOT CALCULATE NGX STATISTICS**.
 
    * - ``--verbose``
      - N
@@ -87,7 +82,7 @@ Generates a report with plots describing QC metrics for long read data sets.
 Input
 """""""""""""""""""""""
 
-    * JSON file(s) containing data for a sample needed to generate plots created in preqclr calculate 
+    * JSON file(s) containing data for sample(s) needed to generate plots created in preqclr calculate 
 
 Output
 """""""""""""""""""""""
@@ -97,13 +92,13 @@ Output
 Plots:
 
 1. Estimated genome size
-   This is a bar plot that shows the estimated genome size for one or more samples. As coverage was inferred from overlap information, we can use this to calculate genome size with Lander-waterman statistics. 
+   This is a bar plot that shows the estimated genome size for one or more samples. As coverage was inferred from overlap information, we can use this to calculate genome size with Lander-Waterman statistics. 
 2. Read length distribution
-   This is the distribution of read lengths calculated from the READS file. preqc-lr imposes an x-limit such that 90% of all of the read lengths falls under this limit. This was done to avoid extremely long tails.
+   This is the distribution of read lengths calculated from the READS file. preqclr imposes an x-limit such that 90% of all of the read lengths falls under this limit. This was done to avoid extremely long tails.
 3. Estimated coverage distribution
    This shows the distribution of coverage for each read inferred from the overlap information file (PAF). 
 4. Per read GC content distribution
-   In this plot we show the distribution of GC content per read. To calculate this for each read, we summed the number of C and G nucleotides then divided by the read length.
+   In this plot we show the distribution of GC content per read for a sample of 40% of reads. To calculate this for each read, we summed the number of C and G nucleotides then divided by the read length.
 5. Total number of bases vs minimum read length
    We show the total number of bases with reads of a minimum length of x.
 6. NGX
@@ -135,7 +130,7 @@ Usage example
 
    * - ``-o``, ``--output``
      - N
-     - If only one preqc-lr file given, it will infer from prefix. Else if multiple, prefix will be "preqc-lr-output".
+     - If only one preqclr file given, it will infer from prefix. Else if multiple, prefix will be "preqc-lr-output".
      - Prefix for output PDF.
 
    * - ``--plot``
