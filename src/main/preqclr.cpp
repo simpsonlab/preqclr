@@ -356,8 +356,14 @@ void parse_args ( int argc, char *argv[])
             arg >> opt::rlen_cutoff;
             break;
         case ':':
-            fprintf(stderr, "./preqclr: option `-%c' is missing a required argument\n", optopt);
-            fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
+            if (optopt == 'c') {
+                fprintf(stderr, "./preqclr: option `-%c' is missing a required argument\n", optopt);
+            } else if(isprint(optopt)) {
+                fprintf(stderr, "./preqclr: option `-%c' is missing a required argument\n",optopt);
+            } else {
+                fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
+            }
+                fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
             exit(1);
         case '?':
             // invalid option: getopt_long already printed an error message
@@ -405,12 +411,11 @@ map<string, sequence> parse_paf()
     d = sd_init();
     set<string> hits;
     map<string, sequence> paf_records;
+    string prev_ol = "start";
     while (paf_read(fp, &r) >= 0) { 
         // read each line/overlap and save each column into variable
         string qname = r.qn;
         string tname = r.tn;
-        string qt = qname + tname;
-        string tq = tname + qname;
         unsigned int qlen = r.ql;
         unsigned int qstart = r.qs;
         unsigned int qend = r.qe;
@@ -420,11 +425,20 @@ map<string, sequence> parse_paf()
         unsigned int tend = r.te;
 
         // CASE 0: sometimes Minimap2 may report the same pair of overlaps multiple times
-        // here we check if we have already seen the pair of reads reported
-        // CASE 1: we also handle cases of self-overlaps
+        // here we check if we have already seen the pair of reads reported (duplicate overlaps)
+        // CASE 1: we also handle cases of self overlaps
         // we do not want to proceed if the reported overlap is either CASE 0 or 1
-        if ( (qname.compare(tname) != 0) && ( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff ) && (hits.count(qt) == 0 || hits.count(tq) == 0) ) {
-            hits.insert(qt);
+
+        // old method for removing duplicate overlaps:
+        //string qt = qname + tname;
+        //string tq = tname + qname;
+        //if ( (qname.compare(tname) != 0) && ( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff ) && (hits.count(qt) == 0 || hits.count(tq) == 0) ) {
+        //  hits.insert(qt);
+
+        // new method for removing duplicate overlaps:
+        string qt = qname + tname;
+        if (( qname.compare(tname) != 0 ) && ( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff ) && ( prev_ol.compare(qt) != 0 )) {
+            prev_ol = qt;
             unsigned int qprefix_len = qstart;
             unsigned int qsuffix_len = qlen - qend - 1;
             unsigned int tprefix_len = tstart;
@@ -455,7 +469,7 @@ map<string, sequence> parse_paf()
             if ( i == paf_records.end() ) {
                 // if read not found initialize in paf_records
                 sequence qr;
-                qr.set(qname, qlen, cov);
+                qr.set(qlen, cov);
                 paf_records.insert(pair<string,sequence>(qname, qr));
             } else {
                 // if read found, update the overlap info
@@ -468,13 +482,14 @@ map<string, sequence> parse_paf()
             if ( j == paf_records.end() ) {
                 // if target read not found initialize in paf_records
                 sequence tr;
-                tr.set(tname, tlen, cov);
+                tr.set(tlen, cov);
                 paf_records.insert(pair<string,sequence>(tname, tr));
             } else {
                 // if target read found, update the overlap info
                 j->second.updateCov(cov);
             }
         }
+   //   } //temp brack
     }
 
    // XXXXXXXXXXXXXXXXXXX
