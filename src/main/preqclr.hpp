@@ -32,6 +32,7 @@ void calculate_read_length( vector <pair <double, int>> fq, JSONWriter* writer);
 void calculate_GC_content( vector <pair <double, int>> fq, JSONWriter* writer);
 void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer);
 void calculate_ngx( map<string, contig> contigs, double genome_size_est, JSONWriter* writer);
+void calculate_repetitivity(map<string, contig> ctg, double g, int n, JSONWriter* writer );
 
 int getopt( int argc, char* const* argv[], const char *optstring);
 enum { OPT_VERSION, OPT_DVCUTOFF, OPT_RLENCUTOFF };

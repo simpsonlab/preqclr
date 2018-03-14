@@ -190,6 +190,17 @@ int main( int argc, char *argv[])
         elapsedwc = ewc - swc;
         elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
         out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
+
+        out("\n[ Calculating repetitivity ]");
+        swc = chrono::system_clock::now();
+        scpu = clock();
+        calculate_repetitivity( contigs, genome_size_est, paf_records.size(), &writer );
+        ewc = chrono::system_clock::now();
+        ecpu = clock();
+        elapsedwc = ewc - swc;
+        elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
+        out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
+
     }
 
     // convert JSON document to string and print
@@ -478,6 +489,32 @@ map<string, sequence> parse_paf()
 
    return paf_records;
 }
+
+void calculate_repetitivity(map<string, contig> ctg, double g, int n, JSONWriter* writer ) {
+
+    // to calculate the astatistic for each read
+    // we need k = the number of reads in the contig, total number of reads (n)
+    // the length of contig = l, and the gse (G)
+    long unsigned int r = 0;
+    long unsigned int u = 0;
+    double singleCopyTheshold = 30.0;
+    for (auto const& c: ctg){
+        int k = c.second.num_reads;
+        int l = c.second.len;
+        double astat = (double(l)*double(n))/g - double(k)*log(2);
+        cout << c.first << ": " << astat << "\t" << k << "\n";
+        if ( astat >= singleCopyTheshold ) {
+            u += l;
+        } else {
+            r += l;
+        }
+    }
+
+    cout << "% rep: " << double(r)/double(g) << "\n";
+    cout << "% unique: " << double(u)/double(g) << "\n";
+    cout << "% error: "  << 1 - double(r)/double(g) - double(u)/double(g) << "\n";
+}
+
 
 void calculate_ngx( map<string, contig> ctgs, double genome_size_est, JSONWriter* writer ){
     /*
