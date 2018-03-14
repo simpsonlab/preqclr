@@ -10,7 +10,7 @@ SUBDIRS := include src include/readpaf include/rapidjson/include include/zstr/sr
 #Basic flags every build needs
 LIBS = -lz 
 CXXFLAGS ?= -g -O3
-CXXFLAGS += -std=c++11 
+CXXFLAGS += -std=c++11  -march=native 
 CFLAGS ?= -O3 -std=c99
 CXX ?= g++
 CC ?= gcc
