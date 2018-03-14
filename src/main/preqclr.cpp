@@ -341,8 +341,14 @@ void parse_args ( int argc, char *argv[])
             arg >> opt::rlen_cutoff;
             break;
         case ':':
-            fprintf(stderr, "./preqclr: option `-%c' is missing a required argument\n", optopt);
-            fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
+            if (optopt == 'c') {
+                fprintf(stderr, "./preqclr: option `-%c' is missing a required argument\n", optopt);
+            } else if(isprint(optopt)) {
+                fprintf(stderr, "./preqclr: option `-%c' is missing a required argument\n",optopt);
+            } else {
+                fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
+            }
+                fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
             exit(1);
         case '?':
             // invalid option: getopt_long already printed an error message
