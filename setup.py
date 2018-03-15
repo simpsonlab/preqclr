@@ -16,8 +16,10 @@ setup(name='preqclr',
 	python_requires='>=2.7.11',
 	setup_requires=['numpy'],
 	install_requires=[
-		'Biopython',
-		'matplotlib==2.0.0'
+        'Biopython',
+        'gevent',
+        'greenlet',
+        'matplotlib==2.0.0'
 	],
 	include_package_data=True,
     zip_safe=False)
