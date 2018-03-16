@@ -1,7 +1,13 @@
-# preqc-lr
-preqc-lr is a software tool that reports on quality for long read sequencing data without the use of a reference genome.
+# preqclr
 
-preqc-lr generates a PDF report with the following plots:
+preqclr is a software tool that reports on quality for long read sequencing data without the use of a reference genome. With the emergence of new long read sequencing technology such as Pacbio Single Molecule, Real-Time (SMRT) Sequencing technology and Oxford Nanopore Technologies (ONT), there is a need for a method that assesses sequencing quality prior to analyses. This tool enables users to visualize metrics of quality.
+
+There are two components to preqclr:
+
+    1. calculate
+    2. report
+
+preqclr generates a PDF report with the following plots:
 
 * Estimated genome size
 * Read length distribution
@@ -30,7 +36,7 @@ For the report generation step:
 To install from source:
 
 ```bash
-git clone --recursive https://github.com/simpsonlab/preqc-lr.git
+git clone --recursive https://github.com/simpsonlab/preqclr.git
 cd preqc-lr
 make
 
@@ -40,15 +46,6 @@ virtualenv preqclr-venv
 source preqclr-venv/bin/activate
 python setup.py install
 ```
-
-## What is preqc-lr?
-
-With the emergence of new long read sequencing technology such as Pacbio Single Molecule, Real-Time (SMRT) Sequencing technology and Oxford Nanopore Technologies (ONT), there is a need for a method that assesses sequencing quality prior to analyses. With preqc-lr we enable users to visualize metrics of quality.
-
-There are two components to preqc-lr:
-
-    1. calculate
-    2. report
 
 ## Quick usage
 
@@ -86,4 +83,4 @@ python preqclr-report.py -i ecoli_sample.pacbio.preqclr --verbose
 
 ## Acknowledgements
 
-preqc-lr uses overlap and assembly information from minimap2 and miniasm, respectively. To parse the output PAF file, and efficiently read fasta files we used kseq and PAF parser in miniasm. I would like to thank Heng Li for developing these tools.
+preqclr uses overlap and assembly information from minimap2 and miniasm, respectively. To parse the output PAF file, and efficiently read fasta files we used kseq and PAF parser in miniasm. I would like to thank Heng Li for developing these tools.
