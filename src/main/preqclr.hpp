@@ -1,9 +1,9 @@
 //---------------------------------------------------------
-// Copyright 2017 Ontario Institute for Cancer Research
+// Copyright 2018 Ontario Institute for Cancer Research
 // Written by Joanna Pineda (joanna.pineda@oicr.on.ca)
 //---------------------------------------------------------
 //
-// preqc-lr.hpp 
+// preqclr.hpp 
 // calculates basic QC statistics
 
 #include <map>
@@ -33,7 +33,7 @@ void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer);
 void calculate_ngx( vector<double> contig_lengths, double genome_size_est, JSONWriter* writer);
 
 int getopt( int argc, char* const* argv[], const char *optstring);
-enum { OPT_VERSION, OPT_DVCUTOFF, OPT_RLENCUTOFF };
+enum { OPT_VERSION };
 void parse_args( int argc, char *argv[]);
 map<string, sequence> parse_paf();
 vector<double> parse_gfa();
