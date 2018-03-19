@@ -717,13 +717,39 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     long double sum_cov_f = 0;
     int tot_reads_f = 0;
     vector<double> covs_f;
-    for ( auto c : covs ) {
-        if ( c.first >= lowerbound && c.first <= upperbound ) {
-            tot_reads_f += 1;
-            sum_len_f += c.second;
-            sum_cov_f += c.first; 
-            covs_f.push_back(c.first);
-        }   
+    // the following are used to get the mode of distribution
+    // we bin the reads by coverage incrementing by 0.25x
+    // we start binning from the lowest value of cov calculated
+    double l = covs[0].first;
+    double u = covs[0].first + 0.25;
+    double curr_largest = -1000.0;
+    double mode_cov = 0;
+    int count = 0;
+    int i = 0;
+    while ( i < covs.size() ){ // iterate through reads
+        // look at reads that fall within current bin
+        while ( covs[i].first >= l && covs[i].first < u ) { 
+            // filter outliers: [Q25-IQR*1.5, Q75+IQR*1.5]
+            if ( (covs[i].first >= lowerbound) && (covs[i].first <= upperbound) ) {
+                // count how many reads have coverage in current bin
+                count += 1;
+                tot_reads_f += 1;
+                sum_len_f += covs[i].second;
+                sum_cov_f += covs[i].first;
+                covs_f.push_back(covs[i].first);
+            }
+            i += 1;
+        }
+        cout << u << ": " << count << "\n";
+        // if this bin has the most amount of reads, the coverage is the mode
+        if ( count > curr_largest ) {
+            curr_largest = count;
+            mode_cov = u;
+        }
+        // next bin 
+        u += 0.25;
+        l += 0.25;
+        count = 0;
     }
  
     // get the mean read length
@@ -758,6 +784,9 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
 
     writer->Key("median_cov");
     writer->Double(median_cov);
+
+    writer->Key("mode_cov");
+    writer->Double(mode_cov);
 
     writer->Key("tot_reads");
     writer->Int(tot_reads_f);
