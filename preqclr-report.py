@@ -147,6 +147,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	per_read_read_length = dict()
 	per_read_est_cov_and_read_length = dict()
 	est_cov_post_filter_info = dict()
+	peak_cov = dict()
 	per_read_GC_content = dict()
 	total_num_bases_vs_min_read_length = dict()
 	ngx_values = dict()
@@ -176,6 +177,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			per_read_read_length[s] = (color, data['read_lengths'], marker)											# histogram
 			per_read_est_cov_and_read_length[s] = (color, data['per_read_est_cov_and_read_length'], marker) 				# histogram
 			est_cov_post_filter_info[s] = data['est_cov_post_filter_info']
+			peak_cov[s] = data['mode_cov']
 			per_read_GC_content[s] = (color, data['read_counts_per_GC_content'], marker) 									# histogram
 			total_num_bases_vs_min_read_length[s] = (color, data['total_num_bases_vs_min_read_length'], marker)				# line
 			if 'ngx_values' in data.keys():
@@ -277,7 +279,8 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			num_plots_fin+=1
 		num_plots_fin+=1
 		ax = subplots.pop(0)
-		ax_temp = plot_est_cov(ax, per_read_est_cov_and_read_length, est_cov_post_filter_info, output_prefix)
+		ax_temp = plot_est_cov(ax, per_read_est_cov_and_read_length, est_cov_post_filter_info, peak_cov, output_prefix)
+		ax.legend().set_title("peak cov:", prop={"size": 6})
 		if save_png:
 			temp_fig = ax_temp.get_figure()
 			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
@@ -414,7 +417,7 @@ def plot_read_length_distribution(ax, data, output_prefix):
 	ax.get_xaxis().get_major_formatter().set_useOffset(False)
 	return ax
 
-def plot_est_cov(ax, data, filter_info, output_prefix):
+def plot_est_cov(ax, data, filter_info, peak_cov, output_prefix):
 	# ========================================================
 	custom_print( "[ Plotting est cov per read ]" )
 	# ========================================================
@@ -429,6 +432,7 @@ def plot_est_cov(ax, data, filter_info, output_prefix):
 		sd_est_cov_read_length = data[s][1] 						# this returns a dictionary with key = est_cov and value =read length this is for each read
 		sd_est_cov = [ round(float(x),0) for x in sd_est_cov_read_length.keys() ]
 		sd_upperbound_cov = filter_info[s][1]
+		sd_mode_cov = peak_cov[s]
 		if sd_upperbound_cov > max_cov:
 			max_cov = sd_upperbound_cov
 
@@ -446,7 +450,7 @@ def plot_est_cov(ax, data, filter_info, output_prefix):
 			ny.append(ni)
 
 		# plot!
-		ax.plot(x, ny, color=s_color, label=s_name)
+		ax.plot(x, ny, color=s_color, label=round(sd_mode_cov,2))
 
 	# configure subplot
 	ax.set_title('Est. cov. distribution')
@@ -454,6 +458,7 @@ def plot_est_cov(ax, data, filter_info, output_prefix):
 	ax.set_xlabel('Est. cov.')
 	ax.set_ylabel('Proportion')   
 	global max_percentile
+	ax.legend(title="mode cov:", fontsize="x-small", bbox_to_anchor=(0.80, 0.95), loc=2, borderaxespad=0.)
 	ax.set_xlim(0, max_cov*max_percentile/100.0)
 	return ax
 
