@@ -257,7 +257,7 @@ void parse_args ( int argc, char *argv[])
         {"paf",         required_argument,  NULL,   'p'},
         {"gfa",         required_argument,  NULL,   'g'},
         {"help",            no_argument,    NULL,   'h'},
-        {"rlen_cutoff",     required_argument,    NULL,   OPT_RLENCUTOFF},
+        {"min_rlen",     required_argument,    NULL,   'l'},
         { NULL, 0, NULL, 0 }
     };
 
@@ -280,9 +280,9 @@ void parse_args ( int argc, char *argv[])
     "		                This is produced using \'minimap2 -x ava-ont sample.fasta sample.fasta\'\n"
     "    -g, --gfa			Miniasm Graph Fragment Assembly (GFA) file\n"
     "		                This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
-    "    --rlen_cutoff=INT		Use overlaps with read lengths >= INT\n"
+    "    -l, --min_rlen=INT		Use overlaps with read lengths >= INT\n"
     "\n"
-    "Report bugs to https://github.com/simpsonlab/preqc-lr/issues"
+    "Report bugs to https://github.com/simpsonlab/preqclr/issues"
     "\n";
 
     int rflag=0, nflag=0, pflag=0, gflag=0, verboseflag=0, versionflag=0;
@@ -337,7 +337,7 @@ void parse_args ( int argc, char *argv[])
         case 'h':
             cout << PREQCLR_CALCULATE_USAGE_MESSAGE << endl;
             exit(0);
-        case OPT_RLENCUTOFF:
+        case 'l':
             arg >> opt::rlen_cutoff;
             break;
         case ':':
