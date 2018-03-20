@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # ========================================================
-# preqc-lr report:
-# Generates plots and saves to a preqc-lr report in PDF
+# preqclr report:
+# Generates plots and saves to a preqclr report in PDF
 # ========================================================
 try:
 	from Bio import SeqIO
@@ -150,6 +150,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	peak_cov = dict()
 	per_read_GC_content = dict()
 	total_num_bases_vs_min_read_length = dict()
+	total_num_bases_vs_min_cov = dict()
 	ngx_values = dict()
 
 	# each sample will be represented with a unique marker and color
@@ -180,6 +181,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			peak_cov[s] = data['mode_cov']
 			per_read_GC_content[s] = (color, data['read_counts_per_GC_content'], marker) 									# histogram
 			total_num_bases_vs_min_read_length[s] = (color, data['total_num_bases_vs_min_read_length'], marker)				# line
+			total_num_bases_vs_min_cov[s] = (color, data['total_num_bases_vs_min_cov'], marker)
 			if 'ngx_values' in data.keys():
 				ngx_calculated=True
 				ngx_values[s] = (color, data['ngx_values'], marker)
@@ -313,6 +315,20 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 				temp_fig = ax_temp[0].get_figure()
 				extent = ax_temp[0].get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
 				ax_png_file = "./" + output_prefix + "/png/plot_est_cov_vs_read_length_" + s +".png"
+				temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
+	if 'total_num_bases_vs_min_read_length' in plots_requested:
+		for s in per_read_est_cov_and_read_length:
+			if ( num_ss > 1 and num_plots_fin%6 == 0 and num_plots_fin >= 6):
+				ax = subplots.pop(0)
+				plot_legend(ax, est_genome_sizes)
+				num_plots_fin+=1
+			num_plots_fin+=1
+			ax = subplots.pop(0)
+			ax_temp = plot_total_num_bases_vs_min_cov(ax, total_num_bases_vs_min_cov, s, output_prefix)
+			if save_png:
+				temp_fig = ax_temp.get_figure()
+				extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+				ax_png_file = "./" + output_prefix + "/png/plot_total_num_bases_vs_min_cov_" + s + ".png"
 				temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
 	if 'total_num_bases_vs_min_read_length' in plots_requested:
 		for s in total_num_bases_vs_min_read_length:
@@ -462,6 +478,48 @@ def plot_est_cov(ax, data, filter_info, peak_cov, output_prefix):
 	ax.legend(fontsize="xx-small", bbox_to_anchor=(0.80, 0.95), loc=2, borderaxespad=0.)
 	ax.set_xlim(0, max_cov*max_percentile/100.0)
 	return ax
+
+def plot_total_num_bases_vs_min_cov(ax, data, s, output_prefix):
+	# ========================================================
+	custom_print( "[ Plotting total number of bases as a function of minimum cov ]" )
+	# ========================================================
+
+	# get the specific sample's data
+	s_name = s
+	s_color = data[s][0]
+	sd = data[s][1]
+	s_marker = data[s][2]
+
+	# get info from json file produced from preqclr v2.0
+	sd = data[s]                                                # list of tuples (read_cov, read_len)
+	sd_tot_bases_min_cov = data[s][1]                         # this returns a dictionary with key = est_cov and value =read length
+	x = list()
+	y = list()
+	for key, value in sorted(sd_tot_bases_min_cov.iteritems(), key=lambda (k,v): (v,k)):
+		x.append(float(key))
+		y.append(float(value))
+
+	# let's change the total base values to gigabases
+	ny = list()
+	for i in y:
+		ny.append(round(float(i)/float(1000000000), 2))
+
+	# plot!
+	ax.plot(x, ny, label=s_name, color=s_color)
+
+	# set x limit
+	global max_percentile
+	x_lim = float(max(x))*(float(max_percentile)/float(100.0))
+
+	# configure subplot
+	ax.set_title('Total number of bases vs min. cov. \n(' + s + ')' )
+	ax.grid(True, linestyle='-', linewidth=0.3)
+	ax.set_xlabel('Min. cov.')
+	ax.set_ylabel('Total num. bases (Gbps)')
+	ax.set_xlim(0, x_lim)
+	return ax
+
+	
 
 def plot_per_read_est_cov_vs_read_length(ax, data, s, output_prefix):
 	# ========================================================
