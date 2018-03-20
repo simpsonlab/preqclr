@@ -131,7 +131,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	MPL.rc('font', size=11)
 	MPL.rc('xtick', labelsize=6)
 	MPL.rc('ytick', labelsize=6)
-	MPL.rc('legend', fontsize=6)
+	MPL.rc('legend', fontsize=5)
 	MPL.rc('axes', titlesize=10)
 	MPL.rc('axes', labelsize=8)
 	MPL.rcParams['lines.linewidth'] = 1.0
@@ -280,7 +280,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 		num_plots_fin+=1
 		ax = subplots.pop(0)
 		ax_temp = plot_est_cov(ax, per_read_est_cov_and_read_length, est_cov_post_filter_info, peak_cov, output_prefix)
-		ax.legend().set_title("peak cov:", prop={"size": 6})
+		ax.legend().set_title("mode:", prop={"size": 5})
 		if save_png:
 			temp_fig = ax_temp.get_figure()
 			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
@@ -294,6 +294,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 		num_plots_fin+=1
 		ax = subplots.pop(0)
 		ax_temp = plot_per_read_GC_content(ax, per_read_GC_content, output_prefix)
+		ax.legend().set_title("mode:", prop={"size": 5})
 		if save_png:
 			temp_fig = ax_temp.get_figure()
 			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
@@ -458,7 +459,7 @@ def plot_est_cov(ax, data, filter_info, peak_cov, output_prefix):
 	ax.set_xlabel('Est. cov.')
 	ax.set_ylabel('Proportion')   
 	global max_percentile
-	ax.legend(title="mode cov:", fontsize="x-small", bbox_to_anchor=(0.80, 0.95), loc=2, borderaxespad=0.)
+	ax.legend(fontsize="xx-small", bbox_to_anchor=(0.80, 0.95), loc=2, borderaxespad=0.)
 	ax.set_xlim(0, max_cov*max_percentile/100.0)
 	return ax
 
@@ -520,17 +521,26 @@ def plot_per_read_GC_content(ax, data, output_prefix):
 		# normalize yvalues
 		sy = sum(y)
 		ny = list()
-		for i in y:
-			j = float(i)/float(sy)
+		i = 0
+		max_y = -1000
+		peak = 0
+		while ( i < len(y) ):
+			j = float(y[i])/float(sy)
+			if ( y[i] > max_y ):
+				peak = x[i]
+				max_y = y[i]
 			ny.append(j)
+			i+=1
+		print peak
 		
 		# and plot!
-		ax.plot(x, ny, color=s_color, label = s)
+		ax.plot(x, ny, color=s_color, label = peak)
 
 	# configure subplot
 	ax.set_title('Per read GC content')
 	ax.set_xlabel('% GC content')
 	ax.set_ylabel('Proportion')
+	ax.legend( prop={'size': 5}, bbox_to_anchor=(0.80, 0.95), loc=2, borderaxespad=0.)
 	ax.grid(True, linestyle='-', linewidth=0.3)
 	return ax
 
