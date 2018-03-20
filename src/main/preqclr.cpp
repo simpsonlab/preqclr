@@ -673,14 +673,15 @@ void calculate_total_num_bases_vs_min_cov( map<double, long long int, greater<do
     ========================================================
     */
     writer->Key("total_num_bases_vs_min_cov");
-    writer->StartArray();
+    writer->StartObject();
     long long int tot_bases = 0;
     for (auto &c : cov_info) {
          tot_bases += c.second;
-         writer->Double(c.first);
+         string key = to_string( c.first );
+         writer->Key(key.c_str());
          writer->Int(tot_bases);
     }
-    writer->EndArray();
+    writer->EndObject();
 }
 
 double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWriter* writer )
@@ -774,7 +775,7 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
             }
             i += 1;
         }
-        cout << u << ": " << count << "\n";
+    //    cout << u << ": " << count << "\n";
         // if this bin has the most amount of reads, the coverage is the mode
         if ( count > curr_largest ) {
             curr_largest = count;
