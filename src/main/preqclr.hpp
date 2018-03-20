@@ -31,6 +31,7 @@ void calculate_read_length( vector <pair <double, int>> fq, JSONWriter* writer);
 void calculate_GC_content( vector <pair <double, int>> fq, JSONWriter* writer);
 void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer);
 void calculate_ngx( vector<double> contig_lengths, double genome_size_est, JSONWriter* writer);
+void calculate_total_num_bases_vs_min_cov( map<double, long long int, greater<double>> per_cov_total_num_bases, JSONWriter* writer);
 
 int getopt( int argc, char* const* argv[], const char *optstring);
 enum { OPT_VERSION };

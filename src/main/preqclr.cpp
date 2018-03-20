@@ -661,6 +661,28 @@ void calculate_GC_content( vector <pair< double, int >> fq, JSONWriter* writer )
     writer->EndArray();
 }
 
+void calculate_total_num_bases_vs_min_cov( map<double, long long int, greater<double>> cov_info, JSONWriter* writer ) {
+    /*
+    ========================================================
+    Calculate total number of bases per min cov
+    --------------------------------------------------------
+    Calculate the total number of bases at varying min
+    cov cut-offs
+    Input:     sorted in desc by cov, tot bases per cov dict
+    Output:    tot bases per min cov
+    ========================================================
+    */
+    writer->Key("total_num_bases_vs_min_cov");
+    writer->StartArray();
+    long long int tot_bases = 0;
+    for (auto &c : cov_info) {
+         tot_bases += c.second;
+         writer->Double(c.first);
+         writer->Int(tot_bases);
+    }
+    writer->EndArray();
+}
+
 double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWriter* writer )
 {
     /*
@@ -684,6 +706,7 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     long long sum_len = 0;
     long double sum_cov = 0;
     int tot_reads = 0;
+    map<double,long long int, greater<double>> per_cov_total_num_bases;
     for( auto it = paf.begin(); it != paf.end(); it++)
     {
         string id = it->first;
@@ -697,8 +720,19 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
         sum_cov += r_cov;
         tot_reads += 1;
         sum_len += r_len;
+
+        // save total bases for each coverage level
+        auto j = per_cov_total_num_bases.find(round(r_cov));
+        if ( j == per_cov_total_num_bases.end() ){
+            per_cov_total_num_bases.insert(pair<double, long long int>(round(r_cov), r_len));
+        } else {
+            j->second += r_len;
+        }
     }
     writer->EndObject();
+
+    // write total number of bases vs min cov to json
+    calculate_total_num_bases_vs_min_cov(per_cov_total_num_bases, writer);
 
     // calculate IQR to use as limits in plotting script
     // sort the estimated coverages
