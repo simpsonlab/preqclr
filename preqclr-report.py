@@ -163,7 +163,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	# this will affect downstream processes
 	ngx_calculated=False
 
-	calcs = ['sample_name', 'est_genome_size', 'read_lengths', 'per_read_est_cov_and_read_length', 'read_counts_per_GC_content', 'total_num_bases_vs_min_read_length']
+	calcs = ['sample_name', 'est_genome_size', 'read_lengths', 'read_counts_per_GC_content', 'total_num_bases_vs_min_read_length']
 	# start reading the preqclr file(s)
 	for s_preqclr_file in preqclr_file:
 		color = colors.pop(0)
@@ -629,7 +629,6 @@ def plot_est_genome_size(ax, data, output_prefix):
 	ax.set_xlabel('Genome size (Mbp)')
 	ax.set_ylabel(' \n \n ')
 	ax.grid(True, linestyle='-', linewidth=0.3)
-	ax.legend(loc='upper right')
 	return ax
 
 def plot_median_cov_vs_min_read_length(ax, data, s, output_prefix):
