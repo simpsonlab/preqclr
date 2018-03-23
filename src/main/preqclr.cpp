@@ -660,7 +660,6 @@ void calculate_GC_content( vector <pair< double, int >> fq, JSONWriter* writer )
          if ( r.first != 0 ) {
              writer->Double(r.first);
              auto i = freq.find(round(r.first * 10.0)/10.0); // round to nearest 100th decimal place
-             cout << i->first  <<"\n"; 
              if ( i == freq.end() ){ 
                  freq.insert(make_pair(round(r.first*10.0)/10.0, 1));
              } else {
@@ -869,6 +868,9 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
 
     writer->Key("mode_cov");
     writer->Double(mode_cov);
+
+    writer->Key("peak_cov");
+    writer->Double(round(mode_cov*100.0)/100.0);
 
     writer->Key("tot_reads");
     writer->Int(tot_reads_f);
