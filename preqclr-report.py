@@ -151,6 +151,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	per_read_GC_content = dict()
 	total_num_bases_vs_min_read_length = dict()
 	total_num_bases_vs_min_cov = dict()
+	median_cov_vs_min_read_length = dict()
 	ngx_values = dict()
 
 	# each sample will be represented with a unique marker and color
@@ -182,6 +183,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			per_read_GC_content[s] = (color, data['read_counts_per_GC_content'], marker) 									# histogram
 			total_num_bases_vs_min_read_length[s] = (color, data['total_num_bases_vs_min_read_length'], marker)				# line
 			total_num_bases_vs_min_cov[s] = (color, data['total_num_bases_vs_min_cov'], marker)
+			median_cov_vs_min_read_length[s] = (color, data['median_cov_vs_min_read_length'], marker)
 			if 'ngx_values' in data.keys():
 				ngx_calculated=True
 				ngx_values[s] = (color, data['ngx_values'], marker)
@@ -589,7 +591,6 @@ def plot_per_read_GC_content(ax, data, output_prefix):
 				max_y = y[i]
 			ny.append(j)
 			i+=1
-		print peak
 		
 		# and plot!
 		ax.plot(x, ny, color=s_color, label = peak)
@@ -646,6 +647,36 @@ def plot_est_genome_size(ax, data, output_prefix):
 	ax.legend(loc='upper right')
 	return ax
 
+def plot_median_cov_vs_min_read_length(ax, data, s, output_prefix):
+	# ========================================================
+	custom_print( "[ Plotting median cov as a function of minimum read length ]" )
+	# ========================================================
+	
+	s_name = s
+	s_color = data[s][0]
+	sd = data[s][1]		# dictionary: key = min read length cut off, value = median cov
+	s_marker = data[s][2]
+	x = list()
+	y = list()
+	for key, value in sorted(sd.iteritems(), key=lambda (k,v): (v,k)):
+		x.append(float(key))
+		y.append(float(value))
+
+	# plot!
+	ax.scatter(x, y, label=s_name, color=s_color, alpha=0.3)
+
+	# set x limit
+	global max_percentile
+	x_lim = max(x)*(float(max_percentile)/100.0)
+
+	# configure subplot
+	ax.set_title('Median cov. vs min. read length \n(' + s + ')' )
+	ax.grid(True, linestyle='-', linewidth=0.3)
+	ax.set_xlabel('Min. read length (bps)')
+	ax.set_ylabel('Median cov')
+	ax.set_xlim(0, x_lim)
+	return ax
+
 def plot_total_num_bases_vs_min_read_length(ax, data, s, output_prefix):
 	# ========================================================
 	custom_print( "[ Plotting total number of bases as a function of minimum read length ]" )
@@ -665,18 +696,23 @@ def plot_total_num_bases_vs_min_read_length(ax, data, s, output_prefix):
 	ny = list()
 	for i in y:
 		ny.append(float(i)/float(1000000))
-		
+	
+	# let's change the read lengths to kilobases
+	nx = list()
+	for j in x:
+		nx.append(float(j)/float(1000))
+
 	# plot!
-	ax.plot(x, ny, label=s_name, color=s_color)
+	ax.plot(nx, ny, label=s_name, color=s_color)
 
 	# set x limit
 	global max_percentile
-	x_lim = max(x)*(float(max_percentile)/100.0)
+	x_lim = max(nx)*(float(max_percentile)/100.0)
 
 	# configure subplot
 	ax.set_title('Total number of bases \n(' + s + ')' )
 	ax.grid(True, linestyle='-', linewidth=0.3)
-	ax.set_xlabel('Min. read length (bps)')
+	ax.set_xlabel('Min. read length (kbps)')
 	ax.set_ylabel('Total num. bases (Gbps)')
 	ax.set_xlim(0, x_lim)
 	return ax
