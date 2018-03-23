@@ -653,12 +653,28 @@ void calculate_GC_content( vector <pair< double, int >> fq, JSONWriter* writer )
 
     writer->Key("read_counts_per_GC_content");
     writer->StartArray();
+    map<double, int> freq; // store counts for each GC content 
+    int max = 0;
+    double mode = 0.0;
     for (auto &r : fq) {
          if ( r.first != 0 ) {
              writer->Double(r.first);
+             auto i = freq.find(round(r.first * 10.0)/10.0); // round to nearest 100th decimal place
+             cout << i->first  <<"\n"; 
+             if ( i == freq.end() ){ 
+                 freq.insert(make_pair(round(r.first*10.0)/10.0, 1));
+             } else {
+                 i->second+=1;
+                 if ( i->second > max ){
+                     max = i->second;
+                     mode = i->first;
+                 }
+             }
          }
     }
     writer->EndArray();
+    writer->Key("peak_GC_content");
+    writer->Double(mode);
 }
 
 void calculate_total_num_bases_vs_min_cov( map<double, long long int, greater<double>> cov_info, JSONWriter* writer ) {
@@ -680,6 +696,35 @@ void calculate_total_num_bases_vs_min_cov( map<double, long long int, greater<do
          string key = to_string( c.first );
          writer->Key(key.c_str());
          writer->Int(tot_bases);
+    }
+    writer->EndObject();
+}
+
+void calculate_median_cov_vs_min_read_length( vector <pair<double, int>> covs, JSONWriter* writer ) {
+    /*
+    ========================================================
+    Calculate total number of bases per min cov
+    --------------------------------------------------------
+    Calculate the total number of bases at varying min
+    cov cut-offs
+    Input:     sorted in desc by cov, tot bases per cov dict
+    Output:    tot bases per min cov
+    ========================================================
+    */
+    // sort by descending read length
+    sort(covs.begin(), covs.end(), [](const pair<double,int> &left, const pair<double,int> &right) { return left.second > right.second; });
+
+    writer->Key("median_cov_vs_min_read_length");
+    writer->StartObject();
+    double median_cov = 0;
+    int i = 0;   // index of current read length
+    int i50 = 0; // 50% 
+    for (auto &c : covs) {
+         string key = to_string( c.second );
+         writer->Key(key.c_str());
+         writer->Double(covs[i50].first);
+         i+=1;
+         i50 = floor(double(i)/2);
     }
     writer->EndObject();
 }
@@ -735,6 +780,8 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     // write total number of bases vs min cov to json
     calculate_total_num_bases_vs_min_cov(per_cov_total_num_bases, writer);
 
+    // calculate median coverage vs min read length
+    calculate_median_cov_vs_min_read_length(covs, writer);
     // calculate IQR to use as limits in plotting script
     // sort the estimated coverages
     sort(covs.begin(), covs.end());
