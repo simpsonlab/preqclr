@@ -21,7 +21,7 @@ except ImportError:
 	print('Missing package(s)')	
 	quit()
 
-plots_available = ['est_genome_size', 'read_length_dist', 'est_cov_dist', 'est_cov_vs_read_length', 'per_read_GC_content_dist', 'total_num_bases_vs_min_read_length']
+plots_available = ['est_genome_size', 'read_length_dist', 'est_cov_dist', 'per_read_GC_content_dist', 'total_num_bases_vs_min_read_length', 'total_num_bases_vs_min_cov']
 save_png=False
 max_percentile=90
 log=list()
@@ -193,8 +193,8 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	# --------------------------------------------------------
 	# total number of plots = a + b
 	# a = number of plots in plots_requested not including ngx plots, est. cov vs read length, and tot_num_bases
-	# b = est. cov vs read length * number of samples + number of samples with ngx values calculated
-	# b += number of tot_num_bases plot = number of sumples
+	# b = number of samples with ngx values calculated
+	# b += number of tot_num_bases plots (x2) = number of sumples
 	# if est. cov vs read length requested, we need to create one for each sample
 
 	# calculate num of samples
@@ -203,13 +203,12 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 	# calculate a and b
 	a = len(plots_requested)
 	b = 0
-	if 'est_cov_vs_read_length' in plots_requested:
-		a -= 1
-		b = num_ss
 	if 'total_num_bases_vs_min_read_length' in plots_requested:
 		a -= 1
 		b += num_ss
-
+	if 'total_num_bases_vs_min_cov' in plots_requested:
+		a -= 1
+		b += num_ss
 	# calculate the number of samples that had ngx_calculations
 	if ngx_calculated:
 		b+=1
@@ -304,21 +303,7 @@ def create_report(output_prefix, preqclr_file, plots_requested):
 			extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
 			ax_png_file =  "./" + output_prefix + "/png/plot_per_read_GC_content.png"
 			temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
-	if 'est_cov_vs_read_length' in plots_requested:
-		for s in per_read_est_cov_and_read_length:
-			if ( num_ss > 1 and num_plots_fin%6 == 0 and num_plots_fin >= 6):
-				ax = subplots.pop(0)
-				plot_legend(ax, est_genome_sizes)
-				num_plots_fin+=1
-			ax = subplots.pop(0)
-			num_plots_fin+=1
-			ax_temp = plot_per_read_est_cov_vs_read_length(ax, per_read_est_cov_and_read_length, s, output_prefix)
-			if save_png:
-				temp_fig = ax_temp[0].get_figure()
-				extent = ax_temp[0].get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
-				ax_png_file = "./" + output_prefix + "/png/plot_est_cov_vs_read_length_" + s +".png"
-				temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
-	if 'total_num_bases_vs_min_read_length' in plots_requested:
+	if 'total_num_bases_vs_min_cov' in plots_requested:
 		for s in per_read_est_cov_and_read_length:
 			if ( num_ss > 1 and num_plots_fin%6 == 0 and num_plots_fin >= 6):
 				ax = subplots.pop(0)
