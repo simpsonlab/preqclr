@@ -1,7 +1,7 @@
 #
 
 # Sub directories containing source code, except for the main programs
-SUBDIRS := include src include/readpaf include/rapidjson/include include/zstr/src include/spoa 
+SUBDIRS := include src include/readpaf include/rapidjson/include include/zstr/src include/racon include/racon/vendor/bioparser include/racon/vendor/spoa include/racon/vendor/thread_pool include/racon/vendor/edlib 
 
 #
 # Set libraries, paths, flags and options
@@ -10,7 +10,7 @@ SUBDIRS := include src include/readpaf include/rapidjson/include include/zstr/sr
 #Basic flags every build needs
 LIBS = -lz 
 CXXFLAGS ?= -g -O3
-CXXFLAGS += -std=c++11  -march=native 
+CXXFLAGS += -std=c++11  
 CFLAGS ?= -O3 -std=c99
 CXX ?= g++
 CC ?= gcc

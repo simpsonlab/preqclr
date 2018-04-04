@@ -33,7 +33,9 @@ int paf_close(paf_file_t *pf)
 
 int paf_parse(int l, char *s, paf_rec_t *pr) // s must be NULL terminated
 { // on return: <0 for failure; 0 for success; >0 for filtered
-    char *q, *r;
+    char *q, *r, *dv;
+    char *endptr;
+    double x;
     int i, t;
     for (i = t = 0, q = s; i <= l; ++i) {
         if (i < l && s[i] != '\t') continue;
@@ -49,6 +51,7 @@ int paf_parse(int l, char *s, paf_rec_t *pr) // s must be NULL terminated
         else if (t == 8) pr->te = strtol(q, &r, 10);
         else if (t == 9) pr->ml = strtol(q, &r, 10);
         else if (t == 10) pr->bl = strtol(q, &r, 10);
+        else if (t == 15) pr->dv = strtod(q+5, &endptr); 
         ++t, q = i < l? &s[i+1] : 0;
     }
     if (t < 10) return -1;

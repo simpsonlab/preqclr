@@ -80,3 +80,4 @@ Seq reverseComplement(const Seq& s)
               complementBaseChar);
     return rc;
 }
+

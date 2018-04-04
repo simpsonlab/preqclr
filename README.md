@@ -32,6 +32,9 @@ To install from source:
 ```bash
 git clone --recursive https://github.com/simpsonlab/preqc-lr.git
 cd preqc-lr
+mkdir build
+cd build 
+cmake -DCMAKE_BUILD_TYPE=Release ..
 make
 
 # download report script dependencies
