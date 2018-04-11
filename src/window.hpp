@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <map>
 
 namespace spoa {
     class AlignmentEngine;
@@ -39,9 +40,19 @@ public:
         return rank_;
     }
 
+   const std::map<float,int>& allele_ratio() const {
+        return allele_ratio_;
+    }
+
     const std::string& consensus() const {
         return consensus_;
     }
+    
+    const std::string& msa_consensus() const {
+        return msa_consensus_;
+    }   
+  
+    std::map<float,int> allele_ratio_from_msa(std::vector<std::string> &msa, const char * depth, const char * percent_gaps);   
 
     bool generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment_engine);
 
@@ -62,6 +73,8 @@ private:
     uint32_t rank_;
     WindowType type_;
     std::string consensus_;
+    std::string msa_consensus_;
+    std::map<float,int> allele_ratio_;
     std::vector<std::pair<const char*, uint32_t>> sequences_;
     std::vector<std::pair<const char*, uint32_t>> qualities_;
     std::vector<std::pair<uint32_t, uint32_t>> positions_;

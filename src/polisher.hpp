@@ -11,7 +11,7 @@
 #include <memory>
 #include <unordered_map>
 #include <thread>
-
+#include <map>
 namespace bioparser {
     template<class T>
     class Parser;
@@ -49,7 +49,7 @@ public:
 
     void initialize();
 
-    void polish(std::vector<std::unique_ptr<Sequence>>& dst,
+    void polish(std::vector<std::unique_ptr<Sequence>>& dst, std::vector<std::map<float,int>> &allele_ratios,
         bool drop_unpolished_sequences);
 
     friend std::unique_ptr<Polisher> createPolisher(const std::string& sequences_path,

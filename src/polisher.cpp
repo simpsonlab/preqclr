@@ -431,7 +431,7 @@ void Polisher::initialize() {
     fprintf(stderr, "[racon::Polisher::initialize] transformed data into windows\n");
 }
 
-void Polisher::polish(std::vector<std::unique_ptr<Sequence>>& dst,
+void Polisher::polish(std::vector<std::unique_ptr<Sequence>>& dst, std::vector<std::map<float,int>>& allele_ratios,
     bool drop_unpolished_sequences) {
 
     std::vector<std::future<bool>> thread_futures;
@@ -454,12 +454,15 @@ void Polisher::polish(std::vector<std::unique_ptr<Sequence>>& dst,
 
     std::string polished_data = "";
     uint32_t num_polished_windows = 0;
+    //std::vector<std::map<float,int>> allele_ratios;     
 
     for (uint64_t i = 0; i < thread_futures.size(); ++i) {
         thread_futures[i].wait();
 
         num_polished_windows += thread_futures[i].get() == true ? 1 : 0;
         polished_data += windows_[i]->consensus();
+        //std::cout << windows_[i]->msa_consensus() << std::endl;
+        allele_ratios.emplace_back(windows_[i]->allele_ratio());
 
         if (i == windows_.size() - 1 || windows_[i + 1]->rank() == 0) {
             double polished_ratio = num_polished_windows /

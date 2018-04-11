@@ -1,3 +1,23 @@
+//---------------------------------------------------------
+// Copyright 2018 Ontario Institute for Cancer Research
+// Written by Joanna Pineda (joanna.pineda@oicr.on.ca)
+// Hamza Khan (Hamza.Khan@oicr.on.ca)
+//---------------------------------------------------------
+//
+// preqclr.cpp -- main program
+// calculates basic QC statistics
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include "Sequence.hpp"
+#include "polisher.hpp"
+#ifdef _OPENMP
+# include <omp.h>
+#endif
+#include "edlib.h"
 #include <algorithm>
 #include <chrono>
 #include <fstream>
@@ -31,6 +51,7 @@
 #include "rapidjson/prettywriter.h"
 #include "rapidjson/filereadstream.h"
 #include "rapidjson/filewritestream.h"
+#include <typeinfo>
 
 KSEQ_INIT(gzFile, gzread)
 
@@ -43,17 +64,203 @@ using namespace rapidjson;
 typedef PrettyWriter<StringBuffer> JSONWriter;
 typedef std::chrono::duration<float> fsec;
 
+namespace htzy
+{
+    //Vector to store n random reads 
+    vector <string> rreads;
+    //Map structure to store each PAF record
+    map<string, vector<sequence>> full_paf_records;     
+    //Map structure to store fastq records
+    map<string, string> parsed_fq;
+    //Map structure to store reads and target seqs to construct SPOA
+    map<string,vector<string>> seqs_for_spoa; 
+    //Map structure to store SPOA MSA for a read and its targets
+    map<string,vector<string>> read_msa;
+    //Map structure to store allele ratios
+    map<float,int> allele_ratio;
+}
+
 namespace opt
 {
+    unsigned nThrd=1;
     static unsigned int verbose;
+    static unsigned int htzgy;
     static string reads_file;
     static string paf_file;
     static string gfa_file = "";
     static string sample_name;
     static int rlen_cutoff = 0;
+    uint32_t window_length = 500;
+    double quality_threshold = 10.0;
+    double error_threshold = 0.3;
+    int8_t match = 5;
+    int8_t mismatch = -4;
+    int8_t gap = -8;
 }
 
 bool endFile = false;
+
+
+void allele_ratio_to_json(JSONWriter* writer){
+    writer->Key("allele_ratio");
+    writer->StartObject(); 
+    for( auto it = htzy::allele_ratio.begin(); it != htzy::allele_ratio.end(); it++){
+        float ratio = it->first;
+        int count = it->second;
+        writer->Key((to_string(ratio)).c_str()); 
+        writer->Int(count);  
+    } 
+    writer->EndObject();
+}
+
+
+vector<string> random_reads(int num, map<string, vector<sequence>> &temp_map){
+    /* 
+    ========================================================
+    Returns 'num' random reads from the given map structure of reads
+    --------------------------------------------------------
+    Input:      number of random reads; map of reads and sequence vector
+    Output:     Vector of strings containing random read IDs
+    ========================================================
+ 
+    */
+    vector <string> temp;
+    for(auto it = temp_map.begin(); it != temp_map.end(); ++it) {
+        temp.push_back((*it).first);
+    }
+    std::srand(std::time(0));
+    std::random_shuffle (temp.begin(), temp.end());
+    std::vector<string> ran_reads(temp.begin(), temp.begin() + num);
+    return ran_reads;
+    /*Testing OMP
+    std::vector<string> test_ran_reads = {"S1HapC_999", "S1HapA_1", "S1HapA_1002"};
+    return test_ran_reads;
+    */
+}
+
+
+void allele_ratio_from_msa(vector<string> &msa, const char * depth_threshold, const char * percent_gaps){
+    /* 
+    ===========================================================================
+    Calculate the allele ratio per column of an MSA
+    ----------------------------------------------------------------------------
+    Input:      MSA (vector of strings of equal length), depth threshold, percent 
+                allowed gap threshold in a column
+    Output:     Prints allele ratios and writes it to allele_ratio map structure
+    =============================================================================
+    */        
+    int MSA_len = (msa.front()).length();
+    vector<map<char, int>> allele_count;
+    //cout << "MSA_len" << MSA_len<<endl;
+    //cout << "Thread ID inside allele_ratio_from_msa = " << omp_get_thread_num() << endl;    
+
+    for (vector<string>::const_iterator v = msa.begin(); v != msa.end(); ++v){
+         //std::cout <<"SEQ = "<<*v << "\n";
+         assert ((*v).length()==MSA_len);
+        
+         //Store first and last occurence of ATGC to know true gaps
+         int first_found = (*v).find_first_of("ATGC");
+         int last_found = (*v).find_last_of("ATGC");         
+         //cout << "first_found = " << first_found << endl;
+         //cout << "last_found = " << last_found << endl;         
+
+         if(v==msa.begin()){
+             for (unsigned int q=0; q<MSA_len; q++){
+                 //cout << "q=" << q << endl;
+                 map<char, int> t;
+                 if(((*v).at(q))=='-' && q>=first_found && q<=last_found){
+                     //cout << "\nTrue gap "  << (*v).at(q) << endl;
+                     t.insert(pair<char,int>((*v).at(q),1));
+                     allele_count.push_back(t);
+                 }
+                 if( ( (((*v).at(q))=='-') && (q<first_found) ) || ( (((*v).at(q))=='-') && (q>last_found) )) {
+                     //cout << "False gap "  << (*v).at(q) << endl;
+                     t.insert(pair<char,int>((*v).at(q),0));                   
+                     allele_count.push_back(t);
+                 }
+                 if((((*v).at(q))!='-')) {
+                     //cout << "Char = " << (*v).at(q) << endl;
+                     t.insert(pair<char,int>((*v).at(q),1));
+                     allele_count.push_back(t);
+                 }
+             } 
+
+         }
+         else {
+             for (unsigned int q=first_found; q<=last_found; q++){
+             map<char, int> t;          
+             auto f = allele_count[q].find((*v).at(q));
+                 if ( f == allele_count[q].end() ) {
+                     allele_count[q][(*v).at(q)]=1;
+                 }
+                 else {
+                     allele_count[q][(*v).at(q)] +=1;  
+                 }            
+             }   
+         }
+
+    }
+    //cout << "\n\nallele_count.size() = " << allele_count.size() << endl;
+    
+    /*
+    Print the allele count vector
+    */     
+    int count = 0;
+    for (vector<map<char, int>>::const_iterator r = allele_count.begin(); r != allele_count.end(); ++r){ 
+         //cout << "POS = " << count << endl; count ++; 
+         pair<char,int> max_allele ('X', 0), second_max_allele('Y', 0);           
+         for(map<char, int>::const_iterator s = (*r).begin(); s!= (*r).end(); ++s){
+             //std::cout << s->first << " " << s->second << " ";
+             if((s->second > max_allele.second) && (s->second > second_max_allele.second) && (s->first!='-')){
+                 second_max_allele.first = max_allele.first; second_max_allele.second= max_allele.second;
+                 max_allele.first = s->first; max_allele.second= s->second;               
+                }
+             if((s->second <= max_allele.second) && (s->second > second_max_allele.second) && (s->first!='-') && (s->first!=max_allele.first)){
+                 second_max_allele.first = s->first; second_max_allele.second= s->second;
+                }              
+         }
+         //cout << "\nmax_allele = " << max_allele.first <<"="<< max_allele.second << endl;
+         //cout << "second_max_allele = " << second_max_allele.first <<"="<< second_max_allele.second << endl;
+         
+         
+         auto g = (*r).find('-');
+         if ( g == (*r).end()){
+             if ((msa.size()>=(atoi(depth_threshold))) &&  (second_max_allele.first!='X' && second_max_allele.first!='Y' 
+                  && max_allele.first!='X' && max_allele.first!='Y')){
+                  auto ntgar = roundf((float(max_allele.second)/float(second_max_allele.second+max_allele.second))*100)/100;
+                  //cout << "No true gaps, Allele Ratio=" << ntgar << endl;
+                  auto f = htzy::allele_ratio.find(ntgar);
+                  if ( f == htzy::allele_ratio.end() ) {
+                     htzy::allele_ratio[ntgar]=1;
+                   }
+                  else {
+                     htzy::allele_ratio[ntgar]+=1;
+                  }
+             
+              }          
+
+         }
+         else {
+              //cout << "Gaps ratio=" << roundf((float((*r).at('-'))/float(msa.size()))*100)/100  << endl;
+              if((float((*r).at('-'))/(float(msa.size())))<=((atof(percent_gaps))/100.00) && (msa.size()>=(atoi(depth_threshold))) && 
+                  (second_max_allele.first!='X' && second_max_allele.first!='Y' && max_allele.first!='X' && max_allele.first!='Y')){
+                  auto ar = roundf((float(max_allele.second)/float(second_max_allele.second+max_allele.second))*100)/100;
+                  //cout << "Allele Ratio=" << ar  << endl; 
+                  auto f = htzy::allele_ratio.find(ar);
+                  if ( f == htzy::allele_ratio.end() ) {
+                     htzy::allele_ratio[ar]=1;
+                   }
+                  else {
+                     htzy::allele_ratio[ar]+=1;
+                  }
+
+              } 
+         } 
+        // cout << endl;
+    }    
+}     
+     
+
 void out( string o )
 {
     // Let's handle the verbose option
@@ -76,6 +283,10 @@ int main( int argc, char *argv[])
     // in the global struct opts
     parse_args(argc, argv);
 
+    #ifdef _OPENMP
+    omp_set_num_threads(opt::nThrd);
+    #endif
+    
     // clear any previous log files with same name
     ofstream ofs;
     ofs.open( opt::sample_name + "_preqclr.log", ofstream::out | ios::trunc );
@@ -184,6 +395,24 @@ int main( int argc, char *argv[])
         out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
     }
 
+    //Calculate heterozygosity
+    run_racon(opt::reads_file.c_str(), opt::paf_file.c_str(),  opt::reads_file.c_str(), opt::window_length,
+                  opt::quality_threshold, opt::error_threshold, opt::match, opt::mismatch, opt::gap, opt::nThrd);
+
+
+    if(opt::htzgy == 1){
+        out("[ Calculating Heterozygosity ]");
+        swc = chrono::system_clock::now();
+        scpu = clock();
+        estimate_heterozygosity();   
+        allele_ratio_to_json(&writer);
+        ewc = chrono::system_clock::now();
+        ecpu = clock();
+        elapsedwc = ewc - swc;
+        elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
+        out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
+    }
+
     // convert JSON document to string and print
     string filename = opt::sample_name + ".preqclr";
 
@@ -240,22 +469,30 @@ void parse_args ( int argc, char *argv[])
     // getopt
     extern char *optarg;
     extern int optind, opterr, optopt;
-    const char* const short_opts = ":g:c:hvr:n:p:";
+    const char* const short_opts = "t:g:c:hvzr:n:p:d:w:q:e:m:x:l:";
     const option long_opts[] = {
         {"verbose",         no_argument,        NULL,   'v'},
+        {"threads",     required_argument,      NULL,   't' },
+        {"htzgy",           no_argument,        NULL,   'z'},
         {"version",         no_argument,        NULL,   OPT_VERSION},
         {"reads",           required_argument,  NULL,   'r'},
         {"sample_name", required_argument,  NULL,   'n'},
         {"paf",         required_argument,  NULL,   'p'},
         {"gfa",         required_argument,  NULL,   'g'},
+        {"window-length", required_argument, 0, 'w'},
+        {"quality-threshold", required_argument, 0, 'q'},
+        {"error-threshold", required_argument, 0, 'e'},
+        {"match", required_argument, 0, 'm'},
+        {"mismatch", required_argument, 0, 'x'},
+        {"gap", required_argument, 0, 'l'},
         {"help",            no_argument,    NULL,   'h'},
-        {"min_rlen",     required_argument,    NULL,   'l'},
+        {"rlen_cutoff",     required_argument,    NULL,   OPT_RLENCUTOFF},
         { NULL, 0, NULL, 0 }
     };
 
     static const char* PREQCLR_CALCULATE_VERSION_MESSAGE =
     "preqclr " SUBPROGRAM " version " VERSION "\n"
-    "Written by Joanna Pineda.\n"
+    "Written by Joanna Pineda and Hamza Khan.\n"
     "\n"
     "Copyright 2018 Ontario Institute for Cancer Research\n";
 
@@ -263,22 +500,38 @@ void parse_args ( int argc, char *argv[])
     "Usage: ./preqclr [OPTIONS] --sample_name ecoli --reads reads.fa --paf overlaps.paf --gfa layout.gfa \n"
     "Calculate information for preqclr report\n"
     "\n"
-    "    -v, --verbose		Display verbose output\n"
-    "        --version		Display version\n"
-    "    -r, --reads			Fasta, fastq, fasta.gz, or fastq.gz files containing reads\n"
-    "    -n, --sample_name		Sample name; we recommend using the name of species for example\n" 
-    "		               	This will be used as output prefix\n"
-    "    -p, --paf			Minimap2 Pairwise mApping Format (PAF) file \n"
-    "		                This is produced using \'minimap2 -x ava-ont sample.fasta sample.fasta\'\n"
-    "    -g, --gfa			Miniasm Graph Fragment Assembly (GFA) file\n"
-    "		                This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
-    "    -l, --min_rlen=INT		Use overlaps with read lengths >= INT\n"
-    "\n"
-    "Report bugs to https://github.com/simpsonlab/preqclr/issues"
+    "-v, --verbose                      Display verbose output\n"
+    "    --version                      Display version\n"
+    "-r, --reads                        Fasta, fastq, fasta.gz, or fastq.gz files containing reads\n"
+    "-n, --sample_name                  Sample name; you can use the name of species for example (This will be used as an output prefix)\n"
+    "-p, --paf                          Minimap2 Pairwise mapping Format (PAF) file \n"
+    "                                   (This is produced using \'minimap2 -x ava-ont sample.fastq sample.fasta)\n"
+    "-g, --gfa                          Miniasm Graph Fragment Assembly (GFA) file\n"
+    "                                   This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
+    "    --rlen_cutoff=INT              Use overlaps with read lengths >= INT\n"
+    "-z, --htzgy                        Calculate heterozygosity\n"
+    "-t, --threads=N                    Use N parallel threads [1]\n"
+    "-l, --min_rlen=INT                 Use overlaps with read lengths >= INT\n"                                        
+    "\nHeterozygosity calculation options (Should be used along with the -z or --htzgy option):\n\n"
+    "-w, --window-length=INT            Size of window on which POA is performed[500]\n"
+    "-q, --quality-threshold=float      Threshold for average base quality of windows used in poa[10.0]\n"
+    "-e, --error-threshold=float        Maximum allowed error rate used for filtering overlaps[0.3]\n"
+    "-m, --match=INT                    Score for matching bases[5]\n"
+    "-x, --mismatch=INT                 Score for mismatching bases[4]\n"
+    "-l, --gap=INT                      Gap penalty (must be negative)[-8]\n"
+    
     "\n";
 
     int rflag=0, nflag=0, pflag=0, gflag=0, verboseflag=0, versionflag=0;
     int c;
+    uint32_t window_length = 500;
+    double quality_threshold = 10.0;
+    double error_threshold = 0.3;
+
+    int8_t match = 5;
+    int8_t mismatch = -4;
+    int8_t gap = -8;
+
     while ( (c = getopt_long(argc, argv, short_opts, long_opts, NULL)) != -1 ) {
     // getopt will loop through arguments, returns -1 when end of options, and store current arg in optarg
     // if optarg is not null, keep as optarg else ""
@@ -286,6 +539,12 @@ void parse_args ( int argc, char *argv[])
     switch(c) {
         case 'v':
             opt::verbose = 1; // set verbose flag
+            break;
+        case 'z':
+            opt::htzgy = 1; // set verbose flag
+            break;
+        case 't':
+            arg >> opt::nThrd;
             break;
         case OPT_VERSION:
             cout << PREQCLR_CALCULATE_VERSION_MESSAGE << endl;
@@ -326,21 +585,33 @@ void parse_args ( int argc, char *argv[])
             gflag = 1;
             arg >> opt::gfa_file;
             break;
+        case 'w':
+            window_length = atoi(optarg);
+            break;
+        case 'q':
+            quality_threshold = atof(optarg);
+            break;
+        case 'e':
+            error_threshold = atof(optarg);
+            break;
+        case 'm':
+            match = atoi(optarg);
+            break;
+        case 'x':
+            mismatch = atoi(optarg);
+            break;
+        case 'l':
+            gap = atoi(optarg);
+            break;
         case 'h':
             cout << PREQCLR_CALCULATE_USAGE_MESSAGE << endl;
             exit(0);
-        case 'l':
+        case OPT_RLENCUTOFF:
             arg >> opt::rlen_cutoff;
             break;
         case ':':
-            if (optopt == 'c') {
-                fprintf(stderr, "./preqclr: option `-%c' is missing a required argument\n", optopt);
-            } else if(isprint(optopt)) {
-                fprintf(stderr, "./preqclr: option `-%c' is missing a required argument\n",optopt);
-            } else {
-                fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
-            }
-                fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
+            fprintf(stderr, "./preqclr: option `-%c' is missing a required argument\n", optopt);
+            fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
             exit(1);
         case '?':
             // invalid option: getopt_long already printed an error message
@@ -387,6 +658,7 @@ map<string, sequence> parse_paf()
     }
     d = sd_init();
     set<string> hits;
+
     map<string, sequence> paf_records;
     string prev_ol = "start";
     while (paf_read(fp, &r) >= 0) { 
@@ -421,6 +693,7 @@ map<string, sequence> parse_paf()
             unsigned int tprefix_len = tstart;
             unsigned int tsuffix_len = tlen - tend - 1;
 
+      
             // calculate overlap length, we need to take into account minimap2's softclipping
             int left_clip = 0, right_clip = 0;
             if ( ( qstart != 0 ) && ( tstart != 0 ) ){
@@ -429,15 +702,31 @@ map<string, sequence> parse_paf()
                 } else {
                     left_clip += min(qprefix_len, tsuffix_len);
                 }
-             }
+            }
             if ( ( qend != 0 ) && ( tend != 0 ) ){
                 if ( strand == 0 ) {
                     right_clip += min(qsuffix_len, tsuffix_len);
                 } else {
                     right_clip += min(qsuffix_len, tprefix_len);
                 }  
-             }
-             
+            }
+                            
+                              
+            //Declare two sequence objects, one for query and one for target record    
+            sequence qrec;
+            sequence trec;
+            qrec.set_paf(qname,tname,qlen,qstart,qend,strand,tlen,tstart,tend);
+            trec.set_paf(tname,qname,tlen,tstart,tend,strand,qlen,qstart,qend);
+            //cout << "prec.qname = " << prec.qname << endl;
+            //cout << "prec.strand = " << prec.strand << endl;
+            //cout << "prec.tname = " << prec.tname << endl;
+            //cout << "prec.qlen = " << prec.qlen << endl;
+            //cout << "prec.qstart = " << prec.qstart << endl;
+            //cout << "prec.qend = " << prec.qend << endl;
+         
+            htzy::full_paf_records[qname].push_back(qrec);
+            htzy::full_paf_records[tname].push_back(trec);
+                        
             // calculate coverage per read               
             // add this information to paf_records dictionary
             auto i = paf_records.find(qname);
@@ -468,6 +757,16 @@ map<string, sequence> parse_paf()
         }
    //   } //temp brack
     }
+   /** Print full_paf_records
+   for(auto it = full_paf_records.begin(); it != full_paf_records.end(); ++it) {
+       std::cout << (*it).first << "\n";
+       for(auto it2 = 0; it2 < (*it).second.size(); ++it2)
+           cout << (*it).second[it2].tname << " ";
+       cout <<"\n";
+   }
+   */
+
+   htzy::rreads = random_reads(1000, htzy::full_paf_records);
 
    // XXXXXXXXXXXXXXXXXXX
    // DEBUGGING ZONE
@@ -612,6 +911,7 @@ vector <pair< double, int >> parse_fq( string file )
     while (kseq_read(seq) >= 0) {
          string id = seq->name.s;
          string sequence = seq->seq.s;
+         htzy::parsed_fq[id] = sequence;
          int r_len = sequence.length();
          int gc = 0;
          // only read 40% of sequences
@@ -645,79 +945,12 @@ void calculate_GC_content( vector <pair< double, int >> fq, JSONWriter* writer )
 
     writer->Key("read_counts_per_GC_content");
     writer->StartArray();
-    map<double, int> freq; // store counts for each GC content 
-    int max = 0;
-    double mode = 0.0;
     for (auto &r : fq) {
          if ( r.first != 0 ) {
              writer->Double(r.first);
-             auto i = freq.find(round(r.first * 10.0)/10.0); // round to nearest 100th decimal place
-             if ( i == freq.end() ){ 
-                 freq.insert(make_pair(round(r.first*10.0)/10.0, 1));
-             } else {
-                 i->second+=1;
-                 if ( i->second > max ){
-                     max = i->second;
-                     mode = i->first;
-                 }
-             }
          }
     }
     writer->EndArray();
-    writer->Key("peak_GC_content");
-    writer->Double(mode);
-}
-
-void calculate_total_num_bases_vs_min_cov( map<double, long long int, greater<double>> cov_info, JSONWriter* writer ) {
-    /*
-    ========================================================
-    Calculate total number of bases per min cov
-    --------------------------------------------------------
-    Calculate the total number of bases at varying min
-    cov cut-offs
-    Input:     sorted in desc by cov, tot bases per cov dict
-    Output:    tot bases per min cov
-    ========================================================
-    */
-    writer->Key("total_num_bases_vs_min_cov");
-    writer->StartObject();
-    long long int tot_bases = 0;
-    for (auto &c : cov_info) {
-         tot_bases += c.second;
-         string key = to_string( c.first );
-         writer->Key(key.c_str());
-         writer->Int(tot_bases);
-    }
-    writer->EndObject();
-}
-
-void calculate_median_cov_vs_min_read_length( vector <pair<double, int>> covs, JSONWriter* writer ) {
-    /*
-    ========================================================
-    Calculate total number of bases per min cov
-    --------------------------------------------------------
-    Calculate the total number of bases at varying min
-    cov cut-offs
-    Input:     sorted in desc by cov, tot bases per cov dict
-    Output:    tot bases per min cov
-    ========================================================
-    */
-    // sort by descending read length
-    sort(covs.begin(), covs.end(), [](const pair<double,int> &left, const pair<double,int> &right) { return left.second > right.second; });
-
-    writer->Key("median_cov_vs_min_read_length");
-    writer->StartObject();
-    double median_cov = 0;
-    int i = 0;   // index of current read length
-    int i50 = 0; // 50% 
-    for (auto &c : covs) {
-         string key = to_string( c.second );
-         writer->Key(key.c_str());
-         writer->Double(covs[i50].first);
-         i+=1;
-         i50 = floor(double(i)/2);
-    }
-    writer->EndObject();
 }
 
 double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWriter* writer )
@@ -743,7 +976,6 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     long long sum_len = 0;
     long double sum_cov = 0;
     int tot_reads = 0;
-    map<double,long long int, greater<double>> per_cov_total_num_bases;
     for( auto it = paf.begin(); it != paf.end(); it++)
     {
         string id = it->first;
@@ -757,25 +989,18 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
         sum_cov += r_cov;
         tot_reads += 1;
         sum_len += r_len;
-
-        // save total bases for each coverage level
-        auto j = per_cov_total_num_bases.find(round(r_cov));
-        if ( j == per_cov_total_num_bases.end() ){
-            per_cov_total_num_bases.insert(pair<double, long long int>(round(r_cov), r_len));
-        } else {
-            j->second += r_len;
-        }
     }
     writer->EndObject();
 
-    // write total number of bases vs min cov to json
-    calculate_total_num_bases_vs_min_cov(per_cov_total_num_bases, writer);
-
-    // calculate median coverage vs min read length
-    calculate_median_cov_vs_min_read_length(covs, writer);
     // calculate IQR to use as limits in plotting script
     // sort the estimated coverages
     sort(covs.begin(), covs.end());
+
+    /**Print Covs 
+    cout <<"PRINTING Covs" << endl;
+    for (std::vector<double>::const_iterator i = covs.begin(); i != covs.end(); ++i)
+    std::cout << *i << ' ';
+    */ 
 
     // get the index of the 25th and 75th percentile item
     int i25 = ceil(covs.size() * 0.25);
@@ -790,39 +1015,13 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     long double sum_cov_f = 0;
     int tot_reads_f = 0;
     vector<double> covs_f;
-    // the following are used to get the mode of distribution
-    // we bin the reads by coverage incrementing by 0.25x
-    // we start binning from the lowest value of cov calculated
-    double l = covs[0].first;
-    double u = covs[0].first + 0.25;
-    double curr_largest = -1000.0;
-    double mode_cov = 0;
-    int count = 0;
-    int i = 0;
-    while ( i < covs.size() ){ // iterate through reads
-        // look at reads that fall within current bin
-        while ( covs[i].first >= l && covs[i].first < u ) { 
-            // filter outliers: [Q25-IQR*1.5, Q75+IQR*1.5]
-            if ( (covs[i].first >= lowerbound) && (covs[i].first <= upperbound) ) {
-                // count how many reads have coverage in current bin
-                count += 1;
-                tot_reads_f += 1;
-                sum_len_f += covs[i].second;
-                sum_cov_f += covs[i].first;
-                covs_f.push_back(covs[i].first);
-            }
-            i += 1;
-        }
-    //    cout << u << ": " << count << "\n";
-        // if this bin has the most amount of reads, the coverage is the mode
-        if ( count > curr_largest ) {
-            curr_largest = count;
-            mode_cov = u;
-        }
-        // next bin 
-        u += 0.25;
-        l += 0.25;
-        count = 0;
+    for ( auto c : covs ) {
+        if ( c.first >= lowerbound && c.first <= upperbound ) {
+            tot_reads_f += 1;
+            sum_len_f += c.second;
+            sum_cov_f += c.first; 
+            covs_f.push_back(c.first);
+        }   
     }
  
     // get the mean read length
@@ -858,12 +1057,6 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     writer->Key("median_cov");
     writer->Double(median_cov);
 
-    writer->Key("mode_cov");
-    writer->Double(mode_cov);
-
-    writer->Key("peak_cov");
-    writer->Double(round(mode_cov*100.0)/100.0);
-
     writer->Key("tot_reads");
     writer->Int(tot_reads_f);
 
@@ -892,3 +1085,153 @@ void calculate_read_length( vector<pair<double, int>> fq, JSONWriter* writer)
     writer->EndArray();
 }
 
+void estimate_heterozygosity(){
+        /*
+    ========================================================
+    Estimating heterozygosity
+    --------------------------------------------------------
+    For each read in the PAF file generate SPOA MSA and calculate 
+    allele ratio while considering cutoffs
+    Input:      - 
+    Output:     File with allele ratio for each column
+    ========================================================
+    */
+   
+    //cout << "Random reads total= " <<htzy::rreads.size() << endl;
+    #pragma omp parallel for schedule(guided) shared (htzy::full_paf_records, htzy::parsed_fq, htzy::read_msa, htzy::allele_ratio)       
+    for(auto it = 0; it < htzy::rreads.size(); ++it){
+        //cout <<"\nRead = "<< htzy::rreads[it] << " \n";
+        //cout << "Thread ID  = " << omp_get_thread_num() << endl;
+        vector <int> qstarts, qends;
+        vector <string> subreads;
+        string qn;
+        for (auto it2 = 0; it2 < htzy::full_paf_records[htzy::rreads[it]].size(); ++it2){
+            qn = htzy::full_paf_records[htzy::rreads[it]][it2].qname;
+            string tn = htzy::full_paf_records[htzy::rreads[it]][it2].tname;          
+            unsigned int qs = htzy::full_paf_records[htzy::rreads[it]][it2].qstart;
+            unsigned int qe = htzy::full_paf_records[htzy::rreads[it]][it2].qend;
+            unsigned int ts = htzy::full_paf_records[htzy::rreads[it]][it2].tstart;
+            unsigned int te = htzy::full_paf_records[htzy::rreads[it]][it2].tend;
+            unsigned int ql = htzy::full_paf_records[htzy::rreads[it]][it2].qlen;
+            unsigned int tl = htzy::full_paf_records[htzy::rreads[it]][it2].tlen;
+            unsigned int sd = htzy::full_paf_records[htzy::rreads[it]][it2].strand;
+
+            //cout << qn <<" " << ql << " "<< qs <<" "<< qe <<" "<<tn <<" "<< tl<<" "<< ts <<" "<< te <<" "<<sd << endl;
+            //string test = "CATAAAAGAACG";
+            //string rctest = reverseComplement(test);
+            //cout <<"String = " << test << " Reverse Comp = "<< rctest <<endl;  
+          
+            qstarts.push_back(qs);
+            qends.push_back(qe);
+            //cout <<"Target read is = " << htzy::parsed_fq[tn] << "\nSize of read is = " << htzy::parsed_fq[tn].size()<< endl;
+            //cout << "Substr start = "<< ts << ", Substr to =" << (te-ts+1)<< endl;
+            //cout << "Substr string is = " <<htzy::parsed_fq[tn].substr(ts,(te-ts+1)) << endl;
+            if(sd==0)
+                subreads.push_back(htzy::parsed_fq[tn].substr(ts,(te-ts+1))); 
+            else
+                subreads.push_back(reverseComplement(htzy::parsed_fq[tn].substr(ts,(te-ts+1))));
+                
+        }
+                 
+        auto min_qstart = *min_element(std::begin(qstarts), std::end(qstarts)); 
+        auto max_qend = *max_element(std::begin(qends), std::end(qends));
+        //cout <<"min_qstart = " << min_qstart << " , max_qend =" << max_qend<<endl;
+        subreads.push_back((htzy::parsed_fq[qn]).substr(min_qstart,(max_qend-min_qstart)));  
+        vector<string> msa = calculate_heterozygosity(subreads, const_cast<char*>("5"), const_cast<char*>("-4"),\
+        const_cast<char*>("-8"), const_cast<char*>("-6"), const_cast<char*>("0"));
+        htzy::read_msa[qn] = msa;
+        allele_ratio_from_msa(msa, const_cast<char*>("20"), const_cast<char*>("10"));
+    }
+    
+}
+
+
+vector<std::string> calculate_heterozygosity( vector<string> &sequences, const char * a, const char * b, const char * c, const char * d, const char * e) {
+    /*
+    ========================================================
+    Calculate SPOA MSA from a set of reads
+    --------------------------------------------------------
+    Input:      Set of reads/strings, score for matching bases
+                score for mis-matching bases, gap-open penalty, gap-extend penalty,
+                alignment mode: 0 - local, 1 - global, 2 - semi-global
+    Output:     Prints MSA to stdout
+                Returns MSA in the form of vector of strings
+    ========================================================
+    */
+
+     /*std::vector<std::string> sequences = {
+            "CATAAAAGAACGTAGGTCGCCCGTCCGTAACCTGTCGGATCACCGGAAAGGACCCGTAAAGTGATAATGAT",
+            "ATAAAGGCAGTCGCTCTGTAAGCTGTCGATTCACCGGAAAGATGGCGTTACCACGTAAAGTGATAATGATTAT",
+            "ATCAAAGAACGTGTAGCCTGTCCGTAATCTAGCGCATTTCACACGAGACCCGCGTAATGGG",
+            "CGTAAATAGGTAATGATTATCATTACATATCACAACTAGGGCCGTATTAATCATGATATCATCA",
+            "GTCGCTAGAGGCATCGTGAGTCGCTTCCGTACCGCAAGGATGACGAGTCACTTAAAGTGATAAT",
+            "CCGTAACCTTCATCGGATCACCGGAAAGGACCCGTAAATAGACCTGATTATCATCTACAT"
+     };*/
+     //cout << "Thread ID inside calulate_heterozygosity = " << omp_get_thread_num() << endl;
+     //auto params = SPOA::AlignmentParams(atoi(a), atoi(b), atoi(c),
+       //  atoi(d), (SPOA::AlignmentType) atoi(e));
+
+     //std::string consensus = SPOA::generate_consensus(sequences, params, true);
+
+     //fprintf(stderr, "Consensus (%zu)\n", consensus.size());
+     //fprintf(stderr, "%s\n", consensus.c_str());
+
+     std::vector<std::string> msa;
+     //SPOA::generate_msa(msa, sequences, params, true);
+     
+     /*
+     fprintf(stderr, "Multiple sequence alignment\n");
+     for (const auto& it: msa) {
+        fprintf(stderr, "%s\n", it.c_str());
+     }
+     */
+     return msa;
+        
+}
+
+void run_racon(const std::string& sequences_path,const std::string& overlaps_path, const std::string& target_path,
+int32_t window_length, double quality_threshold, double error_threshold,int8_t match,int8_t mismatch,int8_t gap, int num_threads){
+
+    cout << "Inside run_racon" << endl;
+    bool drop_unpolished_sequences = true;
+    auto polisher = racon::createPolisher(sequences_path, overlaps_path,
+        target_path, racon::PolisherType::kF, window_length, quality_threshold,
+        error_threshold, match, mismatch, gap, num_threads);
+
+    polisher->initialize();
+
+    std::vector<std::unique_ptr<racon::Sequence>> polished_sequences;
+    std::vector<std::map<float,int>> ar;
+    polisher->polish(polished_sequences, ar, drop_unpolished_sequences);
+    /*
+    for (const auto& it: polished_sequences) {
+        fprintf(stdout, ">%s\n%s\n", it->name().c_str(), it->data().c_str());
+    }
+    */
+    std::map<float,int> final_allele_ratio;
+    for(auto it = ar.begin(); it != ar.end(); ++it) {
+        for( auto si = (*it).begin(); si != (*it).end(); si++) {
+           auto j = (final_allele_ratio).find(si->first);
+           if ( j == final_allele_ratio.end()){
+               final_allele_ratio[si->first] = si->second;
+           }
+           else{
+               final_allele_ratio[si->first]+= si->second;    
+           }
+         //fprintf(stdout, ">%s,%s\n", si->first().c_str(), si->second().c_str());
+       }
+
+    }
+
+    for( auto si =  final_allele_ratio.begin(); si !=  final_allele_ratio.end(); si++) {
+           cout << si->first <<","<< si->second << endl;
+    }
+
+
+//    for (const auto& it: ar) {
+//         for(const auto& si: (*it)){
+//            fprintf(stdout, ">%s,%s\n", si->first().c_str(), si->second().c_str());
+//         }
+ //   }
+
+}

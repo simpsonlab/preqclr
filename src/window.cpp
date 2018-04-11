@@ -6,12 +6,26 @@
 
 #include <algorithm>
 
+#include <map>
+#include <stdio.h>
+#include <iostream>
 #include "window.hpp"
-
+#include <vector>
+#include <string>
+#include <assert.h>
 #include "spoa/spoa.hpp"
+/*
+namespace htzy
+{
+    //Map structure to store allele ratios
+    std::map<float,int> allele_ratio;
+}
+*/
 
 namespace racon {
 
+//std::map<float,int> allele_ratio;
+  
 std::unique_ptr<Window> createWindow(uint64_t id, uint32_t rank, WindowType type,
     const char* backbone, uint32_t backbone_length, const char* quality,
     uint32_t quality_length) {
@@ -28,7 +42,7 @@ std::unique_ptr<Window> createWindow(uint64_t id, uint32_t rank, WindowType type
 
 Window::Window(uint64_t id, uint32_t rank, WindowType type, const char* backbone,
     uint32_t backbone_length, const char* quality, uint32_t quality_length)
-        : id_(id), rank_(rank), type_(type), consensus_(), sequences_(),
+        : id_(id), rank_(rank), type_(type), consensus_(), msa_consensus_(), allele_ratio_(), sequences_(),
         qualities_(), positions_() {
 
     sequences_.emplace_back(backbone, backbone_length);
@@ -57,6 +71,135 @@ void Window::add_layer(const char* sequence, uint32_t sequence_length,
     qualities_.emplace_back(quality, quality_length);
     positions_.emplace_back(begin, end);
 }
+
+
+
+std::map<float,int> Window::allele_ratio_from_msa(std::vector<std::string> &msa, const char * depth_threshold, const char * percent_gaps){
+    /* 
+    ===========================================================================
+    Calculate the allele ratio per column of an MSA
+    ----------------------------------------------------------------------------
+    Input:      MSA (vector of strings of equal length), depth threshold, percent 
+                allowed gap threshold in a column
+    Output:     Prints allele ratios and writes it to allele_ratio map structure
+    =============================================================================
+    */        
+    //std::cout << "Inside allele ratio from msa"  << std::endl;
+    int MSA_len = (msa.front()).length();
+    std::map<float,int> allele_ratio;
+    std::vector<std::map<char, int>> allele_count;
+    //cout << "MSA_len" << MSA_len<<endl;
+    //cout << "Thread ID inside allele_ratio_from_msa = " << omp_get_thread_num() << endl;    
+
+    for (std::vector<std::string>::const_iterator v = msa.begin(); v != msa.end(); ++v){
+         //std::cout <<"SEQ = "<<*v << "\n";
+         assert ((*v).length()==MSA_len);
+        
+         //Store first and last occurence of ATGC to know true gaps
+         int first_found = (*v).find_first_of("ATGC");
+         int last_found = (*v).find_last_of("ATGC");         
+         //cout << "first_found = " << first_found << endl;
+         //cout << "last_found = " << last_found << endl;         
+
+         if(v==msa.begin()){
+             for (unsigned int q=0; q<MSA_len; q++){
+                 //cout << "q=" << q << endl;
+                 std::map<char, int> t;
+                 if(((*v).at(q))=='-' && q>=first_found && q<=last_found){
+                     //cout << "\nTrue gap "  << (*v).at(q) << endl;
+                     t.insert(std::pair<char,int>((*v).at(q),1));
+                     allele_count.push_back(t);
+                 }
+                 if( ( (((*v).at(q))=='-') && (q<first_found) ) || ( (((*v).at(q))=='-') && (q>last_found) )) {
+                     //cout << "False gap "  << (*v).at(q) << endl;
+                     t.insert(std::pair<char,int>((*v).at(q),0));                   
+                     allele_count.push_back(t);
+                 }
+                 if((((*v).at(q))!='-')) {
+                     //cout << "Char = " << (*v).at(q) << endl;
+                     t.insert(std::pair<char,int>((*v).at(q),1));
+                     allele_count.push_back(t);
+                 }
+             } 
+
+         }
+         else {
+             for (unsigned int q=first_found; q<=last_found; q++){
+
+             std::map<char, int> t;          
+             auto f = allele_count[q].find((*v).at(q));
+                 if ( f == allele_count[q].end() ) {
+                     allele_count[q][(*v).at(q)]=1;
+                 }
+                 else {
+                     allele_count[q][(*v).at(q)] +=1;  
+                 }            
+             }   
+         }
+
+    }
+    //cout << "\n\nallele_count.size() = " << allele_count.size() << endl;
+    
+    /*
+    Print the allele count vector
+    */     
+    int count = 0;
+    for (std::vector<std::map<char, int>>::const_iterator r = allele_count.begin(); r != allele_count.end(); ++r){ 
+         //cout << "POS = " << count << endl; count ++; 
+         std::pair<char,int> max_allele ('X', 0), second_max_allele('Y', 0);           
+         for(std::map<char, int>::const_iterator s = (*r).begin(); s!= (*r).end(); ++s){
+             //std::cout << s->first << " " << s->second << " ";
+             if((s->second > max_allele.second) && (s->second > second_max_allele.second) && (s->first!='-')){
+                 second_max_allele.first = max_allele.first; second_max_allele.second= max_allele.second;
+                 max_allele.first = s->first; max_allele.second= s->second;               
+                }
+             if((s->second <= max_allele.second) && (s->second > second_max_allele.second) && (s->first!='-') && (s->first!=max_allele.first)){
+                 second_max_allele.first = s->first; second_max_allele.second= s->second;
+                }              
+         }
+         //cout << "\nmax_allele = " << max_allele.first <<"="<< max_allele.second << endl;
+         //cout << "second_max_allele = " << second_max_allele.first <<"="<< second_max_allele.second << endl;
+         
+         
+         auto g = (*r).find('-');
+         if ( g == (*r).end()){
+             if ((msa.size()>=(atoi(depth_threshold))) &&  (second_max_allele.first!='X' && second_max_allele.first!='Y' 
+                  && max_allele.first!='X' && max_allele.first!='Y')){
+                  auto ntgar = roundf((float(max_allele.second)/float(second_max_allele.second+max_allele.second))*100)/100;
+                  //std::cout << "No true gaps, Allele Ratio=" << ntgar << std::endl;
+                  auto f = allele_ratio.find(ntgar);
+                  if ( f == allele_ratio.end() ) {
+                     allele_ratio[ntgar]=1;
+                   }
+                  else {
+                     allele_ratio[ntgar]+=1;
+                  }
+             
+              }          
+
+         }
+         else {
+              //cout << "Gaps ratio=" << roundf((float((*r).at('-'))/float(msa.size()))*100)/100  << endl;
+              if((float((*r).at('-'))/(float(msa.size())))<=((atof(percent_gaps))/100.00) && (msa.size()>=(atoi(depth_threshold))) && 
+                  (second_max_allele.first!='X' && second_max_allele.first!='Y' && max_allele.first!='X' && max_allele.first!='Y')){
+                  auto ar = roundf((float(max_allele.second)/float(second_max_allele.second+max_allele.second))*100)/100;
+                  //std::cout << "Allele Ratio=" << ar  << std::endl; 
+                  auto f = allele_ratio.find(ar);
+                  if ( f == allele_ratio.end() ) {
+                     allele_ratio[ar]=1;
+                   }
+                  else {
+                     allele_ratio[ar]+=1;
+                  }
+
+              } 
+         } 
+        // cout << endl;
+    }    
+  return allele_ratio;
+} 
+
+
 
 bool Window::generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment_engine) {
 
@@ -112,11 +255,14 @@ bool Window::generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment
     
     std::vector<std::string> msa;
     graph->generate_multiple_sequence_alignment(msa);
+    msa_consensus_ = msa.at(0);    
+    allele_ratio_ = allele_ratio_from_msa(msa, const_cast<char*>("20"), const_cast<char*>("10"));
+    /*
     fprintf(stdout, "Multiple sequence alignment\n");
     for (const auto& it: msa) {
         fprintf(stdout, "%s\n", it.c_str());
         }  
-
+    */
 
     if (type_ == WindowType::kTGS) {
         uint32_t average_coverage = (sequences_.size() - 1) / 2;
