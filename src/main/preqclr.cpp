@@ -59,6 +59,8 @@ namespace opt
     static string gfa_file = "";
     static string sample_name;
     static int rlen_cutoff = 0;
+    static bool filter_high_cov = true;
+    static bool filter_low_cov = true;
 }
 
 bool endFile = false;
@@ -258,6 +260,8 @@ void parse_args ( int argc, char *argv[])
         {"gfa",         required_argument,  NULL,   'g'},
         {"help",            no_argument,    NULL,   'h'},
         {"min_rlen",     required_argument,    NULL,   'l'},
+        {"keep_low_cov",     no_argument,    NULL,   OPT_KEEP_LOW_COV},
+        {"keep_high_cov",     no_argument,    NULL,   OPT_KEEP_HIGH_COV},
         { NULL, 0, NULL, 0 }
     };
 
@@ -281,6 +285,8 @@ void parse_args ( int argc, char *argv[])
     "    -g, --gfa			Miniasm Graph Fragment Assembly (GFA) file\n"
     "		                This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
     "    -l, --min_rlen=INT		Use overlaps with read lengths >= INT\n"
+    "        --keep_low_cov          Keep reads with low coverage (<= Q25 - IQR*1.25) for genome size est. calculations \n" 
+    "        --keep_high_cov         Keep reads with high coverage (>= Q75 + IQR*1.25) for genome size est. calculations \n"
     "\n"
     "Report bugs to https://github.com/simpsonlab/preqclr/issues"
     "\n";
@@ -340,6 +346,12 @@ void parse_args ( int argc, char *argv[])
         case 'l':
             arg >> opt::rlen_cutoff;
             break;
+        case OPT_KEEP_LOW_COV:
+            opt::filter_low_cov = false;
+            break;
+        case OPT_KEEP_HIGH_COV:
+            opt::filter_high_cov = false;
+            break;
         case ':':
             if (optopt == 'c') {
                 fprintf(stderr, "./preqclr: option `-%c' is missing a required argument\n", optopt);
@@ -352,7 +364,11 @@ void parse_args ( int argc, char *argv[])
             exit(1);
         case '?':
             // invalid option: getopt_long already printed an error message
-            fprintf(stderr, "./preqclr: option `-%c' is invalid: ignored\n", optopt);
+            if(isprint(optopt)) {
+                fprintf(stderr, "./preqclr: option `-%c' is invalid thus ignored\n",optopt);
+            } else {
+                fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
+            }
             break;
         }
     }
@@ -792,6 +808,13 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     double bd = IQR*1.5;
     double upperbound = round(double(covs[i75].first) + bd);
     double lowerbound = round(double(covs[i25].first) - bd);
+    if ( !opt::filter_low_cov ) {
+        lowerbound = -1;
+    }
+    if ( !opt::filter_high_cov ) {
+        upperbound = 100000000000;
+    }
+
 
     // filter outliers by cov: include reads with coverage [Q25-IQR*1.5, Q75+IQR*1.5]
     long long sum_len_f = 0;
@@ -841,7 +864,7 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     double median_cov = double(covs_f[i50]);
 
     // calculate estimated genome size
-    double est_genome_size = ( tot_reads_f * mean_read_len ) / median_cov;
+    double est_genome_size = ( tot_reads_f * mean_read_len ) / mode_cov;
 
     cout << "median cov: " << median_cov << endl;
     cout << "mean read length: " << mean_read_len << endl;
