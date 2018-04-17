@@ -447,9 +447,7 @@ n\n");
         if ( qname.compare(tname) == 0 ) { 
             // self-overlap: the same read
             badlines.push_back(ln);
-        } 
-
-        if ( opt::remove_dups ) {
+        } else if ( opt::remove_dups ) {
             // create a hashkey with lexicographically smallest combination of read names
             size_t hashkey = min(hash<string>{}(qname + tname), hash<string>{}(tname + qname));
             // check if we've seen this overlap between these two reads before
@@ -457,15 +455,17 @@ n\n");
             if (it != h.end()) {
                 // YES, duplicate detected
                 // let's compare the length of overlaps. We want the longer overlap.
-                int aln_len = int(r1.bl);
-                if ( it->second.first < aln_len ) {
-                    // if the prev. overlap between these 2 reads is shorter, we use the current line instead
-                    it->second.first = aln_len;
-                    // prev. overlap's line number is recorded as "bad". it will be skipped in second pass.
-                    badlines.push_back(it->second.second);
-                    it->second.second = ln;
+                int curr_aln_len = int(r1.bl);
+                int curr_ln = ln;
+                int prev_aln_len = int(it->second.first);
+                int prev_ln = int(it->second.second);
+                if ( curr_aln_len > prev_aln_len ) {
+                    // prev. overlap between these 2 reads is shorter, we use the current line instead
+                    // prev. overlap's line number is recorded as "bad". it will be skipped in second pass
+                    badlines.push_back(prev_ln);
+                    h[hashkey] = make_pair(curr_aln_len, curr_ln);
                 } else {
-                    badlines.push_back(ln);
+                    badlines.push_back(curr_ln);
                 }
             } else {
                 // First time we've seen this pair
@@ -490,7 +490,7 @@ n\n");
     }
     d = sd_init();
     map<string, sequence> paf_records;
-    int ln1 = 0;
+    int ln1 = 1;
     int iv = 0; // index in vector
     // the vector is sorted numerically
     // we can loop through the vector once by storing which is the next line to avoid
@@ -510,7 +510,7 @@ n\n");
             unsigned int tlen = r.tl;
             unsigned int tstart = r.ts;
             unsigned int tend = r.te;
-            cout << qname<< "," << tname << "," << qlen << ","  << qstart << "," << qend << "\n";
+
             // filter reads by read length
             if (( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff )) {
                 unsigned int qprefix_len = qstart;
@@ -562,7 +562,9 @@ n\n");
                     j->second.updateCov(cov);
                }
               }
-          } else if ( iv+1 < badlines.size() ) {
+          } else if ( iv < badlines.size()-1 ) {
+             // we have a bad line!
+             // next bad line to look out for:
              iv+=1;
              bad = int(badlines.at(iv));
           }
