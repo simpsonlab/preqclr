@@ -513,7 +513,7 @@ n\n");
             unsigned int tstart = r.ts;
             unsigned int tend = r.te;
 
-            cout << qname << "\t" << tname << "\t" << r.bl << "\t" << ln1 << "\t" << bad << "\n";
+            //cout << qname << "\t" << tname << "\t" << r.bl << "\t" << ln1 << "\t" << bad << "\n";
 
             // filter reads by read length
             if (( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff )) {
