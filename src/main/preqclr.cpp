@@ -59,6 +59,7 @@ namespace opt
     static string gfa_file = "";
     static string sample_name;
     static int rlen_cutoff = 0;
+    static bool remove_dups = false;
     static bool filter_high_cov = true;
     static bool filter_low_cov = true;
 }
@@ -262,6 +263,7 @@ void parse_args ( int argc, char *argv[])
         {"min_rlen",     required_argument,    NULL,   'l'},
         {"keep_low_cov",     no_argument,    NULL,   OPT_KEEP_LOW_COV},
         {"keep_high_cov",     no_argument,    NULL,   OPT_KEEP_HIGH_COV},
+        {"remove_dups",     no_argument,    NULL,   OPT_REMOVE_DUPS},
         { NULL, 0, NULL, 0 }
     };
 
@@ -287,6 +289,7 @@ void parse_args ( int argc, char *argv[])
     "    -l, --min_rlen=INT		Use overlaps with read lengths >= INT\n"
     "        --keep_low_cov          Keep reads with low coverage (<= Q25 - IQR*1.25) for genome size est. calculations \n" 
     "        --keep_high_cov         Keep reads with high coverage (>= Q75 + IQR*1.25) for genome size est. calculations \n"
+    "        --remove_dups           Remove duplicate overlaps. Between duplicate overlaps choose longest alignment. \n"
     "\n"
     "Report bugs to https://github.com/simpsonlab/preqclr/issues"
     "\n";
@@ -352,6 +355,9 @@ void parse_args ( int argc, char *argv[])
         case OPT_KEEP_HIGH_COV:
             opt::filter_high_cov = false;
             break;
+        case OPT_REMOVE_DUPS:
+            opt::remove_dups = true;
+            break;
         case ':':
             if (optopt == 'c') {
                 fprintf(stderr, "./preqclr: option `-%c' is missing a required argument\n", optopt);
@@ -398,7 +404,80 @@ void parse_args ( int argc, char *argv[])
 
 map<string, sequence> parse_paf()
 {
-    // read each line in paf file passed on by user
+    /*
+    ========================================================
+    Parse PAF (in 2 passes)
+    --------------------------------------------------------
+    In first pass, we note which lines/overlaps in the PAF
+    file we don't want to include.
+    In second pass, we read all "good" lines/overlaps and
+    perform necessary calculations (like cov, read length)
+    Input:    PAF file
+    Output:   Dictionary: (each entry is a read)
+              key = read id
+              value = read (cov, length)
+    ========================================================
+    */  
+
+    // PASS 1: note overlaps we do not want
+    string line1;
+    const char *c1 = opt::paf_file.c_str();
+    paf_file_t *fp1;
+    paf_rec_t r1;
+    sdict_t *d1;
+    fp1 = paf_open(c1);
+    if (!fp1) {
+        fprintf(stderr, "ERROR: PAF file failed to open. Check to see if it exists, is readable, and is non-empty.\
+n\n");
+        exit(1);
+    }
+    d1 = sd_init();
+    
+    // we need to filter self overlaps and duplicate overlaps
+    // self overlap: minimap2 reports an overlap between the same reads (i.e. when query read id == target read id in the PAF file)
+    // duplicate overlap: the same two reads are reported to overlap (i.e. when the same query read id and target read id pair are 
+    //                    seen in multiple lines in the PAF file)
+    vector<int> badlines; // stores all the lines we do not want
+    map<size_t, pair<int, int>> h; // stores all the hashed query read name + target read name pairs with line number and alignment length
+    int ln = 0; // current line number
+    while (paf_read(fp1, &r1) >= 0) {
+        string qname = r1.qn;
+        string tname = r1.tn;          
+        // check for self overlap
+        if ( qname.compare(tname) == 0 ) { 
+            // self-overlap: the same read
+            badlines.push_back(ln);
+        } 
+
+        if ( opt::remove_dups ) {
+            // create a hashkey with lexicographically smallest combination of read names
+            size_t hashkey = min(hash<string>{}(qname + tname), hash<string>{}(tname + qname));
+            // check if we've seen this overlap between these two reads before
+            auto it = h.find(hashkey);
+            if (it != h.end()) {
+                // YES, duplicate detected
+                // let's compare the length of overlaps. We want the longer overlap.
+                int aln_len = int(r1.bl);
+                if ( it->second.first < aln_len ) {
+                    // if the prev. overlap between these 2 reads is shorter, we use the current line instead
+                    it->second.first = aln_len;
+                    // prev. overlap's line number is recorded as "bad". it will be skipped in second pass.
+                    badlines.push_back(it->second.second);
+                    it->second.second = ln;
+                } else {
+                    badlines.push_back(ln);
+                }
+            } else {
+                // First time we've seen this pair
+                int aln_len = int(r1.bl);
+                h.insert(make_pair(hashkey, make_pair(aln_len, ln)));
+            }
+        }
+        ln+=1; // read next line
+    }
+    h.clear(); // free up memory
+
+    // PASS 2: read each line in PAF file that has NOT been noted in PASS 1 as a "bad" line
     string line;
     const char *c = opt::paf_file.c_str();
     paf_file_t *fp;
@@ -410,98 +489,95 @@ map<string, sequence> parse_paf()
         exit(1);
     }
     d = sd_init();
-    set<string> hits;
     map<string, sequence> paf_records;
-    string prev_ol = "start";
+    int ln1 = 0;
+    int iv = 0; // index in vector
+    // the vector is sorted numerically
+    // we can loop through the vector once by storing which is the next line to avoid
+    // once we have reached this line, we can move on to the next bad line and
+    // look out for that one while going through the next lines
+    int bad = int(badlines.at(iv)); // first bad line to watch out for
+    // read good lines in PAF
     while (paf_read(fp, &r) >= 0) { 
-        // read each line/overlap and save each column into variable
-        string qname = r.qn;
-        string tname = r.tn;
-        unsigned int qlen = r.ql;
-        unsigned int qstart = r.qs;
-        unsigned int qend = r.qe;
-        unsigned int strand = r.rev;
-        unsigned int tlen = r.tl;
-        unsigned int tstart = r.ts;
-        unsigned int tend = r.te;
+        if ( ln1 < bad ) {
+            // read each line/overlap and save each column into variable
+            string qname = r.qn;
+            string tname = r.tn;
+            unsigned int qlen = r.ql;
+            unsigned int qstart = r.qs;
+            unsigned int qend = r.qe;
+            unsigned int strand = r.rev;
+            unsigned int tlen = r.tl;
+            unsigned int tstart = r.ts;
+            unsigned int tend = r.te;
+            cout << qname<< "," << tname << "," << qlen << ","  << qstart << "," << qend << "\n";
+            // filter reads by read length
+            if (( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff )) {
+                unsigned int qprefix_len = qstart;
+                unsigned int qsuffix_len = qlen - qend - 1;
+                unsigned int tprefix_len = tstart;
+                unsigned int tsuffix_len = tlen - tend - 1;
 
-        // CASE 0: sometimes Minimap2 may report the same pair of overlaps multiple times
-        // here we check if we have already seen the pair of reads reported (duplicate overlaps)
-        // CASE 1: we also handle cases of self overlaps
-        // we do not want to proceed if the reported overlap is either CASE 0 or 1
-
-        // old method for removing duplicate overlaps:
-        //string qt = qname + tname;
-        //string tq = tname + qname;
-        //if ( (qname.compare(tname) != 0) && ( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff ) && (hits.count(qt) == 0 || hits.count(tq) == 0) ) {
-        //  hits.insert(qt);
-
-        // new method for removing duplicate overlaps:
-        string qt = qname + tname;
-        if (( qname.compare(tname) != 0 ) && ( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff ) && ( prev_ol.compare(qt) != 0 )) {
-            prev_ol = qt;
-            unsigned int qprefix_len = qstart;
-            unsigned int qsuffix_len = qlen - qend - 1;
-            unsigned int tprefix_len = tstart;
-            unsigned int tsuffix_len = tlen - tend - 1;
-
-            // calculate overlap length, we need to take into account minimap2's softclipping
-            int left_clip = 0, right_clip = 0;
-            if ( ( qstart != 0 ) && ( tstart != 0 ) ){
-                if ( strand == 0 ) {
-                    left_clip += min(qprefix_len, tprefix_len);
-                } else {
-                    left_clip += min(qprefix_len, tsuffix_len);
+                // calculate overlap length, we need to take into account minimap2's softclipping
+                int left_clip = 0, right_clip = 0;
+                if ( ( qstart != 0 ) && ( tstart != 0 ) ){
+                    if ( strand == 0 ) {
+                        left_clip += min(qprefix_len, tprefix_len);
+                    } else {
+                        left_clip += min(qprefix_len, tsuffix_len);
+                    }
                 }
-             }
-            if ( ( qend != 0 ) && ( tend != 0 ) ){
-                if ( strand == 0 ) {
-                    right_clip += min(qsuffix_len, tsuffix_len);
-                } else {
-                    right_clip += min(qsuffix_len, tprefix_len);
-                }  
-             }
+                if ( ( qend != 0 ) && ( tend != 0 ) ){
+                    if ( strand == 0 ) {
+                        right_clip += min(qsuffix_len, tsuffix_len);
+                    } else {
+                        right_clip += min(qsuffix_len, tprefix_len);
+                    }  
+                }
              
-            // calculate coverage per read               
-            // add this information to paf_records dictionary
-            auto i = paf_records.find(qname);
-            unsigned int overlap_len = abs(qend - qstart) + left_clip + right_clip;
-            double cov = double(overlap_len) / double(qlen);
-            if ( i == paf_records.end() ) {
-                // if read not found initialize in paf_records
-                sequence qr;
-                qr.set(qlen, cov);
-                paf_records.insert(pair<string,sequence>(qname, qr));
-            } else {
-                // if read found, update the overlap info
-                i->second.updateCov(cov);
-            }
+                // calculate coverage per read               
+                auto i = paf_records.find(qname);
+                unsigned int overlap_len = abs(qend - qstart) + left_clip + right_clip;
+                double cov = double(overlap_len) / double(qlen);
+                if ( i == paf_records.end() ) {
+                    // if read not found initialize in paf_records
+                    sequence qr;
+                    qr.set(qlen, cov);
+                    paf_records.insert(pair<string,sequence>(qname, qr));
+                } else {
+                    // if read found, update the overlap info
+                    i->second.updateCov(cov);
+                }
 
-            auto j = paf_records.find(tname);
-            overlap_len = abs(tend - tstart) + left_clip + right_clip;
-            cov = double(overlap_len) / double(tlen); 
-            if ( j == paf_records.end() ) {
-                // if target read not found initialize in paf_records
-                sequence tr;
-                tr.set(tlen, cov);
-                paf_records.insert(pair<string,sequence>(tname, tr));
-            } else {
-                // if target read found, update the overlap info
-                j->second.updateCov(cov);
-            }
-        }
-   //   } //temp brack
+                auto j = paf_records.find(tname);
+                overlap_len = abs(tend - tstart) + left_clip + right_clip;
+                cov = double(overlap_len) / double(tlen); 
+                if ( j == paf_records.end() ) {
+                    // if target read not found initialize in paf_records
+                    sequence tr;
+                    tr.set(tlen, cov);
+                    paf_records.insert(pair<string,sequence>(tname, tr));
+                } else {
+                    // if target read found, update the overlap info
+                    j->second.updateCov(cov);
+               }
+              }
+          } else if ( iv+1 < badlines.size() ) {
+             iv+=1;
+             bad = int(badlines.at(iv));
+          }
+          ln1+=1;
     }
 
-   // XXXXXXXXXXXXXXXXXXX
-   // DEBUGGING ZONE
-   // XXXXXXXXXXXXXXXXXXX
-   //cout << "TOTAL NUMBER OF READS: "<< paf_records.size() << endl;
-   //for ( auto const& r : paf_records ) {
-   //    sequence temp = r.second;
-   //    cout << r.first << "\t" << temp.cov << "\t" << temp.read_len << endl;
-   //} 
-   // XXXXXXXXXXXXXXXXXXX
+    // XXXXXXXXXXXXXXXXXXX
+    // DEBUGGING ZONE
+    // XXXXXXXXXXXXXXXXXXX
+    //cout << "TOTAL NUMBER OF READS: "<< paf_records.size() << endl;
+    //for ( auto const& r : paf_records ) {
+    //    sequence temp = r.second;
+    //    cout << r.first << "\t" << temp.cov << "\t" << temp.read_len << endl;
+    //} 
+    // XXXXXXXXXXXXXXXXXXX
 
    return paf_records;
 }
@@ -864,12 +940,15 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     double median_cov = double(covs_f[i50]);
 
     // calculate estimated genome size
-    double est_genome_size = ( tot_reads_f * mean_read_len ) / mode_cov;
-
-    cout << "median cov: " << median_cov << endl;
-    cout << "mean read length: " << mean_read_len << endl;
-    cout << "est genome size: " << est_genome_size << endl;
-    cout << "tot reads: " << tot_reads_f << endl;
+    double est_genome_size = ( tot_reads_f * mean_read_len ) / double(mode_cov);
+    double est_genome_size1 = ( tot_reads_f * mean_read_len ) / double(median_cov);
+    out("mode_cov: " + to_string(mode_cov));
+    out("median_cov: " + to_string(median_cov));
+    out("mean_read_length: " + to_string(mean_read_len));
+    out("est_genome_size_with_mode_cov: " + to_string(est_genome_size));
+    out("est_genome_size_with_median_cov: " + to_string(est_genome_size1));
+    out("tot_reads: " + to_string(tot_reads_f) );
+    cout <<  opt::sample_name << "," << mode_cov << "," <<  median_cov << "," << mean_read_len << "," <<  tot_reads_f << ","<< est_genome_size << "," <<  est_genome_size1 << "\n";
 
     // now store in JSON object
     writer->Key("est_cov_post_filter_info");
