@@ -784,31 +784,44 @@ n\n");
             unsigned int tlen = r.tl;
             unsigned int tstart = r.ts;
             unsigned int tend = r.te;
-            cout << qname<< "," << tname << "," << qlen << ","  << qstart << "," << qend << "\n";
-             // filter reads by read length
-            if (( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff )) {
-                unsigned int qprefix_len = qstart;
-                unsigned int qsuffix_len = qlen - qend - 1;
-                unsigned int tprefix_len = tstart;
-                unsigned int tsuffix_len = tlen - tend - 1;
+
+        // CASE 0: sometimes Minimap2 may report the same pair of overlaps multiple times
+        // here we check if we have already seen the pair of reads reported (duplicate overlaps)
+        // CASE 1: we also handle cases of self overlaps
+        // we do not want to proceed if the reported overlap is either CASE 0 or 1
+
+        // old method for removing duplicate overlaps:
+        //string qt = qname + tname;
+        //string tq = tname + qname;
+        //if ( (qname.compare(tname) != 0) && ( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff ) && (hits.count(qt) == 0 || hits.count(tq) == 0) ) {
+        //  hits.insert(qt);
+
+        // new method for removing duplicate overlaps:
+        string qt = qname + tname;
+        if (( qname.compare(tname) != 0 ) && ( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff ) && ( prev_ol.compare(qt) != 0 )) {
+            prev_ol = qt;
+            unsigned int qprefix_len = qstart;
+            unsigned int qsuffix_len = qlen - qend - 1;
+            unsigned int tprefix_len = tstart;
+            unsigned int tsuffix_len = tlen - tend - 1;
 
       
-                // calculate overlap length, we need to take into account minimap2's softclipping
-                int left_clip = 0, right_clip = 0;
-                if ( ( qstart != 0 ) && ( tstart != 0 ) ){
-                    if ( strand == 0 ) {
-                        left_clip += min(qprefix_len, tprefix_len);
-                    } else {
-                        left_clip += min(qprefix_len, tsuffix_len);
-                    }
+            // calculate overlap length, we need to take into account minimap2's softclipping
+            int left_clip = 0, right_clip = 0;
+            if ( ( qstart != 0 ) && ( tstart != 0 ) ){
+                if ( strand == 0 ) {
+                    left_clip += min(qprefix_len, tprefix_len);
+                } else {
+                    left_clip += min(qprefix_len, tsuffix_len);
                 }
-                if ( ( qend != 0 ) && ( tend != 0 ) ){
-                    if ( strand == 0 ) {
-                        right_clip += min(qsuffix_len, tsuffix_len);
-                    } else {
-                        right_clip += min(qsuffix_len, tprefix_len);
-                    }  
-                }
+            }
+            if ( ( qend != 0 ) && ( tend != 0 ) ){
+                if ( strand == 0 ) {
+                    right_clip += min(qsuffix_len, tsuffix_len);
+                } else {
+                    right_clip += min(qsuffix_len, tprefix_len);
+                }  
+            }
                             
                               
             //Declare two sequence objects, one for query and one for target record    
@@ -853,16 +866,9 @@ n\n");
                 // if target read found, update the overlap info
                 j->second.updateCov(cov);
             }
-           }
-   
-    } else if ( iv+1 < badlines.size() ) {
-        iv+=1;
-        bad = int(badlines.at(iv));
-
+        }
+   //   } //temp brack
     }
-    ln1+=1;
-    }  
-
    /** Print full_paf_records
    for(auto it = full_paf_records.begin(); it != full_paf_records.end(); ++it) {
        std::cout << (*it).first << "\n";
@@ -1142,7 +1148,7 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     ========================================================
     */
 
-    vector <pair<double, int>> covs;
+vector <pair<double, int>> covs;
 
     // make an object that will hold pair of coverage and read length
     writer->Key("per_read_est_cov_and_read_length");
@@ -1253,17 +1259,13 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     double median_cov = double(covs_f[i50]);
 
     // calculate estimated genome size
-    double est_genome_size = ( tot_reads_f * mean_read_len ) / double(mode_cov);
-    double est_genome_size1 = ( tot_reads_f * mean_read_len ) / double(median_cov);
-    out("mode_cov: " + to_string(mode_cov));
-    out("median_cov: " + to_string(median_cov));
-    out("mean_read_length: " + to_string(mean_read_len));
-    out("est_genome_size_with_mode_cov: " + to_string(est_genome_size));
-    out("est_genome_size_with_median_cov: " + to_string(est_genome_size1));
-    out("tot_reads: " + to_string(tot_reads_f) );
-    cout <<  opt::sample_name << "," << mode_cov << "," <<  median_cov << "," << mean_read_len << "," <<  tot_reads_f << ","<< est_genome_size << "," <<  est_genome_size1 << "\n";
+    double est_genome_size = ( tot_reads_f * mean_read_len ) / mode_cov;
 
-    
+    cout << "median cov: " << median_cov << endl;
+    cout << "mean read length: " << mean_read_len << endl;
+    cout << "est genome size: " << est_genome_size << endl;
+    cout << "tot reads: " << tot_reads_f << endl;
+
     // now store in JSON object
     writer->Key("est_cov_post_filter_info");
     writer->StartArray();

@@ -252,17 +252,17 @@ bool Window::generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment
 
     std::vector<uint32_t> coverages;
     consensus_ = graph->generate_consensus(coverages);
-    
+        
     std::vector<std::string> msa;
-    graph->generate_multiple_sequence_alignment(msa);
+    graph->generate_multiple_sequence_alignment(msa, true);
     msa_consensus_ = msa.at(0);    
-    allele_ratio_ = allele_ratio_from_msa(msa, const_cast<char*>("20"), const_cast<char*>("10"));
-    /*
-    fprintf(stdout, "Multiple sequence alignment\n");
+    allele_ratio_ = allele_ratio_from_msa(msa, const_cast<char*>("50"), const_cast<char*>("10"));
+    
+    fprintf(stdout, "Multiple sequence alignment for %d seqs\n", sequences_.size());
     for (const auto& it: msa) {
         fprintf(stdout, "%s\n", it.c_str());
         }  
-    */
+   
 
     if (type_ == WindowType::kTGS) {
         uint32_t average_coverage = (sequences_.size() - 1) / 2;
