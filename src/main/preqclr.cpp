@@ -464,8 +464,10 @@ n\n");
                     // prev. overlap's line number is recorded as "bad". it will be skipped in second pass
                     badlines.push_back(prev_ln);
                     h[hashkey] = make_pair(curr_aln_len, curr_ln);
+                //    cout << qname << "\t" << tname << prev_ln << "\n";
                 } else {
                     badlines.push_back(curr_ln);
+                //    cout << qname << "\t" << tname << curr_ln << "\n";
                 }
             } else {
                 // First time we've seen this pair
@@ -476,7 +478,7 @@ n\n");
         ln+=1; // read next line
     }
     h.clear(); // free up memory
-
+    sort(badlines.begin(), badlines.end());
     // PASS 2: read each line in PAF file that has NOT been noted in PASS 1 as a "bad" line
     string line;
     const char *c = opt::paf_file.c_str();
@@ -490,7 +492,7 @@ n\n");
     }
     d = sd_init();
     map<string, sequence> paf_records;
-    int ln1 = 1;
+    int ln1 = 0;
     int iv = 0; // index in vector
     // the vector is sorted numerically
     // we can loop through the vector once by storing which is the next line to avoid
@@ -510,6 +512,8 @@ n\n");
             unsigned int tlen = r.tl;
             unsigned int tstart = r.ts;
             unsigned int tend = r.te;
+
+            cout << qname << "\t" << tname << "\t" << r.bl << "\t" << ln1 << "\t" << bad << "\n";
 
             // filter reads by read length
             if (( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff )) {
