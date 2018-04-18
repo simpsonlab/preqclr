@@ -521,10 +521,10 @@ n\n");
                     // prev. overlap's line number is recorded as "bad". it will be skipped in second pass
                     badlines.push_back(prev_ln);
                     h[hashkey] = make_pair(curr_aln_len, curr_ln);
-                    cout << qname << "\t" << tname << prev_ln << "\n";
+                    //cout << qname << "\t" << tname << "\t" << prev_ln << "\n";
                 } else {
                     badlines.push_back(curr_ln);
-                    cout << qname << "\t" << tname << curr_ln << "\n";
+                    //cout << qname << "\t" << tname << "\t" <<curr_ln << "\n";
                 }
             } else {
                 // First time we've seen this pair
