@@ -62,7 +62,11 @@ namespace opt
     static bool remove_dups = false;
     static bool filter_high_cov = true;
     static bool filter_low_cov = true;
+    static bool remove_internal_matches = false;
+    static double max_overhang = 1000.0;
+    static double max_overhang_ratio = 0.80;
 }
+
 
 bool endFile = false;
 void out( string o )
@@ -260,10 +264,13 @@ void parse_args ( int argc, char *argv[])
         {"paf",         required_argument,  NULL,   'p'},
         {"gfa",         required_argument,  NULL,   'g'},
         {"help",            no_argument,    NULL,   'h'},
-        {"min_rlen",     required_argument,    NULL,   'l'},
-        {"keep_low_cov",     no_argument,    NULL,   OPT_KEEP_LOW_COV},
-        {"keep_high_cov",     no_argument,    NULL,   OPT_KEEP_HIGH_COV},
-        {"remove_dups",     no_argument,    NULL,   OPT_REMOVE_DUPS},
+        {"min-rlen",     required_argument,    NULL,   'l'},
+        {"keep-low-cov",     no_argument,    NULL,   OPT_KEEP_LOW_COV},
+        {"keep-high-cov",     no_argument,    NULL,   OPT_KEEP_HIGH_COV},
+        {"remove-dups",     no_argument,    NULL,   OPT_REMOVE_DUPS},
+        {"remove-int-matches",     no_argument,    NULL,   OPT_REMOVE_INT_MATCHES},
+        {"max-overhang",     required_argument,    NULL,  OPT_MAX_OVERHANG},
+        {"max-overhang-ratio",     required_argument,    NULL,  OPT_MAX_OVERHANG_RATIO},
         { NULL, 0, NULL, 0 }
     };
 
@@ -287,14 +294,17 @@ void parse_args ( int argc, char *argv[])
     "    -g, --gfa			Miniasm Graph Fragment Assembly (GFA) file\n"
     "		                This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
     "    -l, --min_rlen=INT		Use overlaps with read lengths >= INT\n"
-    "        --keep_low_cov          Keep reads with low coverage (<= Q25 - IQR*1.25) for genome size est. calculations \n" 
-    "        --keep_high_cov         Keep reads with high coverage (>= Q75 + IQR*1.25) for genome size est. calculations \n"
-    "        --remove_dups           Remove duplicate overlaps. Between duplicate overlaps choose longest alignment. \n"
+    "        --keep-low-cov          Keep reads with low coverage (<= Q25 - IQR*1.25) for genome size est. calculations \n" 
+    "        --keep-high-cov         Keep reads with high coverage (>= Q75 + IQR*1.25) for genome size est. calculations \n"
+    "        --remove-dups           Remove duplicate overlaps. Between duplicate overlaps choose longest alignment. \n"
+    "        --remove-int-matches    Remove internal matches (overlaps where it is a short match in the middle of both reads) \n"
+    "        --max-overhang          The maximum overhang length [default: 1000] \n"
+    "        --max-overhang-ratio    The maximum overhang to mapping length ratio [default: 0.8] \n"
     "\n"
     "Report bugs to https://github.com/simpsonlab/preqclr/issues"
     "\n";
 
-    int rflag=0, nflag=0, pflag=0, gflag=0, verboseflag=0, versionflag=0;
+    int rflag=0, nflag=0, pflag=0, gflag=0, verboseflag=0, versionflag=0, moflag=0, morflag=0;
     int c;
     while ( (c = getopt_long(argc, argv, short_opts, long_opts, NULL)) != -1 ) {
     // getopt will loop through arguments, returns -1 when end of options, and store current arg in optarg
@@ -358,19 +368,20 @@ void parse_args ( int argc, char *argv[])
         case OPT_REMOVE_DUPS:
             opt::remove_dups = true;
             break;
-        case ':':
-            if (optopt == 'c') {
-                fprintf(stderr, "./preqclr: option `-%c' is missing a required argument\n", optopt);
-            } else if(isprint(optopt)) {
-                fprintf(stderr, "./preqclr: option `-%c' is missing a required argument\n",optopt);
-            } else {
-                fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
-            }
-                fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
-            exit(1);
+        case OPT_REMOVE_INT_MATCHES:
+            opt::remove_internal_matches = true;
+            break;
+        case OPT_MAX_OVERHANG:
+            arg >> opt::max_overhang;
+            break;
+        case OPT_MAX_OVERHANG_RATIO:
+            arg >> opt::max_overhang_ratio;
+            break;
         case '?':
             // invalid option: getopt_long already printed an error message
-            if(isprint(optopt)) {
+            if (optopt == 'c') {
+                fprintf (stderr, "./preqclr: option -%c requires an argument.\n", optopt);
+            } else if(isprint(optopt)) {
                 fprintf(stderr, "./preqclr: option `-%c' is invalid thus ignored\n",optopt);
             } else {
                 fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
@@ -378,10 +389,13 @@ void parse_args ( int argc, char *argv[])
             break;
         }
     }
-    if( argc < 4 ) {
-        cerr << PREQCLR_CALCULATE_USAGE_MESSAGE << endl;
-        exit(1);
+   if (optind < argc) {
+        printf("Non-option argument: ");
+        while (optind < argc)
+            printf("%s ", argv[optind++]);
+        printf("\n");
     }
+
 
     // check mandatory variables and assign defaults
     if ( rflag == 0 ) {
@@ -420,7 +434,6 @@ map<string, sequence> parse_paf()
     */  
 
     // PASS 1: note overlaps we do not want
-    string line1;
     const char *c1 = opt::paf_file.c_str();
     paf_file_t *fp1;
     paf_rec_t r1;
@@ -433,20 +446,64 @@ n\n");
     }
     d1 = sd_init();
     
-    // we need to filter self overlaps and duplicate overlaps
+    // we need to filter overlaps
     // self overlap: minimap2 reports an overlap between the same reads (i.e. when query read id == target read id in the PAF file)
     // duplicate overlap: the same two reads are reported to overlap (i.e. when the same query read id and target read id pair are 
     //                    seen in multiple lines in the PAF file)
     vector<int> badlines; // stores all the lines we do not want
     map<size_t, pair<int, int>> h; // stores all the hashed query read name + target read name pairs with line number and alignment length
-    int ln = 0; // current line number
+    int ln1 = 0; // current line number
     while (paf_read(fp1, &r1) >= 0) {
         string qname = r1.qn;
-        string tname = r1.tn;          
-        // check for self overlap
+        string tname = r1.tn;
+        unsigned int qlen = r1.ql;
+        unsigned int qstart = r1.qs;
+        unsigned int qend = r1.qe;
+        unsigned int strand = r1.rev;
+        unsigned int tlen = r1.tl;
+        unsigned int tstart = r1.ts;
+        unsigned int tend = r1.te;
+
+        //cout << qname << "\t" << tname << "\t" << r1.bl << "\t" << ln1 << "\t" << bad << "\n";
+
+        // start filtering overlaps
         if ( qname.compare(tname) == 0 ) { 
             // self-overlap: the same read
-            badlines.push_back(ln);
+            badlines.push_back(ln1);
+        } else if (( qlen < opt::rlen_cutoff ) || ( tlen < opt::rlen_cutoff )) {
+            // overlaps with short reads
+            badlines.push_back(ln1);
+        } else if ( opt::remove_internal_matches ) {
+            // calculate overhang region
+            unsigned int qprefix_len = qstart;
+            unsigned int qsuffix_len = qlen - qend - 1;
+            unsigned int tprefix_len = tstart;
+            unsigned int tsuffix_len = tlen - tend - 1;
+            int left_clip = 0, right_clip = 0;
+            if ( ( qstart != 0 ) && ( tstart != 0 ) ){
+                if ( strand == 0 ) {
+                    left_clip += min(qprefix_len, tprefix_len);
+                } else {
+                    left_clip += min(qprefix_len, tsuffix_len);
+                }
+            }
+            if ( ( qend != 0 ) && ( tend != 0 ) ){
+                if ( strand == 0 ) {
+                    right_clip += min(qsuffix_len, tsuffix_len);
+                } else {
+                    right_clip += min(qsuffix_len, tprefix_len);
+                }
+            }
+            double maplen = double(max( qend - qstart, tend - tstart ))*opt::max_overhang_ratio;
+            int overhang = left_clip + right_clip;
+            
+            if( overhang > min( opt::max_overhang, maplen ) ) {
+                // filter overlaps with excess overhang regions
+                // ----====-------
+                //   --====---------
+                badlines.push_back(ln1);
+                //cout << qname << "\t" << tname << "\t" << qlen <<"\t" << tlen << "\t"<< qstart << "\t" << qend << "\t" << tstart << "\t" << tend << "\n";
+            }
         } else if ( opt::remove_dups ) {
             // create a hashkey with lexicographically smallest combination of read names
             size_t hashkey = min(hash<string>{}(qname + tname), hash<string>{}(tname + qname));
@@ -456,7 +513,7 @@ n\n");
                 // YES, duplicate detected
                 // let's compare the length of overlaps. We want the longer overlap.
                 int curr_aln_len = int(r1.bl);
-                int curr_ln = ln;
+                int curr_ln = ln1;
                 int prev_aln_len = int(it->second.first);
                 int prev_ln = int(it->second.second);
                 if ( curr_aln_len > prev_aln_len ) {
@@ -464,81 +521,83 @@ n\n");
                     // prev. overlap's line number is recorded as "bad". it will be skipped in second pass
                     badlines.push_back(prev_ln);
                     h[hashkey] = make_pair(curr_aln_len, curr_ln);
-                //    cout << qname << "\t" << tname << prev_ln << "\n";
+                    cout << qname << "\t" << tname << prev_ln << "\n";
                 } else {
                     badlines.push_back(curr_ln);
-                //    cout << qname << "\t" << tname << curr_ln << "\n";
+                    cout << qname << "\t" << tname << curr_ln << "\n";
                 }
             } else {
                 // First time we've seen this pair
                 int aln_len = int(r1.bl);
-                h.insert(make_pair(hashkey, make_pair(aln_len, ln)));
+                h.insert(make_pair(hashkey, make_pair(aln_len, ln1)));
             }
         }
-        ln+=1; // read next line
+        ln1+=1; // read next line
     }
     h.clear(); // free up memory
     sort(badlines.begin(), badlines.end());
+
     // PASS 2: read each line in PAF file that has NOT been noted in PASS 1 as a "bad" line
-    string line;
-    const char *c = opt::paf_file.c_str();
-    paf_file_t *fp;
-    paf_rec_t r;
-    sdict_t *d;
-    fp = paf_open(c);
-    if (!fp) {
+    const char *c2 = opt::paf_file.c_str();
+    paf_file_t *fp2;
+    paf_rec_t r2;
+    sdict_t *d2;
+    fp2 = paf_open(c2);
+    if (!fp2) {
         fprintf(stderr, "ERROR: PAF file failed to open. Check to see if it exists, is readable, and is non-empty.\n\n");
         exit(1);
     }
-    d = sd_init();
+    d2 = sd_init();
     map<string, sequence> paf_records;
-    int ln1 = 0;
+    int ln2 = 0;
     int iv = 0; // index in vector
     // the vector is sorted numerically
     // we can loop through the vector once by storing which is the next line to avoid
     // once we have reached this line, we can move on to the next bad line and
     // look out for that one while going through the next lines
-    int bad = int(badlines.at(iv)); // first bad line to watch out for
+    int bad;
+    if ( !badlines.empty() ) {
+        bad = int(badlines.at(iv)); // first bad line to watch out for
+    } else {
+        bad = ln1; // no badlines detected, set to last line
+    }
     // read good lines in PAF
-    while (paf_read(fp, &r) >= 0) { 
-        if ( ln1 < bad ) {
+    while (paf_read(fp2, &r2) >= 0) { 
+        if ( ln2 < bad ) {
             // read each line/overlap and save each column into variable
-            string qname = r.qn;
-            string tname = r.tn;
-            unsigned int qlen = r.ql;
-            unsigned int qstart = r.qs;
-            unsigned int qend = r.qe;
-            unsigned int strand = r.rev;
-            unsigned int tlen = r.tl;
-            unsigned int tstart = r.ts;
-            unsigned int tend = r.te;
+            string qname = r2.qn;
+            string tname = r2.tn;
+            unsigned int qlen = r2.ql;
+            unsigned int qstart = r2.qs;
+            unsigned int qend = r2.qe;
+            unsigned int strand = r2.rev;
+            unsigned int tlen = r2.tl;
+            unsigned int tstart = r2.ts;
+            unsigned int tend = r2.te;
 
-            //cout << qname << "\t" << tname << "\t" << r.bl << "\t" << ln1 << "\t" << bad << "\n";
-
-            // filter reads by read length
-            if (( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff )) {
-                unsigned int qprefix_len = qstart;
-                unsigned int qsuffix_len = qlen - qend - 1;
-                unsigned int tprefix_len = tstart;
-                unsigned int tsuffix_len = tlen - tend - 1;
-
-                // calculate overlap length, we need to take into account minimap2's softclipping
-                int left_clip = 0, right_clip = 0;
-                if ( ( qstart != 0 ) && ( tstart != 0 ) ){
-                    if ( strand == 0 ) {
-                        left_clip += min(qprefix_len, tprefix_len);
-                    } else {
-                        left_clip += min(qprefix_len, tsuffix_len);
-                    }
+            //cout << qname << "\t" << tname << "\t" << r2.bl << "\t" << ln2 << "\t" << bad << "\n";
+            
+            unsigned int qprefix_len = qstart;
+            unsigned int qsuffix_len = qlen - qend - 1;
+            unsigned int tprefix_len = tstart;
+            unsigned int tsuffix_len = tlen - tend - 1;
+            // calculate overlap length, we need to take into account minimap2's softclipping
+            int left_clip = 0, right_clip = 0;
+            if ( ( qstart != 0 ) && ( tstart != 0 ) ){
+                if ( strand == 0 ) {
+                    left_clip += min(qprefix_len, tprefix_len);
+                } else {
+                    left_clip += min(qprefix_len, tsuffix_len);
                 }
-                if ( ( qend != 0 ) && ( tend != 0 ) ){
-                    if ( strand == 0 ) {
-                        right_clip += min(qsuffix_len, tsuffix_len);
-                    } else {
-                        right_clip += min(qsuffix_len, tprefix_len);
-                    }  
-                }
-             
+            }
+            if ( ( qend != 0 ) && ( tend != 0 ) ){
+                if ( strand == 0 ) {
+                    right_clip += min(qsuffix_len, tsuffix_len);
+                } else {
+                    right_clip += min(qsuffix_len, tprefix_len);
+                }  
+            }
+
                 // calculate coverage per read               
                 auto i = paf_records.find(qname);
                 unsigned int overlap_len = abs(qend - qstart) + left_clip + right_clip;
@@ -564,15 +623,14 @@ n\n");
                 } else {
                     // if target read found, update the overlap info
                     j->second.updateCov(cov);
-               }
-              }
+                }
           } else if ( iv < badlines.size()-1 ) {
              // we have a bad line!
              // next bad line to look out for:
              iv+=1;
              bad = int(badlines.at(iv));
           }
-          ln1+=1;
+          ln2+=1;
     }
 
     // XXXXXXXXXXXXXXXXXXX
