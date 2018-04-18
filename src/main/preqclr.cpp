@@ -15,7 +15,7 @@
 #include "Sequence.hpp"
 #include "polisher.hpp"
 #ifdef _OPENMP
-# include <omp.h>
+#include <omp.h>
 #endif
 #include "edlib.h"
 #include <algorithm>
@@ -67,7 +67,7 @@ typedef std::chrono::duration<float> fsec;
 namespace htzy
 {
     //Vector to store n random reads 
-    vector <string> rreads;
+    unordered_set<string> rreads;
     //Map structure to store each PAF record
     map<string, vector<sequence>> full_paf_records;     
     //Map structure to store fastq records
@@ -83,6 +83,7 @@ namespace htzy
 namespace opt
 {
     unsigned nThrd=1;
+    unsigned num_random_reads=1000;
     static unsigned int verbose;
     static unsigned int htzgy;
     static string reads_file;
@@ -117,33 +118,36 @@ void allele_ratio_to_json(JSONWriter* writer){
 }
 
 
-vector<string> random_reads(int num, map<string, vector<sequence>> &temp_map){
+unordered_set<string> random_reads(vector<string> &temp_vec){
     /* 
     ========================================================
-    Returns 'num' random reads from the given map structure of reads
+    Returns opt::num_random_reads random reads from the given set of reads
     --------------------------------------------------------
-    Input:      number of random reads; map of reads and sequence vector
-    Output:     Vector of strings containing random read IDs
+    Input:      set of read IDs
+    Output:     set of opt::num_random_reads read IDs
     ========================================================
  
     */
-    vector <string> temp;
-    for(auto it = temp_map.begin(); it != temp_map.end(); ++it) {
-        temp.push_back((*it).first);
-    }
+    //vector <string> temp;
+    //for(auto it = temp_vec.begin(); it != temp_vec.end(); ++it) {
+    //    temp.push_back((*it));
+    //}
     std::srand(std::time(0));
-    std::random_shuffle (temp.begin(), temp.end());
-    std::vector<string> ran_reads(temp.begin(), temp.begin() + num);
-    return ran_reads;
+    std::random_shuffle (temp_vec.begin(), temp_vec.end());
+    std::vector<string> ran_reads(temp_vec.begin(), temp_vec.begin() + opt::num_random_reads);
+    unordered_set<string> ran_reads_set;
+    for (auto i: ran_reads)
+        ran_reads_set.insert(i);
+    return ran_reads_set;
     /*Testing OMP
     std::vector<string> test_ran_reads = {"S1HapC_999", "S1HapA_1", "S1HapA_1002"};
     return test_ran_reads;
     */
 }
 
-
+/*
 void allele_ratio_from_msa(vector<string> &msa, const char * depth_threshold, const char * percent_gaps){
-    /* 
+     
     ===========================================================================
     Calculate the allele ratio per column of an MSA
     ----------------------------------------------------------------------------
@@ -151,7 +155,7 @@ void allele_ratio_from_msa(vector<string> &msa, const char * depth_threshold, co
                 allowed gap threshold in a column
     Output:     Prints allele ratios and writes it to allele_ratio map structure
     =============================================================================
-    */        
+            
     int MSA_len = (msa.front()).length();
     vector<map<char, int>> allele_count;
     //cout << "MSA_len" << MSA_len<<endl;
@@ -205,9 +209,9 @@ void allele_ratio_from_msa(vector<string> &msa, const char * depth_threshold, co
     }
     //cout << "\n\nallele_count.size() = " << allele_count.size() << endl;
     
-    /*
-    Print the allele count vector
-    */     
+    
+    //Print the allele count vector
+         
     int count = 0;
     for (vector<map<char, int>>::const_iterator r = allele_count.begin(); r != allele_count.end(); ++r){ 
          //cout << "POS = " << count << endl; count ++; 
@@ -263,6 +267,7 @@ void allele_ratio_from_msa(vector<string> &msa, const char * depth_threshold, co
     }    
 }     
      
+*/
 
 void out( string o )
 {
@@ -407,8 +412,8 @@ int main( int argc, char *argv[])
         out("[ Calculating Heterozygosity ]");
         swc = chrono::system_clock::now();
         scpu = clock();
-        estimate_heterozygosity();   
-        allele_ratio_to_json(&writer);
+        //estimate_heterozygosity();   
+        //allele_ratio_to_json(&writer);
         ewc = chrono::system_clock::now();
         ecpu = clock();
         elapsedwc = ewc - swc;
@@ -472,7 +477,7 @@ void parse_args ( int argc, char *argv[])
     // getopt
     extern char *optarg;
     extern int optind, opterr, optopt;
-    const char* const short_opts = "t:g:c:hvzr:n:p:d:w:q:e:m:x:l:s:";
+    const char* const short_opts = "t:g:c:hvzr:n:p:d:w:q:e:m:x:l:s:i:";
     const option long_opts[] = {
         {"verbose",         no_argument,        NULL,   'v'},
         {"threads",     required_argument,      NULL,   't' },
@@ -488,6 +493,7 @@ void parse_args ( int argc, char *argv[])
         {"match", required_argument, 0, 'm'},
         {"mismatch", required_argument, 0, 'x'},
         {"gap", required_argument, 0, 's'},
+        {"num-random-reads", required_argument, 0, 'i'},
         {"help",            no_argument,    NULL,   'h'},
         {"min_rlen",     required_argument,    NULL,   'l'},
         {"keep_low_cov",     no_argument,    NULL,   OPT_KEEP_LOW_COV},	
@@ -524,6 +530,7 @@ void parse_args ( int argc, char *argv[])
 
                                
     "\nHeterozygosity calculation options (Should be used along with the -z or --htzgy option):\n\n"
+    "-i, --num-random-reads=INT         Number of random reads to be used for estimating heterozygosity[1000]\n"
     "-w, --window-length=INT            Size of window on which POA is performed[500]\n"
     "-q, --quality-threshold=float      Threshold for average base quality of windows used in poa[10.0]\n"
     "-e, --error-threshold=float        Maximum allowed error rate used for filtering overlaps[0.3]\n"
@@ -613,6 +620,9 @@ void parse_args ( int argc, char *argv[])
             break;
         case 's':
             gap = atoi(optarg);
+            break;
+        case 'i':
+            opt::num_random_reads = atoi(optarg);
             break;
         case 'h':
             cout << PREQCLR_CALCULATE_USAGE_MESSAGE << endl;
@@ -711,6 +721,8 @@ n\n");
     vector<int> badlines; // stores all the lines we do not want
     map<size_t, pair<int, int>> h; // stores all the hashed query read name + target read name pairs with line number and alignment length
     int ln = 0; // current line number
+    unordered_set<string> check_read_headers;
+    vector<string> read_headers_set;
     while (paf_read(fp1, &r1) >= 0) {
         string qname = r1.qn;
         string tname = r1.tn;          
@@ -744,9 +756,22 @@ n\n");
                 h.insert(make_pair(hashkey, make_pair(aln_len, ln)));
             }
         }
-        ln+=1; // read next line
+        ln+=1; // read next line 
+        if (check_read_headers.find(qname) == check_read_headers.end() && check_read_headers.size()<=(3*opt::num_random_reads)){
+            check_read_headers.insert(qname); read_headers_set.push_back(qname);}           
     }
+    //for (auto v : read_headers_set)
+    //    std::cout << v << "\n";    
+   
+    htzy::rreads = random_reads(read_headers_set);    
     h.clear(); // free up memory
+    check_read_headers.clear();
+    read_headers_set.clear();
+    
+    sort(badlines.begin(), badlines.end());
+    
+    for (auto v: badlines)
+       std::cout << v << "\n"; 
 
     // PASS 2: read each line in PAF file that has NOT been noted in PASS 1 as a "bad" line
     string line;
@@ -760,17 +785,17 @@ n\n");
         exit(1);
     }
     d = sd_init();
-    set<string> hits;
-
     map<string, sequence> paf_records;
     int ln1 = 0;
     int iv = 0; // index in vector		
     // the vector is sorted numerically		
     // we can loop through the vector once by storing which is the next line to avoid		
     // once we have reached this line, we can move on to the next bad line and
+    
     // look out for that one while going through the next lines		
     int bad = int(badlines.at(iv)); // first bad line to watch out for		
-    // read good lines in PAF    
+    // read good lines in PAF  
+
 
     while (paf_read(fp, &r) >= 0) { 
         if (ln1<bad) {
@@ -872,7 +897,7 @@ n\n");
    }
    */
 
-   htzy::rreads = random_reads(1000, htzy::full_paf_records);
+   //htzy::rreads = random_reads(1000, htzy::full_paf_records);
 
    // XXXXXXXXXXXXXXXXXXX
    // DEBUGGING ZONE
@@ -1318,8 +1343,9 @@ void calculate_read_length( vector<pair<double, int>> fq, JSONWriter* writer)
     writer->EndArray();
 }
 
+/*
 void estimate_heterozygosity(){
-        /*
+        
     ========================================================
     Estimating heterozygosity
     --------------------------------------------------------
@@ -1328,7 +1354,7 @@ void estimate_heterozygosity(){
     Input:      - 
     Output:     File with allele ratio for each column
     ========================================================
-    */
+    
    
     //cout << "Random reads total= " <<htzy::rreads.size() << endl;
     #pragma omp parallel for schedule(guided) shared (htzy::full_paf_records, htzy::parsed_fq, htzy::read_msa, htzy::allele_ratio)       
@@ -1379,8 +1405,9 @@ void estimate_heterozygosity(){
 }
 
 
+
 vector<std::string> calculate_heterozygosity( vector<string> &sequences, const char * a, const char * b, const char * c, const char * d, const char * e) {
-    /*
+    
     ========================================================
     Calculate SPOA MSA from a set of reads
     --------------------------------------------------------
@@ -1400,6 +1427,8 @@ vector<std::string> calculate_heterozygosity( vector<string> &sequences, const c
             "GTCGCTAGAGGCATCGTGAGTCGCTTCCGTACCGCAAGGATGACGAGTCACTTAAAGTGATAAT",
             "CCGTAACCTTCATCGGATCACCGGAAAGGACCCGTAAATAGACCTGATTATCATCTACAT"
      };*/
+
+     /*
      //cout << "Thread ID inside calulate_heterozygosity = " << omp_get_thread_num() << endl;
      //auto params = SPOA::AlignmentParams(atoi(a), atoi(b), atoi(c),
        //  atoi(d), (SPOA::AlignmentType) atoi(e));
@@ -1412,15 +1441,18 @@ vector<std::string> calculate_heterozygosity( vector<string> &sequences, const c
      std::vector<std::string> msa;
      //SPOA::generate_msa(msa, sequences, params, true);
      
-     /*
-     fprintf(stderr, "Multiple sequence alignment\n");
-     for (const auto& it: msa) {
-        fprintf(stderr, "%s\n", it.c_str());
-     }
-     */
+     //
+    // fprintf(stderr, "Multiple sequence alignment\n");
+     //for (const auto& it: msa) {
+     //   fprintf(stderr, "%s\n", it.c_str());
+     //}
+     //
      return msa;
         
 }
+
+*/
+
 
 void run_racon(const std::string& sequences_path,const std::string& overlaps_path, const std::string& target_path,
 int32_t window_length, double quality_threshold, double error_threshold,int8_t match,int8_t mismatch,int8_t gap, int num_threads){

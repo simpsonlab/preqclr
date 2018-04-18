@@ -44,13 +44,13 @@ map<string, sequence> parse_paf();
 vector<double> parse_gfa();
 vector<pair<double,int>> parse_fq( string readsFile );
 
-vector<string> random_reads(int i, map<string, vector<sequence>> &temp_map);
+unordered_set<string> random_reads(vector<string> &temp_map);
 void allele_ratio_from_msa(vector<string> &msa, const char * depth, const char * percent_gaps);
 
 void run_racon(const std::string& sequences_path,const std::string& overlaps_path, const std::string& target_path,
 int32_t window_length, double quality_threshold, double error_threshold,int8_t match,int8_t mismatch,int8_t gap, int num_threads);
 
-void estimate_heterozygosity();
-vector<string> calculate_heterozygosity(vector<string> &sequences, const char * a, const char * b, const char * c, const char * d, const char * e);
-void allele_ratio_to_json(JSONWriter* writer);
+//void estimate_heterozygosity();
+//vector<string> calculate_heterozygosity(vector<string> &sequences, const char * a, const char * b, const char * c, const char * d, const char * e);
+//void allele_ratio_to_json(JSONWriter* writer);
 
