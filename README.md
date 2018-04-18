@@ -30,7 +30,7 @@ For the report generation step:
 To install from source:
 
 ```bash
-git clone --recursive https://github.com/simpsonlab/preqc-lr.git
+git clone --recursive https://github.com/simpsonlab/preqc-lr.git -b heterozygosity
 cd preqc-lr
 mkdir build
 cd build 
