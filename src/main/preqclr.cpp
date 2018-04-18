@@ -66,6 +66,7 @@ namespace opt
     static double max_overhang = 1000.0;
     static double max_overhang_ratio = 0.80;
     static bool remove_contained = false;
+    static bool print_read_cov = false;
 }
 
 
@@ -273,6 +274,7 @@ void parse_args ( int argc, char *argv[])
         {"remove-contained",     no_argument,    NULL,   OPT_REMOVE_CONTAINED},
         {"max-overhang",     required_argument,    NULL,  OPT_MAX_OVERHANG},
         {"max-overhang-ratio",     required_argument,    NULL,  OPT_MAX_OVERHANG_RATIO},
+        {"print-read-cov",     no_argument,    NULL,  OPT_PRINT_READ_COV},
         { NULL, 0, NULL, 0 }
     };
 
@@ -295,7 +297,7 @@ void parse_args ( int argc, char *argv[])
     "		                This is produced using \'minimap2 -x ava-ont sample.fasta sample.fasta\'\n"
     "    -g, --gfa			Miniasm Graph Fragment Assembly (GFA) file\n"
     "		                This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
-    "    -l, --min_rlen=INT		Use overlaps with read lengths >= INT\n"
+    "    -l, --min-rlen=INT		Use overlaps with read lengths >= INT\n"
     "        --keep-low-cov          Keep reads with low coverage (<= Q25 - IQR*1.25) for genome size est. calculations \n" 
     "        --keep-high-cov         Keep reads with high coverage (>= Q75 + IQR*1.25) for genome size est. calculations \n"
     "        --remove-dups           Remove duplicate overlaps; between duplicate overlaps choose longest alignment \n"
@@ -303,6 +305,7 @@ void parse_args ( int argc, char *argv[])
     "        --remove-int-matches    Remove internal matches (overlaps where it is a short match in the middle of both reads) \n"
     "        --max-overhang          The maximum overhang length [default: 1000] \n"
     "        --max-overhang-ratio    The maximum overhang to mapping length ratio [default: 0.8] \n"
+    "        --print-read-cov        Print read id and coverage for each read to stdout; overwrites verbose flag \n"
     "\n"
     "Report bugs to https://github.com/simpsonlab/preqclr/issues"
     "\n";
@@ -385,6 +388,9 @@ void parse_args ( int argc, char *argv[])
         case OPT_REMOVE_CONTAINED:
             opt::remove_contained = true;
             break;
+        case OPT_PRINT_READ_COV:
+            opt::print_read_cov = true;
+            break;
         case '?':
             // invalid option: getopt_long already printed an error message
             if (optopt == 'c') {
@@ -402,6 +408,11 @@ void parse_args ( int argc, char *argv[])
         while (optind < argc)
             printf("%s ", argv[optind++]);
         printf("\n");
+    }
+
+    // overwrite verbose flag if --print-read-cov in use
+    if (opt::print_read_cov) {
+        opt::verbose = false;
     }
 
 
@@ -678,10 +689,12 @@ map<string, sequence> parse_paf()
     // DEBUGGING ZONE
     // XXXXXXXXXXXXXXXXXXX
     //cout << "TOTAL NUMBER OF READS: "<< paf_records.size() << endl;
-    //for ( auto const& r : paf_records ) {
-    //    sequence temp = r.second;
-    //    cout << r.first << "\t" << temp.cov << "\t" << temp.read_len << endl;
-    //} 
+    if ( opt::print_read_cov ) {
+        for ( auto const& r : paf_records ) {
+            sequence temp = r.second;
+            cout << r.first << "\t" << temp.read_len << "\t" << temp.cov << "\n";
+        }
+    } 
     // XXXXXXXXXXXXXXXXXXX
 
    return paf_records;
