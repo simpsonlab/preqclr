@@ -100,6 +100,8 @@ namespace opt
     int8_t match = 5;
     int8_t mismatch = -4;
     int8_t gap = -8;
+    int8_t allowed_spoa_gaps_percent = 20;
+    int8_t min_spoa_coverage = 20;
 }
 
 bool endFile = false;
@@ -489,7 +491,7 @@ void parse_args ( int argc, char *argv[])
     // getopt
     extern char *optarg;
     extern int optind, opterr, optopt;
-    const char* const short_opts = "t:g:c:hvzr:n:p:d:w:q:e:m:x:l:s:i:";
+    const char* const short_opts = "t:g:c:hvzr:n:p:d:w:q:e:m:x:l:s:i:b:j:";
     const option long_opts[] = {
         {"verbose",         no_argument,        NULL,   'v'},
         {"threads",     required_argument,      NULL,   't' },
@@ -506,6 +508,8 @@ void parse_args ( int argc, char *argv[])
         {"mismatch", required_argument, 0, 'x'},
         {"gap", required_argument, 0, 's'},
         {"num-random-reads", required_argument, 0, 'i'},
+        {"spoa-min-cov", required_argument, 0, 'j'},
+        {"spoa-gaps-percent", required_argument, 0, 'b'},
         {"help",            no_argument,    NULL,   'h'},
         {"min_rlen",     required_argument,    NULL,   'l'},
         {"keep_low_cov",     no_argument,    NULL,   OPT_KEEP_LOW_COV},	
@@ -549,6 +553,8 @@ void parse_args ( int argc, char *argv[])
     "-m, --match=INT                    Score for matching bases[5]\n"
     "-x, --mismatch=INT                 Score for mismatching bases[4]\n"
     "-s, --gap=INT                      Gap penalty (must be negative)[-8]\n"
+    "-j, --spoa-min-cov=INT             Minimum coverage a column of an spoa to have for calculating allele ratio [20]\n"
+    "-b, --spoa-gaps-percent=INT        Maximum percentage of gaps allowed in an spoa column while calculating allele ratios [20]\n"
     
     "\n";
 
@@ -632,6 +638,12 @@ void parse_args ( int argc, char *argv[])
             break;
         case 's':
             gap = atoi(optarg);
+            break;
+        case 'j':
+            opt::min_spoa_coverage = atoi(optarg);
+            break;
+        case 'b':
+            opt::allowed_spoa_gaps_percent = atoi(optarg);
             break;
         case 'i':
             opt::num_random_reads = atoi(optarg);
@@ -1486,7 +1498,7 @@ int32_t window_length, double quality_threshold, double error_threshold,int8_t m
 
     std::vector<std::unique_ptr<racon::Sequence>> polished_sequences;
     std::vector<std::map<float,int>> ar;
-    polisher->polish(polished_sequences, ar, drop_unpolished_sequences);
+    polisher->polish(polished_sequences, ar, drop_unpolished_sequences, opt::min_spoa_coverage, opt::allowed_spoa_gaps_percent);
     /*
     for (const auto& it: polished_sequences) {
         fprintf(stdout, ">%s\n%s\n", it->name().c_str(), it->data().c_str());

@@ -51,7 +51,7 @@ std::unique_ptr<Polisher> createPolisher(const std::string& sequences_path,
     const std::string& overlaps_path, const std::string& target_path,
     PolisherType type, uint32_t window_length, double quality_threshold,
     double error_threshold, int8_t match, int8_t mismatch, int8_t gap,
-    uint32_t num_threads) {
+    uint32_t num_threads ) {
 
     if (type != PolisherType::kC && type != PolisherType::kF) {
         fprintf(stderr, "[racon::createPolisher] error: invalid polisher type!\n");
@@ -432,10 +432,11 @@ void Polisher::initialize() {
 }
 
 void Polisher::polish(std::vector<std::unique_ptr<Sequence>>& dst, std::vector<std::map<float,int>>& allele_ratios,
-    bool drop_unpolished_sequences) {
+    bool drop_unpolished_sequences, int8_t min_spoa_coverage, int8_t allowed_spoa_gaps_percent) {
 
     std::vector<std::future<bool>> thread_futures;
-    for (uint64_t i = 0; i < windows_.size(); ++i) {
+    
+    for (uint64_t i = 0; i < windows_.size(); ++i) { 
         thread_futures.emplace_back(thread_pool_->submit_task(
             [&](uint64_t j) -> bool {
                 auto it = thread_to_id_.find(std::this_thread::get_id());
@@ -448,7 +449,7 @@ void Polisher::polish(std::vector<std::unique_ptr<Sequence>>& dst, std::vector<s
                 //spoa::generate_msa(alignment_engines_[it->second]);
                 //std::cout << "it->second = " << it->second <<"  alignment_engines_[it->second] = " << alignment_engines_[it->second] <<std::endl;
                 return windows_[j]->generate_consensus(
-                    alignment_engines_[it->second]);
+                    alignment_engines_[it->second], min_spoa_coverage, allowed_spoa_gaps_percent);
             }, i));
     }
 

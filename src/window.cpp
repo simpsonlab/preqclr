@@ -201,7 +201,7 @@ std::map<float,int> Window::allele_ratio_from_msa(std::vector<std::string> &msa,
 
 
 
-bool Window::generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment_engine) {
+bool Window::generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment_engine, int8_t min_spoa_coverage, int8_t allowed_spoa_gaps_percent) {
 
     if (sequences_.size() < 3) {
         consensus_ = std::string(sequences_.front().first, sequences_.front().second);
@@ -256,8 +256,8 @@ bool Window::generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment
     std::vector<std::string> msa;
     graph->generate_multiple_sequence_alignment(msa, true);
     msa_consensus_ = msa.at(0);    
-    allele_ratio_ = allele_ratio_from_msa(msa, const_cast<char*>("50"), const_cast<char*>("10"));
-    
+    //allele_ratio_ = allele_ratio_from_msa(msa, const_cast<char*>("20"), const_cast<char*>("30")); //msa, cov, allowed percent gap
+    allele_ratio_ = allele_ratio_from_msa(msa, const_cast<char*>(std::to_string(min_spoa_coverage).c_str()), const_cast<char*>(std::to_string(allowed_spoa_gaps_percent).c_str()));
     fprintf(stdout, "Multiple sequence alignment for %d seqs\n", sequences_.size());
     for (const auto& it: msa) {
         fprintf(stdout, "%s\n", it.c_str());

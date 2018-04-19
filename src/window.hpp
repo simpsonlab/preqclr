@@ -54,7 +54,7 @@ public:
   
     std::map<float,int> allele_ratio_from_msa(std::vector<std::string> &msa, const char * depth, const char * percent_gaps);   
 
-    bool generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment_engine);
+    bool generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment_engine, int8_t min_spoa_coverage, int8_t allowed_spoa_gaps_percent);
 
     void add_layer(const char* sequence, uint32_t sequence_length,
         const char* quality, uint32_t quality_length, uint32_t begin,
