@@ -69,7 +69,7 @@ namespace htzy
     //Vector to store n random reads 
     unordered_set<string> rreads;
     //Map structure to store each PAF record
-    map<string, vector<sequence>> full_paf_records;     
+    unordered_map<string, vector<sequence>> full_paf_records;     
     //Map structure to store fastq records
     map<string, string> parsed_fq;
     //Map structure to store reads and target seqs to construct SPOA
@@ -118,7 +118,7 @@ void allele_ratio_to_json(JSONWriter* writer){
 }
 
 
-unordered_set<string> random_reads(vector<string> &temp_vec){
+unordered_set<string> random_reads(unordered_map<string,string> &temp_map){
     /* 
     ========================================================
     Returns opt::num_random_reads random reads from the given set of reads
@@ -126,19 +126,31 @@ unordered_set<string> random_reads(vector<string> &temp_vec){
     Input:      set of read IDs
     Output:     set of opt::num_random_reads read IDs
     ========================================================
- 
     */
-    //vector <string> temp;
-    //for(auto it = temp_vec.begin(); it != temp_vec.end(); ++it) {
-    //    temp.push_back((*it));
-    //}
+    
+    vector <string> temp_vec;
+    for(auto it = temp_map.begin(); it != temp_map.end(); ++it) {
+        temp_vec.push_back((it->first));
+    }
     std::srand(std::time(0));
     std::random_shuffle (temp_vec.begin(), temp_vec.end());
     std::vector<string> ran_reads(temp_vec.begin(), temp_vec.begin() + opt::num_random_reads);
+  
     unordered_set<string> ran_reads_set;
-    for (auto i: ran_reads)
+    for (auto i: ran_reads) {
         ran_reads_set.insert(i);
+        ran_reads_set.insert(temp_map[i]);
+    } 
+
+
+    //Print all reads id in set
+    //for (auto i: ran_reads_set) {
+    //    cerr << i << "\n";
+    //} 
+   
     return ran_reads_set;
+    
+    
     /*Testing OMP
     std::vector<string> test_ran_reads = {"S1HapC_999", "S1HapA_1", "S1HapA_1002"};
     return test_ran_reads;
@@ -721,8 +733,7 @@ n\n");
     vector<int> badlines; // stores all the lines we do not want
     map<size_t, pair<int, int>> h; // stores all the hashed query read name + target read name pairs with line number and alignment length
     int ln = 0; // current line number
-    unordered_set<string> check_read_headers;
-    vector<string> read_headers_set;
+    unordered_map<string,string> check_read_headers;
     while (paf_read(fp1, &r1) >= 0) {
         string qname = r1.qn;
         string tname = r1.tn;          
@@ -758,20 +769,19 @@ n\n");
         }
         ln+=1; // read next line 
         if (check_read_headers.find(qname) == check_read_headers.end() && check_read_headers.size()<=(3*opt::num_random_reads)){
-            check_read_headers.insert(qname); read_headers_set.push_back(qname);}           
+            check_read_headers[qname]=tname;}           
     }
     //for (auto v : read_headers_set)
     //    std::cout << v << "\n";    
    
-    htzy::rreads = random_reads(read_headers_set);    
+    htzy::rreads = random_reads(check_read_headers);    
     h.clear(); // free up memory
     check_read_headers.clear();
-    read_headers_set.clear();
     
     sort(badlines.begin(), badlines.end());
     
-    for (auto v: badlines)
-       std::cout << v << "\n"; 
+    //for (auto v: badlines)
+      // std::cout << v << "\n"; 
 
     // PASS 2: read each line in PAF file that has NOT been noted in PASS 1 as a "bad" line
     string line;
@@ -836,21 +846,26 @@ n\n");
                 }
                             
                               
-            //Declare two sequence objects, one for query and one for target record    
-            sequence qrec;
-            sequence trec;
-            qrec.set_paf(qname,tname,qlen,qstart,qend,strand,tlen,tstart,tend);
-            trec.set_paf(tname,qname,tlen,tstart,tend,strand,qlen,qstart,qend);
-            //cout << "prec.qname = " << prec.qname << endl;
-            //cout << "prec.strand = " << prec.strand << endl;
-            //cout << "prec.tname = " << prec.tname << endl;
-            //cout << "prec.qlen = " << prec.qlen << endl;
-            //cout << "prec.qstart = " << prec.qstart << endl;
-            //cout << "prec.qend = " << prec.qend << endl;
-         
-            htzy::full_paf_records[qname].push_back(qrec);
-            htzy::full_paf_records[tname].push_back(trec);
-                        
+
+            //Check if the query or target read IDs are present in rreads set,
+            // if yes, then add the target and query read IDs to the rreads set
+            // and store their records in full_paf_records 
+            if (htzy::rreads.find(qname) != htzy::rreads.end() || htzy::rreads.find(tname) != htzy::rreads.end()){ 
+                //Declare two sequence objects, one for query and one for target record     
+                sequence qrec;                                                               
+                sequence trec;                                                               
+                qrec.set_paf(qname,tname,qlen,qstart,qend,strand,tlen,tstart,tend);          
+                trec.set_paf(tname,qname,tlen,tstart,tend,strand,qlen,qstart,qend);          
+                //cout << "prec.qname = " << prec.qname << endl;                             
+                //cout << "prec.strand = " << prec.strand << endl;                           
+                //cout << "prec.tname = " << prec.tname << endl;                             
+                //cout << "prec.qlen = " << prec.qlen << endl;                               
+                //cout << "prec.qstart = " << prec.qstart << endl;                           
+                //cout << "prec.qend = " << prec.qend << endl;                 
+                htzy::full_paf_records[qname].push_back(qrec);
+                htzy::full_paf_records[tname].push_back(trec);
+            }
+            
             // calculate coverage per read               
             // add this information to paf_records dictionary
             auto i = paf_records.find(qname);
@@ -1042,7 +1057,10 @@ vector <pair< double, int >> parse_fq( string file )
     while (kseq_read(seq) >= 0) {
          string id = seq->name.s;
          string sequence = seq->seq.s;
-         htzy::parsed_fq[id] = sequence;
+
+         if (htzy::full_paf_records.find(id)!=htzy::full_paf_records.end())
+             htzy::parsed_fq[id] = sequence;
+
          int r_len = sequence.length();
          int gc = 0;
          // only read 40% of sequences
@@ -1057,7 +1075,8 @@ vector <pair< double, int >> parse_fq( string file )
          }
     }
     kseq_destroy(seq);
-    gzclose(fp);         
+    gzclose(fp);        
+    cerr << "htzy::parsed_fq.size() = " << htzy::parsed_fq.size() << endl; 
     return fq_records;
 }
 
