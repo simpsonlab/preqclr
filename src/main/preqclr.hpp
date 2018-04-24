@@ -34,7 +34,7 @@ void calculate_ngx( vector<double> contig_lengths, double genome_size_est, JSONW
 void calculate_total_num_bases_vs_min_cov( map<double, long long int, greater<double>> per_cov_total_num_bases, JSONWriter* writer);
 
 int getopt( int argc, char* const* argv[], const char *optstring);
-enum { OPT_VERSION, OPT_KEEP_LOW_COV, OPT_KEEP_HIGH_COV, OPT_REMOVE_DUPS, OPT_REMOVE_INT_MATCHES, OPT_MAX_OVERHANG, OPT_MAX_OVERHANG_RATIO, OPT_REMOVE_CONTAINED, OPT_PRINT_READ_COV };
+enum { OPT_VERSION, OPT_KEEP_LOW_COV, OPT_KEEP_HIGH_COV, OPT_REMOVE_DUPS, OPT_REMOVE_INT_MATCHES, OPT_MAX_OVERHANG, OPT_MAX_OVERHANG_RATIO, OPT_REMOVE_CONTAINED, OPT_PRINT_READ_COV, OPT_KEEP_SELF_OVERLAPS };
 void parse_args( int argc, char *argv[]);
 map<string, sequence> parse_paf();
 vector<double> parse_gfa();

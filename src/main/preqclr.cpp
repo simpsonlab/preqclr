@@ -67,6 +67,7 @@ namespace opt
     static double max_overhang_ratio = 0.80;
     static bool remove_contained = false;
     static bool print_read_cov = false;
+    static bool keep_self_overlaps = false;
 }
 
 
@@ -275,6 +276,7 @@ void parse_args ( int argc, char *argv[])
         {"max-overhang",     required_argument,    NULL,  OPT_MAX_OVERHANG},
         {"max-overhang-ratio",     required_argument,    NULL,  OPT_MAX_OVERHANG_RATIO},
         {"print-read-cov",     no_argument,    NULL,  OPT_PRINT_READ_COV},
+        {"keep-self-overlaps", no_argument, NULL, OPT_KEEP_SELF_OVERLAPS},
         { NULL, 0, NULL, 0 }
     };
 
@@ -300,6 +302,7 @@ void parse_args ( int argc, char *argv[])
     "    -l, --min-rlen=INT		Use overlaps with read lengths >= INT\n"
     "        --keep-low-cov          Keep reads with low coverage (<= Q25 - IQR*1.25) for genome size est. calculations \n" 
     "        --keep-high-cov         Keep reads with high coverage (>= Q75 + IQR*1.25) for genome size est. calculations \n"
+    "        --keep-self-overlaps    Keep overlaps where the query read and target read are the same \n"
     "        --remove-dups           Remove duplicate overlaps; between duplicate overlaps choose longest alignment \n"
     "        --remove-contained      Remove contained overlaps \n"
     "        --remove-int-matches    Remove internal matches (overlaps where it is a short match in the middle of both reads) \n"
@@ -390,6 +393,9 @@ void parse_args ( int argc, char *argv[])
             break;
         case OPT_PRINT_READ_COV:
             opt::print_read_cov = true;
+            break;
+        case OPT_KEEP_SELF_OVERLAPS:
+            opt::keep_self_overlaps = true;
             break;
         case '?':
             // invalid option: getopt_long already printed an error message
@@ -485,11 +491,12 @@ map<string, sequence> parse_paf()
         //cout << qname << "\t" << tname << "\t" << r1.bl << "\t" << ln1 << "\t" << bad << "\n";
 
         // start filtering overlaps
-        if ( qname.compare(tname) == 0 ) { 
-            // self-overlap: the same read
-            badlines.push_back(make_pair(ln1, "self"));
-            ln1++;
-            continue;
+        if ( (!opt::keep_self_overlaps) && (qname.compare(tname) == 0) ) { 
+              //self-overlap: the same read
+              badlines.push_back(make_pair(ln1, "self"));
+              ln1++;
+            //cout << qname << "\n";
+              continue;
         } 
         if (( qlen < opt::rlen_cutoff ) || ( tlen < opt::rlen_cutoff )) {
             // overlaps with short reads
@@ -688,11 +695,12 @@ map<string, sequence> parse_paf()
     // XXXXXXXXXXXXXXXXXXX
     // DEBUGGING ZONE
     // XXXXXXXXXXXXXXXXXXX
-    //cout << "TOTAL NUMBER OF READS: "<< paf_records.size() << endl;
+    cout << "TOTAL NUMBER OF READS: "<< paf_records.size() << endl;
     if ( opt::print_read_cov ) {
         for ( auto const& r : paf_records ) {
             sequence temp = r.second;
-            cout << r.first << "\t" << temp.read_len << "\t" << temp.cov << "\n";
+            cout << r.first << "\n";
+            //cout << r.first << "\t" << temp.read_len << "\t" << temp.cov << "\n";
         }
     } 
     // XXXXXXXXXXXXXXXXXXX
