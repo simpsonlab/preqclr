@@ -11,7 +11,7 @@
 #include "Sequence.hpp"
 #include "window.hpp"
 #include "polisher.hpp"
-
+#include "preqclr.hpp"
 #include "bioparser/bioparser.hpp"
 #include "thread_pool/thread_pool.hpp"
 #include "spoa/spoa.hpp"
@@ -166,9 +166,18 @@ void Polisher::initialize() {
     }
 
     tparser_->reset();
-    tparser_->parse_objects(sequences_, -1);
+    //tparser_->parse_objects(sequences_, -1);
+    bool status = preqc_to_racon_parsefq(sequences_);
 
     uint64_t targets_size = sequences_.size();
+    
+    std::cerr << "After loading target sequences_.size() = " << sequences_.size() << "\n";
+
+    //for (uint64_t i = 0; i < sequences_.size(); ++i){
+    //     std::cerr << sequences_[i]->name() << "\n";
+    //}
+
+
     if (targets_size == 0) {
         fprintf(stderr, "[racon::Polisher::initialize] error: "
             "empty target sequences set!\n");
@@ -187,18 +196,38 @@ void Polisher::initialize() {
     std::vector<bool> has_reverse_data(targets_size, false);
 
     fprintf(stderr, "[racon::Polisher::initialize] loaded target sequences\n");
+    std::cerr << "After loading target name_to_id.size() = " << name_to_id.size() << "\n";
 
     uint64_t sequences_size = 0, total_sequences_length = 0;
-
+         
     sparser_->reset();
     while (true) {
         uint64_t l = sequences_.size();
-        auto status = sparser_->parse_objects(sequences_, kChunkSize);
+        //uint64_t l = 0;        
+
+        //bool status = sparser_->parse_objects(sequences_, kChunkSize);
+        //bool status = preqc_to_racon_parsefq(sequences_);
+        std::cerr << "Inside while loop sequences_.size() = " << sequences_.size() << "\n";
+  
+        //std::vector<std::unique_ptr<Sequence>> second_sequences_;
+        //for (const auto& e : sequences_)
+        //     second_sequences_.push_back(std::make_unique<racon::Sequence>(*e));
+
+        for (uint64_t i = 0; i < l; i++){
+
+            sequences_.emplace_back(std::unique_ptr<racon::Sequence>(new racon::Sequence(
+                    (sequences_[i]->name()).c_str(), strlen((sequences_[i]->name()).c_str()),
+                    (sequences_[i]->data()).c_str(), strlen((sequences_[i]->data()).c_str()),
+                    (sequences_[i]->quality()).c_str(), strlen((sequences_[i]->quality()).c_str())
+                    )));
+
+        }
+             
 
         uint64_t n = 0;
         for (uint64_t i = l; i < sequences_.size(); ++i, ++sequences_size) {
-            total_sequences_length += sequences_[i]->data().size();
-
+            total_sequences_length += sequences_[i]->data().size();        
+         
             auto it = name_to_id.find(sequences_[i]->name() + "t");
             if (it != name_to_id.end()) {
                 if (sequences_[i]->data().size() != sequences_[it->second]->data().size() ||
@@ -220,9 +249,11 @@ void Polisher::initialize() {
                 id_to_id[sequences_size << 1 | 0] = i - n;
             }
         }
-
-        shrinkToFit(sequences_, l);
-
+         
+        std::cerr << "Before shrinktofit, sequences_.size() = " << sequences_.size() << "\n";
+        auto x = shrinkToFit(sequences_, l);
+        std::cerr << "shrinkToFit(sequences_, l) = " << x << "\n";
+        status = false;
         if (!status) {
             break;
         }
@@ -238,9 +269,12 @@ void Polisher::initialize() {
     has_data.resize(sequences_.size(), false);
     has_reverse_data.resize(sequences_.size(), false);
 
+
     WindowType window_type = static_cast<double>(total_sequences_length) /
         sequences_size <= 1000 ? WindowType::kNGS : WindowType::kTGS;
 
+    std::cerr << "After loading subject, sequences_.size() = " << sequences_.size() << "\n";
+    std::cerr << "After loading subject name_to_id.size() = " << name_to_id.size() << "\n";
     fprintf(stderr, "[racon::Polisher::initialize] loaded sequences\n");
 
     std::vector<std::unique_ptr<Overlap>> overlaps;
@@ -274,10 +308,11 @@ void Polisher::initialize() {
     oparser_->reset();
     uint64_t l = 0;
     while (true) {
-        auto status = oparser_->parse_objects(overlaps, kChunkSize);
-
+        //auto status = oparser_->parse_objects(overlaps, kChunkSize);
+        bool status = preqc_to_racon_parsepaf(overlaps);
+        std::cerr << "overlaps.size() = " << overlaps.size() << "\n";
         uint64_t c = l;
-        for (uint64_t i = l; i < overlaps.size(); ++i) {
+        for (uint64_t i = l; i < overlaps.size(); ++i) { 
             overlaps[i]->transmute(sequences_, name_to_id, id_to_id);
 
             if (!overlaps[i]->is_valid()) {
@@ -313,10 +348,13 @@ void Polisher::initialize() {
         uint64_t n = shrinkToFit(overlaps, l);
         l = c - n;
 
+        status = false;
         if (!status) {
             break;
         }
     }
+
+    std::cerr << "After overlaps.size() = " << overlaps.size() << "\n";
 
     std::unordered_map<std::string, uint64_t>().swap(name_to_id);
     std::unordered_map<uint64_t, uint64_t>().swap(id_to_id);

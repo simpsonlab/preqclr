@@ -22,7 +22,7 @@ typedef struct {
 typedef struct {
     const char *qn, *tn; // these point to the input string; NOT allocated
     uint32_t ql, qs, qe, tl, ts, te;
-    uint32_t ml:31, rev:1, bl;
+    uint32_t ml:31, rev:1, bl,mq;
     double dv;
 } paf_rec_t;
 

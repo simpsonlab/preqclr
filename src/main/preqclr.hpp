@@ -11,9 +11,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "sequence.hpp"
-
+#include "Sequence.hpp"
 #include "readpaf/paf.h"
-
+#include "overlap.hpp"
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
@@ -28,7 +28,8 @@ using namespace std;
 using namespace rapidjson;
 
 typedef PrettyWriter<StringBuffer> JSONWriter;
-
+bool preqc_to_racon_parsepaf(std::vector<std::unique_ptr<racon::Overlap>>& d);
+bool preqc_to_racon_parsefq(std::vector<std::unique_ptr<racon::Sequence>>& d);
 double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWriter* writer );
 void calculate_read_length( vector <pair <double, int>> fq, JSONWriter* writer);
 void calculate_GC_content( vector <pair <double, int>> fq, JSONWriter* writer);
@@ -53,3 +54,42 @@ int32_t window_length, double quality_threshold, double error_threshold,int8_t m
 //vector<string> calculate_heterozygosity(vector<string> &sequences, const char * a, const char * b, const char * c, const char * d, const char * e);
 //void allele_ratio_to_json(JSONWriter* writer);
 
+/*
+template<class T>
+bool preqc_to_racon_parsepaf(std::vector<std::unique_ptr<T>>& dst){
+
+    const char* q_name = nullptr, * t_name = nullptr;
+
+    uint32_t q_name_length = 0, q_length = 0, q_begin = 0, q_end = 0,
+        t_name_length = 0, t_length = 0, t_begin = 0, t_end = 0,
+        matching_bases = 0, overlap_length = 0, mapping_quality = 0;
+        char orientation = '\0';    
+
+    dst.emplace_back(std::unique_ptr<racon::Overlap>(new racon::Overlap(q_name, q_name_length,
+                    q_length, q_begin, q_end, orientation, t_name, t_name_length,
+                    t_length, t_begin, t_end, matching_bases, overlap_length, mapping_quality)));
+
+    return true;
+}
+*/
+/*
+bool preqc_to_racon_parsepaf(std::vector<std::unique_ptr<racon::Overlap>>& dst, 
+         const char* q_name = nullptr, * t_name = nullptr, uint32_t q_name_length = 0, 
+         q_length = 0, q_begin = 0, q_end = 0, t_name_length = 0, t_length = 0, t_begin = 0, t_end = 0,
+        matching_bases = 0, overlap_length = 0, mapping_quality = 0, char orientation = '\0'){
+
+    //const char* q_name = nullptr, * t_name = nullptr;
+
+    //uint32_t q_name_length = 0, q_length = 0, q_begin = 0, q_end = 0,
+      //  t_name_length = 0, t_length = 0, t_begin = 0, t_end = 0,
+       // matching_bases = 0, overlap_length = 0, mapping_quality = 0;
+        //char orientation = '\0';    
+
+     dst.emplace_back(std::unique_ptr<racon::Overlap>(new racon::Overlap(q_name, q_name_length,
+                    q_length, q_begin, q_end, orientation, t_name, t_name_length,
+                    t_length, t_begin, t_end, matching_bases, overlap_length, mapping_quality)));
+
+    return true;
+}
+
+*/

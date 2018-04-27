@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include "Sequence.hpp"
+#include "overlap.hpp"
 #include "polisher.hpp"
 #ifdef _OPENMP
 #include <omp.h>
@@ -78,6 +79,8 @@ namespace htzy
     map<string,vector<string>> read_msa;
     //Map structure to store allele ratios
     map<float,int> allele_ratio;
+    std::vector<std::unique_ptr<racon::Overlap>> dst;
+    std::vector<std::unique_ptr<racon::Sequence>> fqdst;
 }
 
 namespace opt
@@ -106,6 +109,19 @@ namespace opt
 
 bool endFile = false;
 
+bool preqc_to_racon_parsepaf(std::vector<std::unique_ptr<racon::Overlap>>& d){
+
+   d = std::move(htzy::dst);
+   return true;
+
+}
+
+bool preqc_to_racon_parsefq(std::vector<std::unique_ptr<racon::Sequence>>& dq){
+
+   dq = std::move(htzy::fqdst);
+   return true;
+
+}
 
 void allele_ratio_to_json(JSONWriter* writer){
     writer->Key("allele_ratio");
@@ -144,7 +160,8 @@ unordered_set<string> random_reads(unordered_map<string,string> &temp_map){
         ran_reads_set.insert(temp_map[i]);
     } 
 
-
+    cerr << "Size of ran_reads = " << ran_reads.size() << "\n";
+    cerr << "Size of ran_reads_set = " << ran_reads_set.size() << "\n";
     //Print all reads id in set
     //for (auto i: ran_reads_set) {
     //    cerr << i << "\n";
@@ -786,7 +803,14 @@ n\n");
     //for (auto v : read_headers_set)
     //    std::cout << v << "\n";    
    
-    htzy::rreads = random_reads(check_read_headers);    
+   
+    htzy::rreads = random_reads(check_read_headers);   
+    std::cerr << "Random reads size = "<< htzy::rreads.size() << std::endl;
+    
+    for (auto v : htzy::rreads)
+        std::cerr << v << "\n"; 
+    std::cerr << "END random reads" << endl; 
+
     h.clear(); // free up memory
     check_read_headers.clear();
     
@@ -796,6 +820,7 @@ n\n");
       // std::cout << v << "\n"; 
 
     // PASS 2: read each line in PAF file that has NOT been noted in PASS 1 as a "bad" line
+    //std::vector<std::unique_ptr<racon::Overlap>> dst;
     string line;
     const char *c = opt::paf_file.c_str();
     paf_file_t *fp;
@@ -818,9 +843,9 @@ n\n");
     int bad = int(badlines.at(iv)); // first bad line to watch out for		
     // read good lines in PAF  
 
-
+    int count = 0;
     while (paf_read(fp, &r) >= 0) { 
-        if (ln1<bad) {
+       // if (ln1<bad) {
             // read each line/overlap and save each column into variable
             string qname = r.qn;
             string tname = r.tn;
@@ -831,7 +856,26 @@ n\n");
             unsigned int tlen = r.tl;
             unsigned int tstart = r.ts;
             unsigned int tend = r.te;
-            cout << qname<< "," << tname << "," << qlen << ","  << qstart << "," << qend << "\n";
+            
+
+
+            const char* q_name = r.qn;
+            uint32_t q_name_length = strlen(q_name);
+            uint32_t q_length = r.ql;
+            uint32_t q_begin = r.qs; 
+            uint32_t q_end = r.qe;  
+            char orientation = r.rev;
+            const char* t_name = r.tn;
+            uint32_t t_name_length = strlen(t_name);
+            uint32_t t_length = r.tl; 
+            uint32_t t_begin = r.ts;
+            uint32_t t_end = r.te; 
+            uint32_t matching_bases = r.ml; 
+            uint32_t overlap_length = r.bl;
+            uint32_t maping_quality = r.mq;            
+
+	    //cerr << "q_name = " << q_name << ", t_name = " << t_name << endl;
+            //cerr << qname<< "," << tname << "," << qlen << ","  << qstart << "," << qend << "\n";
              // filter reads by read length
             if (( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff )) {
                 unsigned int qprefix_len = qstart;
@@ -862,13 +906,16 @@ n\n");
             //Check if the query or target read IDs are present in rreads set,
             // if yes, then add the target and query read IDs to the rreads set
             // and store their records in full_paf_records 
-            if (htzy::rreads.find(qname) != htzy::rreads.end() || htzy::rreads.find(tname) != htzy::rreads.end()){ 
-                //Declare two sequence objects, one for query and one for target record     
+            unordered_set<string>::const_iterator qfinder = htzy::rreads.find(qname);
+            unordered_set<string>::const_iterator tfinder = htzy::rreads.find(tname);
+            if (qfinder != htzy::rreads.end() || tfinder != htzy::rreads.end()){ 
+                //Declare two sequence objects, one for query and one for target record    
+                count++; 
                 sequence qrec;                                                               
                 sequence trec;                                                               
                 qrec.set_paf(qname,tname,qlen,qstart,qend,strand,tlen,tstart,tend);          
                 trec.set_paf(tname,qname,tlen,tstart,tend,strand,qlen,qstart,qend);          
-                //cout << "prec.qname = " << prec.qname << endl;                             
+                //cout << "CHECK qrec.qname = " << qrec.qname << endl;                             
                 //cout << "prec.strand = " << prec.strand << endl;                           
                 //cout << "prec.tname = " << prec.tname << endl;                             
                 //cout << "prec.qlen = " << prec.qlen << endl;                               
@@ -876,6 +923,18 @@ n\n");
                 //cout << "prec.qend = " << prec.qend << endl;                 
                 htzy::full_paf_records[qname].push_back(qrec);
                 htzy::full_paf_records[tname].push_back(trec);
+                
+                htzy::dst.emplace_back(new racon::Overlap(q_name,  q_name_length,  q_length, q_begin,  
+                q_end, orientation, t_name,
+                t_name_length,  t_length,  t_begin,
+                t_end,  matching_bases,  overlap_length, maping_quality));
+        
+                htzy::dst.emplace_back(new racon::Overlap(t_name,  t_name_length,  t_length, t_begin,
+                t_end, orientation, q_name,
+                q_name_length,  q_length,  q_begin,
+                q_end,  matching_bases,  overlap_length, maping_quality));
+                
+
             }
             
             // calculate coverage per read               
@@ -907,22 +966,28 @@ n\n");
             }
            }
    
-    } else if ( iv+1 < badlines.size() ) {
-        iv+=1;
-        bad = int(badlines.at(iv));
+   // } else if ( iv+1 < badlines.size() ) {
+   //     iv+=1;
+   //     bad = int(badlines.at(iv));
 
-    }
+   // }
     ln1+=1;
-    }  
+    } 
+    std::cerr << "Size of full_paf_records = " << htzy::full_paf_records.size() << ", Count variable = " << count << ", Size of htzy::dst" << (htzy::dst).size() << "\n";
 
-   /** Print full_paf_records
-   for(auto it = full_paf_records.begin(); it != full_paf_records.end(); ++it) {
-       std::cout << (*it).first << "\n";
+ 
+
+ /*   //Print full_paf_records
+   for(auto it = htzy::full_paf_records.begin(); it != htzy::full_paf_records.end(); ++it) {
+       std::cout << "Key = " << (*it).first ;
        for(auto it2 = 0; it2 < (*it).second.size(); ++it2)
-           cout << (*it).second[it2].tname << " ";
+           cout << ",Value No." << it2 << " = " <<(*it).second[it2].tname << " ";
        cout <<"\n";
    }
-   */
+ */  
+
+
+  
 
    //htzy::rreads = random_reads(1000, htzy::full_paf_records);
 
@@ -1069,9 +1134,32 @@ vector <pair< double, int >> parse_fq( string file )
     while (kseq_read(seq) >= 0) {
          string id = seq->name.s;
          string sequence = seq->seq.s;
+         uint32_t name_length = strlen(id.c_str());
+         uint32_t sequence_length = strlen(sequence.c_str());    
+         //cerr << id << endl;       
 
-         if (htzy::full_paf_records.find(id)!=htzy::full_paf_records.end())
+         //Added checks for fastq and fasta based on the value stored in qual.s
+         if (seq->qual.s != nullptr && htzy::full_paf_records.find(id)!=htzy::full_paf_records.end()){
              htzy::parsed_fq[id] = sequence;
+             //cerr << "id = " << id << ", (const char*)id.c_str() " << (const char*)id.c_str() << endl;
+             const char* quality = seq->qual.s;
+             uint32_t quality_length = strlen(quality);
+             htzy::fqdst.emplace_back(std::unique_ptr<racon::Sequence>(new racon::Sequence(
+                    (const char*)id.c_str(), name_length ,
+                    (const char*)sequence.c_str(), sequence_length,
+                    (const char*)quality, quality_length)));
+             
+         }
+
+         if (seq->qual.s == nullptr && htzy::full_paf_records.find(id)!=htzy::full_paf_records.end()){
+             htzy::parsed_fq[id] = sequence;   
+             //cerr << "FASTA id = " << id << ", (const char*)id.c_str() " << (const char*)id.c_str() << endl;
+          
+             htzy::fqdst.emplace_back(std::unique_ptr<racon::Sequence>(new racon::Sequence(
+                    (const char*)id.c_str(), name_length ,
+                    (const char*)sequence.c_str(), sequence_length
+                    )));
+         }
 
          int r_len = sequence.length();
          int gc = 0;
@@ -1089,6 +1177,9 @@ vector <pair< double, int >> parse_fq( string file )
     kseq_destroy(seq);
     gzclose(fp);        
     cerr << "htzy::parsed_fq.size() = " << htzy::parsed_fq.size() << endl; 
+    //for(auto it = htzy::parsed_fq.begin(); it != htzy::parsed_fq.end(); ++it) {
+    //   std::cout << (*it).first << "\n";
+    //}    
     return fq_records;
 }
 

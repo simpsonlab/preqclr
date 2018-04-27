@@ -71,7 +71,7 @@ public:
     friend bioparser::MhapParser<Overlap>;
     friend bioparser::PafParser<Overlap>;
     friend bioparser::SamParser<Overlap>;
-private:
+//private:
     Overlap(uint64_t a_id, uint64_t b_id, double accuracy, uint32_t minmers,
         uint32_t a_rc, uint32_t a_begin, uint32_t a_end, uint32_t a_length,
         uint32_t b_rc, uint32_t b_begin, uint32_t b_end, uint32_t b_length);

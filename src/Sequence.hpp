@@ -57,7 +57,7 @@ public:
     friend bioparser::FastqParser<Sequence>;
     friend std::unique_ptr<Sequence> createSequence(const std::string& name,
         const std::string& data);
-private:
+//private:
     Sequence(const char* name, uint32_t name_length, const char* data,
         uint32_t data_length);
     Sequence(const char* name, uint32_t name_length, const char* data,

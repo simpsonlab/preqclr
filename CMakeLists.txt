@@ -36,6 +36,7 @@ target_include_directories(preqclrhtzy PRIVATE include/zstr/src)
 target_include_directories(preqclrhtzy PRIVATE include/readpaf)
 target_include_directories(preqclrhtzy PRIVATE include/)
 target_include_directories(preqclrhtzy PRIVATE src/)
+target_include_directories(preqclrhtzy PRIVATE src/main/)
 target_include_directories(preqclrhtzy PRIVATE include/rapidjson/include/)
 
 #SUBDIRS := include src include/readpaf include/rapidjson/include include/zstr/src include/spoa
