@@ -15,6 +15,9 @@
 #include <assert.h>
 #include "spoa/spoa.hpp"
 #include <string.h>
+#include <fstream>
+
+
 /*
 namespace htzy
 {
@@ -44,7 +47,7 @@ std::unique_ptr<Window> createWindow(uint64_t id, uint32_t rank, WindowType type
 Window::Window(uint64_t id, uint32_t rank, WindowType type, const char* backbone,
     uint32_t backbone_length, const char* quality, uint32_t quality_length)
         : id_(id), rank_(rank), type_(type), consensus_(), msa_consensus_(), allele_ratio_(), sequences_(),
-        qualities_(), positions_() {
+        qualities_(), positions_(), second_msas_() {
 
     sequences_.emplace_back(backbone, backbone_length);
     qualities_.emplace_back(quality, quality_length);
@@ -208,20 +211,22 @@ bool Window::generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment
         consensus_ = std::string(sequences_.front().first, sequences_.front().second);
         return false;
     }
-    //std::cerr << "Inside Window::generate_consensus" << "\n";
-    //std::cerr << "sequences_.size() = " << sequences_.size() << "\n";
-    //std::cerr << "sequences_.front().first = " << sequences_.front().first << "\n";
-    //std::cerr << "sequences_.front().second = " << sequences_.front().second << "\n";
-    //std::cerr << "qualities_.front().first = " << qualities_.front().first << "\n";
-    //std::cerr << "qualities_.front().second = " << qualities_.front().second << "\n";
+    /*
+    std::cerr << "Inside Window::generate_consensus" << "\n";
+    std::cerr << "sequences_.size() = " << sequences_.size() << "\n";
+    std::cerr << "sequences_.front().first = " << sequences_.front().first << "\n";
+    std::cerr << "sequences_.front().second = " << sequences_.front().second << "\n";
+    std::cerr << "qualities_.front().first = " << qualities_.front().first << "\n";
+    std::cerr << "qualities_.front().second = " << qualities_.front().second << "\n";
      
-   /* 
+    
     for (uint32_t i = 0; i < sequences_.size(); ++i) {     
+        //std::cerr << "sequences_["<<i<<"].first = " << sequences_[i].first << "  ";
         std::cerr << "sequences_["<<i<<"].second = " << sequences_[i].second << "  ";
         std::cerr << "positions_["<<i<<"].first = " <<  positions_[i].first << "  ";
         std::cerr << "positions_["<<i<<"].second = " <<  positions_[i].second << "\n";    
-    }*/
-
+    }
+    */
     auto graph = spoa::createGraph();
     graph->add_alignment(spoa::Alignment(), sequences_.front().first,
         sequences_.front().second, qualities_.front().first,
@@ -269,21 +274,24 @@ bool Window::generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment
     consensus_ = graph->generate_consensus(coverages);
         
     std::vector<std::string> msa;
-    graph->generate_multiple_sequence_alignment(msa, true);
-    //msa_consensus_ = "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT" + msa.at(0);   
-    msa_consensus_ = msa.at(0);
-    msa_consensus_.erase(std::remove(msa_consensus_.begin(), msa_consensus_.end(), '-'), msa_consensus_.end());    
+    graph->generate_multiple_sequence_alignment(msa,true);
+    msa_consensus_ = msa.at(msa.size()-1);
+    //msa_consensus_ = "S" + msa.at(msa.size()-1);   
+    //msa_consensus_.erase(std::remove(msa_consensus_.begin(), msa_consensus_.end(), '-'), msa_consensus_.end());    
 
     //Second graph construction. TODO: Make a function to avoid redundant code
     auto second_graph = spoa::createGraph();
-    sequences_.erase(sequences_.begin());
-    qualities_.erase(qualities_.begin());
-    positions_.erase(positions_.begin());
+    //sequences_.erase(sequences_.begin());
+    //qualities_.erase(qualities_.begin());
+    //positions_.erase(positions_.begin());
     
-    sequences_.insert(sequences_.begin(), std::make_pair(msa_consensus_.c_str(), msa_consensus_.length()));
-    qualities_.insert(qualities_.begin(), std::make_pair(std::string((msa_consensus_.length()), '~').c_str(), (msa_consensus_.length())));
-    //positions_.insert(positions_.begin(), std::make_pair(0, (msa_consensus_.length())));
-    positions_.insert(positions_.begin(), std::make_pair(0, 0));
+    sequences_.at(0) = (std::make_pair(msa_consensus_.c_str(), msa_consensus_.length()));   
+    qualities_.at(0) = (std::make_pair(std::string((msa_consensus_.length()), '~').c_str(), (msa_consensus_.length())));
+    positions_.at(0) = (std::make_pair(0, 0));
+
+    //sequences_.insert(sequences_.begin(), std::make_pair(msa_consensus_.c_str(), msa_consensus_.length()));
+    //qualities_.insert(qualities_.begin(), std::make_pair(std::string((msa_consensus_.length()), '~').c_str(), (msa_consensus_.length())));
+    //positions_.insert(positions_.begin(), std::make_pair(0, 0));
 
 
     //std::cerr << "SECOND Inside Window::generate_consensus" << "\n";
@@ -300,7 +308,31 @@ bool Window::generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment
     second_graph->add_alignment(spoa::Alignment(), sequences_.front().first,
         sequences_.front().second, qualities_.front().first,
         qualities_.front().second);
-    
+
+   std::ofstream ofile;
+   /*
+    std::vector<std::string> test_msa;
+    second_graph->generate_multiple_sequence_alignment(test_msa);
+ 
+    ofile.open("Test_msa_"+ std::to_string(sequences_.size()));
+
+    ofile<<"\n\nTest Multiple sequence alignment\n";
+    fprintf(stdout, "\nTest Multiple sequence alignment for %d seqs\n", sequences_.size());
+    for (const auto& it: test_msa) {
+       fprintf(stdout, "%s\n", it.c_str());
+        ofile<<it.c_str();
+    }
+    ofile.close();
+
+    fprintf(stdout, "Ranks = ");
+    for (uint32_t i = 0; i < sequences_.size(); ++i) {
+          fprintf(stdout,"%d " ,rank[i]);
+    }
+    fprintf(stdout,"\n");
+*/
+
+
+    /* 
     rank.clear();
     rank.reserve(sequences_.size());
     for (uint32_t i = 0; i < sequences_.size(); ++i) {
@@ -308,6 +340,10 @@ bool Window::generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment
     }
     std::sort(rank.begin() + 1, rank.end(), [&](uint32_t lhs, uint32_t rhs) {
         return positions_[lhs].first < positions_[rhs].first; });
+    */
+
+
+
 
     offset = 0.01 * sequences_.front().second;
     for (uint32_t j = 1; j < sequences_.size(); ++j) {
@@ -349,15 +385,24 @@ bool Window::generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment
  
     //allele_ratio_ = allele_ratio_from_msa(msa, const_cast<char*>("20"), const_cast<char*>("30")); //msa, cov, allowed percent gap
     allele_ratio_ = allele_ratio_from_msa(second_msa, const_cast<char*>(std::to_string(min_spoa_coverage).c_str()), const_cast<char*>(std::to_string(allowed_spoa_gaps_percent).c_str()));
+    
+    
     fprintf(stdout, "Multiple sequence alignment for %d seqs\n", sequences_.size());
     for (const auto& it: msa) {
         fprintf(stdout, "%s\n", it.c_str());
     }  
-  
-    fprintf(stdout, "Second Multiple sequence alignment for %d seqs\n", sequences_.size());
+
+    //ofile.open("Second_msa_"+ std::to_string(sequences_.size()));
+    //ofile<<"\n\nSecond Multiple sequence alignment for "<< sequences_.size() << " sequences\n";
+ 
+    fprintf(stdout, "Second Multiple sequence alignment for %d seqs\n", sequences_.size()); 
     for (const auto& it: second_msa) {
         fprintf(stdout, "%s\n", it.c_str());
+        ofile << it.c_str() << "\n";
     }
+    //ofile.close();
+    
+    second_msas_.insert(std::pair<int, std::vector<std::string>>(sequences_.size(), second_msa));
 
     if (type_ == WindowType::kTGS) {
         uint32_t average_coverage = (sequences_.size() - 1) / 2;

@@ -49,7 +49,7 @@ public:
 
     void initialize();
 
-    void polish(std::vector<std::unique_ptr<Sequence>>& dst, std::vector<std::map<float,int>> &allele_ratios,
+    void polish(std::vector<std::unique_ptr<Sequence>>& dst, std::vector<std::map<float,int>> &allele_ratios, std::vector<std::map<int,std::vector<std::string>>> &s_msa,
         bool drop_unpolished_sequences, int8_t min_spoa_coverage, int8_t allowed_spoa_gaps_percent);
 
     friend std::unique_ptr<Polisher> createPolisher(const std::string& sequences_path,

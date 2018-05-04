@@ -15,7 +15,7 @@
 #include "bioparser/bioparser.hpp"
 #include "thread_pool/thread_pool.hpp"
 #include "spoa/spoa.hpp"
-
+#include <fstream>
 namespace racon {
 
 constexpr uint32_t kChunkSize = 1024 * 1024 * 1024; // ~ 1GB
@@ -172,12 +172,18 @@ void Polisher::initialize() {
     uint64_t targets_size = sequences_.size();
     
     std::cerr << "After loading target sequences_.size() = " << sequences_.size() << "\n";
+/*   
+    ofstream ofile;
+    ofile.open("Target_Sequences.fa");
 
-    //for (uint64_t i = 0; i < sequences_.size(); ++i){
-    //     std::cerr << sequences_[i]->name() << "\n";
-    //}
+    for (uint64_t i = 0; i < sequences_.size(); ++i){
+         //std::cerr << "Target name = " << sequences_[i]->name() << "\n";
+         ofile << ">" << (sequences_[i]->name() + "\n" + sequences_[i]->data() + "\n") ;
+ 
+    }
+    ofile.close();
 
-
+*/
     if (targets_size == 0) {
         fprintf(stderr, "[racon::Polisher::initialize] error: "
             "empty target sequences set!\n");
@@ -214,16 +220,20 @@ void Polisher::initialize() {
         //     second_sequences_.push_back(std::make_unique<racon::Sequence>(*e));
 
         for (uint64_t i = 0; i < l; i++){
-
             sequences_.emplace_back(std::unique_ptr<racon::Sequence>(new racon::Sequence(
                     (sequences_[i]->name()).c_str(), strlen((sequences_[i]->name()).c_str()),
-                    (sequences_[i]->data()).c_str(), strlen((sequences_[i]->data()).c_str()),
+                    (sequences_[i]->data()).c_str(), strlen((sequences_[i]->data()).c_str()), 
                     (sequences_[i]->quality()).c_str(), strlen((sequences_[i]->quality()).c_str())
                     )));
 
         }
-             
-
+ /*            
+         ofile.open("sequences_after_loading_subject.fa");
+         for (uint64_t i = 0; i < sequences_.size(); ++i){
+             ofile << ">" << (sequences_[i]->name() + "\n" + sequences_[i]->data() + "\n") ;
+          }
+          ofile.close(); 
+*/
         uint64_t n = 0;
         for (uint64_t i = l; i < sequences_.size(); ++i, ++sequences_size) {
             total_sequences_length += sequences_[i]->data().size();        
@@ -259,6 +269,14 @@ void Polisher::initialize() {
         }
     }
 
+/*    
+    ofile.open("sequences_after_subject_shrinkfit.fa");
+
+    for (uint64_t i = 0; i < sequences_.size(); ++i){
+        ofile << ">" << (sequences_[i]->name() + "\n" + sequences_[i]->data() + "\n") ;
+        }
+    ofile.close();
+*/
     if (sequences_size == 0) {
         fprintf(stderr, "[racon::Polisher::initialize] error: "
             "empty sequences set!\n");
@@ -273,7 +291,7 @@ void Polisher::initialize() {
     WindowType window_type = static_cast<double>(total_sequences_length) /
         sequences_size <= 1000 ? WindowType::kNGS : WindowType::kTGS;
 
-    std::cerr << "After loading subject, sequences_.size() = " << sequences_.size() << "\n";
+    std::cerr << " Window type detector= "<< (total_sequences_length)/sequences_size << "\nAfter loading subject, sequences_.size() = " << sequences_.size() << "\n";
     std::cerr << "After loading subject name_to_id.size() = " << name_to_id.size() << "\n";
     fprintf(stderr, "[racon::Polisher::initialize] loaded sequences\n");
 
@@ -328,6 +346,8 @@ void Polisher::initialize() {
                 c = i;
             }
         }
+
+        status=false;
         if (!status) {
             remove_invalid_overlaps(c, overlaps.size());
             c = overlaps.size();
@@ -399,6 +419,8 @@ void Polisher::initialize() {
             uint32_t length = std::min(j + window_length_,
                 static_cast<uint32_t>(sequences_[i]->data().size())) - j;
 
+            //if(sequences_[i]->quality().empty()){std::cerr << " Empty quality\n";}
+
             windows_.emplace_back(createWindow(i, k, window_type,
                 &(sequences_[i]->data()[j]), length,
                 sequences_[i]->quality().empty() ? &(dummy_quality_[0]) :
@@ -469,7 +491,7 @@ void Polisher::initialize() {
     fprintf(stderr, "[racon::Polisher::initialize] transformed data into windows\n");
 }
 
-void Polisher::polish(std::vector<std::unique_ptr<Sequence>>& dst, std::vector<std::map<float,int>>& allele_ratios,
+void Polisher::polish(std::vector<std::unique_ptr<Sequence>>& dst, std::vector<std::map<float,int>>& allele_ratios, std::vector<std::map<int, std::vector<std::string>>> &s_msa,
     bool drop_unpolished_sequences, int8_t min_spoa_coverage, int8_t allowed_spoa_gaps_percent) {
 
     std::vector<std::future<bool>> thread_futures;
@@ -492,8 +514,7 @@ void Polisher::polish(std::vector<std::unique_ptr<Sequence>>& dst, std::vector<s
     }
 
     std::string polished_data = "";
-    uint32_t num_polished_windows = 0;
-    //std::vector<std::map<float,int>> allele_ratios;     
+    uint32_t num_polished_windows = 0;    
 
     for (uint64_t i = 0; i < thread_futures.size(); ++i) {
         thread_futures[i].wait();
@@ -502,6 +523,7 @@ void Polisher::polish(std::vector<std::unique_ptr<Sequence>>& dst, std::vector<s
         polished_data += windows_[i]->consensus();
         //std::cout << windows_[i]->msa_consensus() << std::endl;
         allele_ratios.emplace_back(windows_[i]->allele_ratio());
+        s_msa.emplace_back(windows_[i]->second_msas());
 
         if (i == windows_.size() - 1 || windows_[i + 1]->rank() == 0) {
             double polished_ratio = num_polished_windows /

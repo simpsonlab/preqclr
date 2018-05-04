@@ -107,7 +107,25 @@ namespace opt
     int8_t min_spoa_coverage = 20;
 }
 
+
 bool endFile = false;
+
+inline void rightStrip(const char* src, uint32_t& src_length) {
+    while (src_length > 0 && isspace(src[src_length - 1])) {
+        --src_length;
+        }
+    }
+
+inline void rightStripHard(const char* src, uint32_t& src_length) {
+    for (uint32_t i = 0; i < src_length; ++i) {
+        if (isspace(src[i])) {
+            src_length = i;
+            break;
+        }
+    }
+}
+
+
 
 bool preqc_to_racon_parsepaf(std::vector<std::unique_ptr<racon::Overlap>>& d){
 
@@ -153,7 +171,12 @@ unordered_set<string> random_reads(unordered_map<string,string> &temp_map){
     std::srand(std::time(0));
     std::random_shuffle (temp_vec.begin(), temp_vec.end());
     std::vector<string> ran_reads(temp_vec.begin(), temp_vec.begin() + opt::num_random_reads);
-  
+ 
+    //Debugging with just two reads
+    //ran_reads.clear();
+    //ran_reads.push_back("S1HapC_528");
+    //ran_reads.push_back("S1HapA_3");
+
     unordered_set<string> ran_reads_set;
     for (auto i: ran_reads) {
         ran_reads_set.insert(i);
@@ -163,9 +186,9 @@ unordered_set<string> random_reads(unordered_map<string,string> &temp_map){
     cerr << "Size of ran_reads = " << ran_reads.size() << "\n";
     cerr << "Size of ran_reads_set = " << ran_reads_set.size() << "\n";
     //Print all reads id in set
-    //for (auto i: ran_reads_set) {
-    //    cerr << i << "\n";
-    //} 
+   // for (auto i = ran_reads_set.begin(); i!=ran_reads_set.end();++i) {
+   //    std::cerr << *i << "\n";
+   // } 
    
     return ran_reads_set;
     
@@ -270,6 +293,22 @@ void allele_ratio_from_msa(vector<string> &msa, const char * depth_threshold, co
                   auto f = htzy::allele_ratio.find(ntgar);
                   if ( f == htzy::allele_ratio.end() ) {
                      htzy::allele_ratio[ntgar]=1;
+    inline void rightStrip(const char* src, uint32_t& src_length) {
+        while (src_length > 0 && isspace(src[src_length - 1])) {
+            --src_length;
+            }
+        }
+
+    inline void rightStripHard(const char* src, uint32_t& src_length) {
+        for (uint32_t i = 0; i < src_length; ++i) {
+            if (isspace(src[i])) {
+                src_length = i;
+                break;
+            }
+        }
+    }
+
+
                    }
                   else {
                      htzy::allele_ratio[ntgar]+=1;
@@ -807,9 +846,9 @@ n\n");
     htzy::rreads = random_reads(check_read_headers);   
     std::cerr << "Random reads size = "<< htzy::rreads.size() << std::endl;
     
-    for (auto v : htzy::rreads)
-        std::cerr << v << "\n"; 
-    std::cerr << "END random reads" << endl; 
+    //for (auto v : htzy::rreads)
+    //    std::cerr << v << "\n"; 
+    //std::cerr << "END random reads" << endl; 
 
     h.clear(); // free up memory
     check_read_headers.clear();
@@ -864,7 +903,7 @@ n\n");
             uint32_t q_length = r.ql;
             uint32_t q_begin = r.qs; 
             uint32_t q_end = r.qe;  
-            char orientation = r.rev;
+            char orientation = r.rev==0 ? '+' : '-';
             const char* t_name = r.tn;
             uint32_t t_name_length = strlen(t_name);
             uint32_t t_length = r.tl; 
@@ -872,9 +911,14 @@ n\n");
             uint32_t t_end = r.te; 
             uint32_t matching_bases = r.ml; 
             uint32_t overlap_length = r.bl;
-            uint32_t maping_quality = r.mq;            
-
-	    //cerr << "q_name = " << q_name << ", t_name = " << t_name << endl;
+            uint32_t mapping_quality = r.mq;
+            
+            constexpr uint32_t kSSS = 1024;
+            q_name_length = std::min(q_name_length, kSSS);
+            t_name_length = std::min(t_name_length, kSSS);
+            rightStripHard(q_name, q_name_length);
+            rightStripHard(t_name, t_name_length);
+	    //cout << "q_name = " << q_name << ", q_name_length = " << q_name_length<<", q_length = " << q_length << ",q_begin = " << q_begin <<",q_end=" <<q_end <<",orientation=" << orientation<<",t_name=" << t_name<<",t_name_length=" <<t_name_length <<",t_length=" <<t_length <<",t_begin=" <<t_begin <<",t_end=" <<t_end <<",matching_bases=" <<matching_bases <<",overlap_length=" <<overlap_length <<",mapping_quality="<<mapping_quality << "\n";
             //cerr << qname<< "," << tname << "," << qlen << ","  << qstart << "," << qend << "\n";
              // filter reads by read length
             if (( qlen >= opt::rlen_cutoff ) && ( tlen >= opt::rlen_cutoff )) {
@@ -923,16 +967,19 @@ n\n");
                 //cout << "prec.qend = " << prec.qend << endl;                 
                 htzy::full_paf_records[qname].push_back(qrec);
                 htzy::full_paf_records[tname].push_back(trec);
-                
+                //std::cout << "Type of orientation ="<< typeid(orientation).name() << '\n'; 
+                //cout << "q_name = " << q_name << ", q_name_length = " << q_name_length<<", q_length = " << q_length << ",q_begin = " << q_begin <<",q_end=" <<q_end <<",orientation="<< orientation<<",t_name=" << t_name<<",t_name_length=" <<t_name_length <<",t_length=" <<t_length <<",t_begin=" <<t_begin <<",t_end=" <<t_end <<",matching_bases=" <<matching_bases <<",overlap_length=" <<overlap_length <<",mapping_quality="<<mapping_quality << "\n";
+ 
                 htzy::dst.emplace_back(new racon::Overlap(q_name,  q_name_length,  q_length, q_begin,  
                 q_end, orientation, t_name,
                 t_name_length,  t_length,  t_begin,
-                t_end,  matching_bases,  overlap_length, maping_quality));
-        
+                t_end,  matching_bases,  overlap_length, mapping_quality));
+       
+                
                 htzy::dst.emplace_back(new racon::Overlap(t_name,  t_name_length,  t_length, t_begin,
                 t_end, orientation, q_name,
                 q_name_length,  q_length,  q_begin,
-                q_end,  matching_bases,  overlap_length, maping_quality));
+                q_end,  matching_bases,  overlap_length, mapping_quality));
                 
 
             }
@@ -1119,6 +1166,8 @@ void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer)
     writer->EndObject();
 }
 
+
+
 vector <pair< double, int >> parse_fq( string file )
 {
     gzFile fp;
@@ -1135,8 +1184,8 @@ vector <pair< double, int >> parse_fq( string file )
          string id = seq->name.s;
          string sequence = seq->seq.s;
          uint32_t name_length = strlen(id.c_str());
-         uint32_t sequence_length = strlen(sequence.c_str());    
-         //cerr << id << endl;       
+         uint32_t sequence_length = strlen(sequence.c_str());           
+
 
          //Added checks for fastq and fasta based on the value stored in qual.s
          if (seq->qual.s != nullptr && htzy::full_paf_records.find(id)!=htzy::full_paf_records.end()){
@@ -1144,19 +1193,27 @@ vector <pair< double, int >> parse_fq( string file )
              //cerr << "id = " << id << ", (const char*)id.c_str() " << (const char*)id.c_str() << endl;
              const char* quality = seq->qual.s;
              uint32_t quality_length = strlen(quality);
+
+             rightStripHard(id.c_str(), name_length);
+             rightStrip(sequence.c_str(), sequence_length);
+             rightStrip(quality, quality_length);
+              
+             //cerr << "id=" << id << ",name_length = "<<name_length << ",Seq = " <<sequence.c_str() << ",sequence_length = " << sequence_length << endl;
              htzy::fqdst.emplace_back(std::unique_ptr<racon::Sequence>(new racon::Sequence(
-                    (const char*)id.c_str(), name_length ,
+                    id.c_str(), name_length ,
                     (const char*)sequence.c_str(), sequence_length,
                     (const char*)quality, quality_length)));
-             
+           
          }
 
          if (seq->qual.s == nullptr && htzy::full_paf_records.find(id)!=htzy::full_paf_records.end()){
              htzy::parsed_fq[id] = sequence;   
              //cerr << "FASTA id = " << id << ", (const char*)id.c_str() " << (const char*)id.c_str() << endl;
-          
+             //cerr << "id=" << id << ",name_length = "<<name_length << ",Seq = " <<sequence.c_str() << ",sequence_length = " << sequence_length << endl; 
+             rightStripHard(id.c_str(), name_length);
+             rightStrip(sequence.c_str(), sequence_length);
              htzy::fqdst.emplace_back(std::unique_ptr<racon::Sequence>(new racon::Sequence(
-                    (const char*)id.c_str(), name_length ,
+                    id.c_str(), name_length ,
                     (const char*)sequence.c_str(), sequence_length
                     )));
          }
@@ -1589,7 +1646,8 @@ int32_t window_length, double quality_threshold, double error_threshold,int8_t m
 
     std::vector<std::unique_ptr<racon::Sequence>> polished_sequences;
     std::vector<std::map<float,int>> ar;
-    polisher->polish(polished_sequences, ar, drop_unpolished_sequences, opt::min_spoa_coverage, opt::allowed_spoa_gaps_percent);
+    std::vector<std::map<int, std::vector<std::string>>> s_msa;
+    polisher->polish(polished_sequences, ar, s_msa, drop_unpolished_sequences, opt::min_spoa_coverage, opt::allowed_spoa_gaps_percent);
     /*
     for (const auto& it: polished_sequences) {
         fprintf(stdout, ">%s\n%s\n", it->name().c_str(), it->data().c_str());
@@ -1608,6 +1666,15 @@ int32_t window_length, double quality_threshold, double error_threshold,int8_t m
          //fprintf(stdout, ">%s,%s\n", si->first().c_str(), si->second().c_str());
        }
 
+    }
+
+    for(auto ir = s_msa.begin(); ir != s_msa.end(); ++ir){
+        for( auto is = (*ir).begin(); is != (*ir).end(); is++) {
+        fprintf(stdout, "Multiple sequence alignment for %d seqs\n", is->first);
+           for (const auto& it: is->second) {
+               fprintf(stdout, "%s\n", it.c_str());
+           }
+        }
     }
 
     for( auto si =  final_allele_ratio.begin(); si !=  final_allele_ratio.end(); si++) {

@@ -40,8 +40,12 @@ public:
         return rank_;
     }
 
-   const std::map<float,int>& allele_ratio() const {
+    const std::map<float,int>& allele_ratio() const {
         return allele_ratio_;
+    }
+
+    const std::map<int,std::vector<std::string>>& second_msas() const {
+        return second_msas_;
     }
 
     const std::string& consensus() const {
@@ -75,9 +79,11 @@ private:
     std::string consensus_;
     std::string msa_consensus_;
     std::map<float,int> allele_ratio_;
+    std::map<int,std::vector<std::string>> second_msas_;
     std::vector<std::pair<const char*, uint32_t>> sequences_;
     std::vector<std::pair<const char*, uint32_t>> qualities_;
     std::vector<std::pair<uint32_t, uint32_t>> positions_;
+    
 };
 
 }
