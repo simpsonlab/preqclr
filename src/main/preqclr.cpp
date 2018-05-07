@@ -884,7 +884,7 @@ n\n");
 
     int count = 0;
     while (paf_read(fp, &r) >= 0) { 
-       // if (ln1<bad) {
+        if (ln1<bad) {
             // read each line/overlap and save each column into variable
             string qname = r.qn;
             string tname = r.tn;
@@ -1013,11 +1013,11 @@ n\n");
             }
            }
    
-   // } else if ( iv+1 < badlines.size() ) {
-   //     iv+=1;
-   //     bad = int(badlines.at(iv));
+    } else if ( iv+1 < badlines.size() ) {
+        iv+=1;
+        bad = int(badlines.at(iv));
 
-   // }
+    }
     ln1+=1;
     } 
     std::cerr << "Size of full_paf_records = " << htzy::full_paf_records.size() << ", Count variable = " << count << ", Size of htzy::dst" << (htzy::dst).size() << "\n";
