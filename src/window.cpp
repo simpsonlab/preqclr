@@ -102,25 +102,25 @@ std::map<float,int> Window::allele_ratio_from_msa(std::vector<std::string> &msa,
          //Store first and last occurence of ATGC to know true gaps
          int first_found = (*v).find_first_of("ATGC");
          int last_found = (*v).find_last_of("ATGC");         
-         //cout << "first_found = " << first_found << endl;
-         //cout << "last_found = " << last_found << endl;         
+         //std::cout << "first_found = " << first_found << std::endl;
+         //std::cout << "last_found = " << last_found << std::endl;         
 
          if(v==msa.begin()){
              for (unsigned int q=0; q<MSA_len; q++){
-                 //cout << "q=" << q << endl;
+                 //std::cout << "q=" << q << std::endl;
                  std::map<char, int> t;
-                 if(((*v).at(q))=='-' && q>=first_found && q<=last_found){
-                     //cout << "\nTrue gap "  << (*v).at(q) << endl;
+                 if(((*v).at(q))=='-' && q>=first_found && q<=last_found) {
+                     //std::cout << "\nTrue gap "  << (*v).at(q) << std::endl;
                      t.insert(std::pair<char,int>((*v).at(q),1));
                      allele_count.push_back(t);
                  }
                  if( ( (((*v).at(q))=='-') && (q<first_found) ) || ( (((*v).at(q))=='-') && (q>last_found) )) {
-                     //cout << "False gap "  << (*v).at(q) << endl;
+                     //std::cout << "False gap "  << (*v).at(q) << std::endl;
                      t.insert(std::pair<char,int>((*v).at(q),0));                   
                      allele_count.push_back(t);
                  }
                  if((((*v).at(q))!='-')) {
-                     //cout << "Char = " << (*v).at(q) << endl;
+                     //std::cout << "Char = " << (*v).at(q) << std::endl;
                      t.insert(std::pair<char,int>((*v).at(q),1));
                      allele_count.push_back(t);
                  }
@@ -130,26 +130,30 @@ std::map<float,int> Window::allele_ratio_from_msa(std::vector<std::string> &msa,
          else {
              for (unsigned int q=first_found; q<=last_found; q++){
 
-             std::map<char, int> t;          
-             auto f = allele_count[q].find((*v).at(q));
-                 if ( f == allele_count[q].end() ) {
-                     allele_count[q][(*v).at(q)]=1;
-                 }
-                 else {
-                     allele_count[q][(*v).at(q)] +=1;  
-                 }            
-             }   
+             std::map<char, int> t;
+             //Adding a new check, where columns without gaps in consensus should be considered
+             if((msa.front()).at(q)!='-'){
+         
+                 auto f = allele_count[q].find((*v).at(q));
+                     if ( f == allele_count[q].end() ) {
+                         allele_count[q][(*v).at(q)]=1;
+                     }
+                     else {
+                         allele_count[q][(*v).at(q)] +=1;  
+                     }            
+                 } 
+              }  
          }
 
     }
-    //cout << "\n\nallele_count.size() = " << allele_count.size() << endl;
+    //std::cout << "\n\nallele_count.size() = " << allele_count.size() << std::endl;
     
     /*
     Print the allele count vector
     */     
     int count = 0;
     for (std::vector<std::map<char, int>>::const_iterator r = allele_count.begin(); r != allele_count.end(); ++r){ 
-         //cout << "POS = " << count << endl; count ++; 
+         //std::cout << "POS = " << count << std::endl; count ++; 
          std::pair<char,int> max_allele ('X', 0), second_max_allele('Y', 0);           
          for(std::map<char, int>::const_iterator s = (*r).begin(); s!= (*r).end(); ++s){
              //std::cout << s->first << " " << s->second << " ";
@@ -161,13 +165,13 @@ std::map<float,int> Window::allele_ratio_from_msa(std::vector<std::string> &msa,
                  second_max_allele.first = s->first; second_max_allele.second= s->second;
                 }              
          }
-         //cout << "\nmax_allele = " << max_allele.first <<"="<< max_allele.second << endl;
-         //cout << "second_max_allele = " << second_max_allele.first <<"="<< second_max_allele.second << endl;
+         //std::cout << "\nmax_allele = " << max_allele.first <<"="<< max_allele.second << std::endl;
+         //std::cout << "second_max_allele = " << second_max_allele.first <<"="<< second_max_allele.second << std::endl;
          
          
          auto g = (*r).find('-');
          if ( g == (*r).end()){
-             if ((msa.size()>=(atoi(depth_threshold))) &&  (msa.size()<=80)  &&  (second_max_allele.first!='X' && second_max_allele.first!='Y' 
+             if ((msa.size()>=(atoi(depth_threshold))) &&  (msa.size()<=80) &&  (second_max_allele.first!='X' && second_max_allele.first!='Y' 
                   && max_allele.first!='X' && max_allele.first!='Y')){
                   auto ntgar = roundf((float(max_allele.second)/float(second_max_allele.second+max_allele.second))*100)/100;
                   //std::cout << "No true gaps, Allele Ratio=" << ntgar << std::endl;
@@ -183,7 +187,7 @@ std::map<float,int> Window::allele_ratio_from_msa(std::vector<std::string> &msa,
 
          }
          else {
-              //cout << "Gaps ratio=" << roundf((float((*r).at('-'))/float(msa.size()))*100)/100  << endl;
+              //std::cout << "Gaps ratio=" << roundf((float((*r).at('-'))/float(msa.size()))*100)/100  << std::endl;
               if((float((*r).at('-'))/(float(msa.size())))<=((atof(percent_gaps))/100.00) && (msa.size()>=(atoi(depth_threshold))) && (msa.size()<=80) && 
                   (second_max_allele.first!='X' && second_max_allele.first!='Y' && max_allele.first!='X' && max_allele.first!='Y')){
                   auto ar = roundf((float(max_allele.second)/float(second_max_allele.second+max_allele.second))*100)/100;
@@ -198,7 +202,7 @@ std::map<float,int> Window::allele_ratio_from_msa(std::vector<std::string> &msa,
 
               } 
          } 
-        // cout << endl;
+         //std::cout << std::endl;
     }    
   return allele_ratio;
 } 
@@ -275,9 +279,11 @@ bool Window::generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment
         
     std::vector<std::string> msa;
     graph->generate_multiple_sequence_alignment(msa,true);
-    msa_consensus_ = msa.at(msa.size()-1);
-    //msa_consensus_ = "S" + msa.at(msa.size()-1);   
+    msa_consensus_ = msa.at(msa.size()-1);  
+    //int msa_consensus_len = msa_consensus_.size(); 
+    //std::replace( msa_consensus_.begin(), msa_consensus_.end(), '-', 'P');
     //msa_consensus_.erase(std::remove(msa_consensus_.begin(), msa_consensus_.end(), '-'), msa_consensus_.end());    
+    //msa_consensus_ = msa_consensus_ + std::string((msa_consensus_len - msa_consensus_.size()), '-'); 
 
     //Second graph construction. TODO: Make a function to avoid redundant code
     auto second_graph = spoa::createGraph();
@@ -286,7 +292,7 @@ bool Window::generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment
     //positions_.erase(positions_.begin());
     
     sequences_.at(0) = (std::make_pair(msa_consensus_.c_str(), msa_consensus_.length()));   
-    qualities_.at(0) = (std::make_pair(std::string((msa_consensus_.length()), '~').c_str(), (msa_consensus_.length())));
+    qualities_.at(0) = (std::make_pair(std::string((msa_consensus_.length()), '!').c_str(), (msa_consensus_.length())));
     positions_.at(0) = (std::make_pair(0, 0));
 
     //sequences_.insert(sequences_.begin(), std::make_pair(msa_consensus_.c_str(), msa_consensus_.length()));
@@ -308,9 +314,9 @@ bool Window::generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment
     second_graph->add_alignment(spoa::Alignment(), sequences_.front().first,
         sequences_.front().second, qualities_.front().first,
         qualities_.front().second);
-
+/*
    std::ofstream ofile;
-   /*
+   
     std::vector<std::string> test_msa;
     second_graph->generate_multiple_sequence_alignment(test_msa);
  
@@ -344,7 +350,7 @@ bool Window::generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment
 
 
 
-
+    //std::shared_ptr<spoa::AlignmentEngine> second_alignment_engine = spoa::createAlignmentEngine(spoa::AlignmentType::kNW, 5, 4, -8);
     offset = 0.01 * sequences_.front().second;
     for (uint32_t j = 1; j < sequences_.size(); ++j) {
         uint32_t i = rank[j];
@@ -382,24 +388,27 @@ bool Window::generate_consensus(std::shared_ptr<spoa::AlignmentEngine> alignment
     std::vector<std::string> second_msa;
     second_graph->generate_multiple_sequence_alignment(second_msa);
 
- 
+
     //allele_ratio_ = allele_ratio_from_msa(msa, const_cast<char*>("20"), const_cast<char*>("30")); //msa, cov, allowed percent gap
     allele_ratio_ = allele_ratio_from_msa(second_msa, const_cast<char*>(std::to_string(min_spoa_coverage).c_str()), const_cast<char*>(std::to_string(allowed_spoa_gaps_percent).c_str()));
     
-    
+    /*
     fprintf(stdout, "Multiple sequence alignment for %d seqs\n", sequences_.size());
     for (const auto& it: msa) {
         fprintf(stdout, "%s\n", it.c_str());
     }  
+    */
 
     //ofile.open("Second_msa_"+ std::to_string(sequences_.size()));
     //ofile<<"\n\nSecond Multiple sequence alignment for "<< sequences_.size() << " sequences\n";
  
+    /*
     fprintf(stdout, "Second Multiple sequence alignment for %d seqs\n", sequences_.size()); 
     for (const auto& it: second_msa) {
         fprintf(stdout, "%s\n", it.c_str());
         ofile << it.c_str() << "\n";
     }
+    */
     //ofile.close();
     
     second_msas_.insert(std::pair<int, std::vector<std::string>>(sequences_.size(), second_msa));

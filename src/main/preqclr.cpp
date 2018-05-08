@@ -836,7 +836,7 @@ n\n");
             }
         }
         ln+=1; // read next line 
-        if (check_read_headers.find(qname) == check_read_headers.end() && check_read_headers.size()<=(3*opt::num_random_reads)){
+        if (check_read_headers.find(qname) == check_read_headers.end() && check_read_headers.size()<=(10*opt::num_random_reads)){
             check_read_headers[qname]=tname;}           
     }
     //for (auto v : read_headers_set)
