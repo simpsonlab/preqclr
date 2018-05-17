@@ -58,7 +58,7 @@ namespace opt
     static string paf_file;
     static string gfa_file = "";
     static string sample_name;
-    static int rlen_cutoff = 0;
+    static unsigned int rlen_cutoff = 0;
     static bool remove_dups = false;
     static bool filter_high_cov = true;
     static bool filter_low_cov = true;
@@ -67,6 +67,7 @@ namespace opt
     static double max_overhang_ratio = 0.80;
     static bool remove_contained = false;
     static bool print_read_cov = false;
+    static bool print_gse_stat = false;
     static bool keep_self_overlaps = false;
 }
 
@@ -257,26 +258,27 @@ void parse_args ( int argc, char *argv[])
 {
     // getopt
     extern char *optarg;
-    extern int optind, opterr, optopt;
+    extern int optind, optopt;
     const char* const short_opts = ":g:c:hvr:n:p:";
     const option long_opts[] = {
-        {"verbose",         no_argument,        NULL,   'v'},
-        {"version",         no_argument,        NULL,   OPT_VERSION},
-        {"reads",           required_argument,  NULL,   'r'},
-        {"sample_name", required_argument,  NULL,   'n'},
-        {"paf",         required_argument,  NULL,   'p'},
-        {"gfa",         required_argument,  NULL,   'g'},
-        {"help",            no_argument,    NULL,   'h'},
-        {"min-rlen",     required_argument,    NULL,   'l'},
-        {"keep-low-cov",     no_argument,    NULL,   OPT_KEEP_LOW_COV},
-        {"keep-high-cov",     no_argument,    NULL,   OPT_KEEP_HIGH_COV},
-        {"remove-dups",     no_argument,    NULL,   OPT_REMOVE_DUPS},
-        {"remove-int-matches",     no_argument,    NULL,   OPT_REMOVE_INT_MATCHES},
-        {"remove-contained",     no_argument,    NULL,   OPT_REMOVE_CONTAINED},
-        {"max-overhang",     required_argument,    NULL,  OPT_MAX_OVERHANG},
-        {"max-overhang-ratio",     required_argument,    NULL,  OPT_MAX_OVERHANG_RATIO},
-        {"print-read-cov",     no_argument,    NULL,  OPT_PRINT_READ_COV},
-        {"keep-self-overlaps", no_argument, NULL, OPT_KEEP_SELF_OVERLAPS},
+        {"verbose",             no_argument,        NULL,   'v'},
+        {"version",             no_argument,        NULL,   OPT_VERSION},
+        {"reads",               required_argument,  NULL,   'r'},
+        {"sample_name",         required_argument,  NULL,   'n'},
+        {"paf",                 required_argument,  NULL,   'p'},
+        {"gfa",                 required_argument,  NULL,   'g'},
+        {"help",                no_argument,        NULL,   'h'},
+        {"min-rlen",            required_argument,  NULL,   'l'},
+        {"keep-low-cov",        no_argument,        NULL,   OPT_KEEP_LOW_COV},
+        {"keep-high-cov",       no_argument,        NULL,   OPT_KEEP_HIGH_COV},
+        {"remove-dups",         no_argument,        NULL,   OPT_REMOVE_DUPS},
+        {"remove-int-matches",  no_argument,        NULL,   OPT_REMOVE_INT_MATCHES},
+        {"remove-contained",    no_argument,        NULL,   OPT_REMOVE_CONTAINED},
+        {"max-overhang",        required_argument,  NULL,   OPT_MAX_OVERHANG},
+        {"max-overhang-ratio",  required_argument,  NULL,   OPT_MAX_OVERHANG_RATIO},
+        {"print-read-cov",      no_argument,        NULL,   OPT_PRINT_READ_COV},
+        {"print-gse-stat",      no_argument,        NULL,   OPT_PRINT_GSE_STAT},
+        {"keep-self-overlaps",  no_argument,        NULL,   OPT_KEEP_SELF_OVERLAPS},
         { NULL, 0, NULL, 0 }
     };
 
@@ -294,26 +296,27 @@ void parse_args ( int argc, char *argv[])
     "        --version		Display version\n"
     "    -r, --reads			Fasta, fastq, fasta.gz, or fastq.gz files containing reads\n"
     "    -n, --sample_name		Sample name; we recommend using the name of species for example\n" 
-    "		               	This will be used as output prefix\n"
+    "				This will be used as output prefix\n"
     "    -p, --paf			Minimap2 Pairwise mApping Format (PAF) file \n"
-    "		                This is produced using \'minimap2 -x ava-ont sample.fasta sample.fasta\'\n"
+    "				This is produced using \'minimap2 -x ava-ont sample.fasta sample.fasta\'\n"
     "    -g, --gfa			Miniasm Graph Fragment Assembly (GFA) file\n"
-    "		                This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
+    "				This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
     "    -l, --min-rlen=INT		Use overlaps with read lengths >= INT\n"
-    "        --keep-low-cov          Keep reads with low coverage (<= Q25 - IQR*1.25) for genome size est. calculations \n" 
-    "        --keep-high-cov         Keep reads with high coverage (>= Q75 + IQR*1.25) for genome size est. calculations \n"
-    "        --keep-self-overlaps    Keep overlaps where the query read and target read are the same \n"
-    "        --remove-dups           Remove duplicate overlaps; between duplicate overlaps choose longest alignment \n"
-    "        --remove-contained      Remove contained overlaps \n"
-    "        --remove-int-matches    Remove internal matches (overlaps where it is a short match in the middle of both reads) \n"
-    "        --max-overhang          The maximum overhang length [default: 1000] \n"
-    "        --max-overhang-ratio    The maximum overhang to mapping length ratio [default: 0.8] \n"
-    "        --print-read-cov        Print read id and coverage for each read to stdout; overwrites verbose flag \n"
+    "        --keep-low-cov		Keep reads with low coverage (<= Q25 - IQR*1.25) for genome size est. calculations \n" 
+    "        --keep-high-cov		Keep reads with high coverage (>= Q75 + IQR*1.25) for genome size est. calculations \n"
+    "        --keep-self-overlaps	Keep overlaps where the query read and target read are the same \n"
+    "        --remove-dups		Remove duplicate overlaps; between duplicate overlaps choose longest alignment \n"
+    "        --remove-contained	Remove contained overlaps \n"
+    "        --remove-int-matches	Remove internal matches (overlaps where it is a short match in the middle of both reads) \n"
+    "        --max-overhang		The maximum overhang length [default: 1000] \n"
+    "        --max-overhang-ratio	The maximum overhang to mapping length ratio [default: 0.8] \n"
+    "        --print-read-cov	Print read id and coverage for each read to stdout; overwrites verbose flag \n"
+    "        --print-gse-stat	Print genome size estimate statistics only \n"
     "\n"
     "Report bugs to https://github.com/simpsonlab/preqclr/issues"
     "\n";
 
-    int rflag=0, nflag=0, pflag=0, gflag=0, verboseflag=0, versionflag=0, moflag=0, morflag=0;
+    int rflag=0, nflag=0, pflag=0, gflag=0;
     int c;
     while ( (c = getopt_long(argc, argv, short_opts, long_opts, NULL)) != -1 ) {
     // getopt will loop through arguments, returns -1 when end of options, and store current arg in optarg
@@ -394,6 +397,9 @@ void parse_args ( int argc, char *argv[])
         case OPT_PRINT_READ_COV:
             opt::print_read_cov = true;
             break;
+        case OPT_PRINT_GSE_STAT:
+            opt::print_gse_stat = true;
+            break;
         case OPT_KEEP_SELF_OVERLAPS:
             opt::keep_self_overlaps = true;
             break;
@@ -416,9 +422,13 @@ void parse_args ( int argc, char *argv[])
         printf("\n");
     }
 
-    // overwrite verbose flag if --print-read-cov in use
+    // overwrite verbose flag if --print-read-cov or --print-gse-cov in use
     if (opt::print_read_cov) {
         opt::verbose = false;
+    }
+    if (opt::print_gse_stat) {
+        opt::verbose = false;
+        opt::print_read_cov = false;
     }
 
 
@@ -462,19 +472,17 @@ map<string, sequence> parse_paf()
     const char *c1 = opt::paf_file.c_str();
     paf_file_t *fp1;
     paf_rec_t r1;
-    sdict_t *d1;
     fp1 = paf_open(c1);
     if (!fp1) {
         fprintf(stderr, "ERROR: PAF file failed to open. Check to see if it exists, is readable, and is non-empty.\n\n");
         exit(1);
     }
-    d1 = sd_init();
     
     // we need to filter overlaps
     // self overlap: minimap2 reports an overlap between the same reads (i.e. when query read id == target read id in the PAF file)
     // duplicate overlap: the same two reads are reported to overlap (i.e. when the same query read id and target read id pair are 
     //                    seen in multiple lines in the PAF file)
-    vector<pair<int,string>> badlines; // stores all the lines we do not want
+    vector<int> badlines; // stores all the lines we do not want
     map<size_t, pair<int, int>> h; // stores all the hashed query read name + target read name pairs with line number and alignment length
     int ln1 = 0; // current line number
     while (paf_read(fp1, &r1) >= 0) {
@@ -491,19 +499,23 @@ map<string, sequence> parse_paf()
         //cout << qname << "\t" << tname << "\t" << r1.bl << "\t" << ln1 << "\t" << bad << "\n";
 
         // start filtering overlaps
+        // remove self overlaps
         if ( (!opt::keep_self_overlaps) && (qname.compare(tname) == 0) ) { 
               //self-overlap: the same read
-              badlines.push_back(make_pair(ln1, "self"));
+              badlines.push_back(ln1);
               ln1++;
-            //cout << qname << "\n";
+              //cout << qname << "\n";
               continue;
-        } 
-        if (( qlen < opt::rlen_cutoff ) || ( tlen < opt::rlen_cutoff )) {
+        }
+		// cout << opt::rlen_cutoff << "\n"; 
+        // remove overlaps with short reads
+        if ( (qlen < opt::rlen_cutoff) || (tlen < opt::rlen_cutoff) ) {
             // overlaps with short reads
-            badlines.push_back(make_pair(ln1,"short"));
+            badlines.push_back(ln1);
             ln1++;
             continue;
         }
+        // remove internal matches
         if ( opt::remove_internal_matches ) {
             // calculate overhang region
             unsigned int qprefix_len = qstart;
@@ -533,28 +545,30 @@ map<string, sequence> parse_paf()
                 // filter overlaps with long overhang regions
                 // ----====-------
                 //   --====---------
-                badlines.push_back(make_pair(ln1,"overhang"));
+                badlines.push_back(ln1);
                 //cout << qname << "\t" << tname << "\t" << qlen <<"\t" << tlen << "\t"<< qstart << "\t" << qend << "\t" << tstart << "\t" << tend << "\n";
                 ln1++;
                 continue;
             }
         }
+        // remove contained overlaps
         if ( opt::remove_contained ) {
             if (( strand == 0 ) && ((( qstart <= tstart ) && ( qlen - qend ) <= ( tlen - tend )) ||
                (( qstart >= tstart ) && ( qlen - qend ) >= ( tlen - tend )))) {
                // one of the reads contained
                //cout << qname << "\t" << qlen << "\t" << qstart <<"\t" << qend << "\t"<< tname << "\t" << tlen << "\t" << tstart << "\t" << tend <<"\t" << strand << "\n";
-               badlines.push_back(make_pair(ln1,"cont"));
+               badlines.push_back(ln1);
                ln1++;
                continue;
             } else if (( strand != 0 ) && ((( qstart <= (tlen - tend) ) && (( qlen - qend ) <=  tstart )) ||
                (( qstart >= (tlen - tend) ) && (( qlen - qend ) >= tstart )))) {
                //cout << qname << "\t" << qlen << "\t" << qstart <<"\t" << qend << "\t"<< tname << "\t" << tlen << "\t" << tstart << "\t" << tend <<"\t" << strand << "\n";
-               badlines.push_back(make_pair(ln1,"cont"));
+               badlines.push_back(ln1);
                ln1++;
                continue;
             }
         }
+        // remove duplicate overlaps
         if ( opt::remove_dups ) {
             // create a hashkey with lexicographically smallest combination of read names
             size_t hashkey = min(hash<string>{}(qname + tname), hash<string>{}(tname + qname));
@@ -570,13 +584,13 @@ map<string, sequence> parse_paf()
                 if ( curr_aln_len > prev_aln_len ) {
                     // prev. overlap between these 2 reads is shorter, we use the current line instead
                     // prev. overlap's line number is recorded as "bad". it will be skipped in second pass
-                    badlines.push_back(make_pair(prev_ln, "dup") );
+                    badlines.push_back(prev_ln);
                     h[hashkey] = make_pair(curr_aln_len, curr_ln);
                     ln1++;
                     continue;
                     //cout << qname << "\t" << tname << "\t" << prev_ln << "\n";
                 } else {
-                    badlines.push_back(make_pair(curr_ln, "dup"));
+                    badlines.push_back(curr_ln);
                     ln1++;
                     continue;
                     //cout << qname << "\t" << tname << "\t" <<curr_ln << "\n";
@@ -600,23 +614,21 @@ map<string, sequence> parse_paf()
     const char *c2 = opt::paf_file.c_str();
     paf_file_t *fp2;
     paf_rec_t r2;
-    sdict_t *d2;
     fp2 = paf_open(c2);
     if (!fp2) {
         fprintf(stderr, "ERROR: PAF file failed to open. Check to see if it exists, is readable, and is non-empty.\n\n");
         exit(1);
     }
-    d2 = sd_init();
     map<string, sequence> paf_records;
     int ln2 = 0;
-    int iv = 0; // index in vector
+    unsigned int iv = 0; // index in vector
     // the vector is sorted numerically
     // we can loop through the vector once by storing which is the next line to avoid
     // once we have reached this line, we can move on to the next bad line and
     // look out for that one while going through the next lines
     int bad;
     if ( !badlines.empty() ) {
-        bad = int(badlines.at(iv).first); // first bad line to watch out for
+        bad = int(badlines.at(iv)); // first bad line to watch out for
     } else {
         bad = ln1; // no badlines detected, set to last line
     }
@@ -687,7 +699,7 @@ map<string, sequence> parse_paf()
              // we have a bad line!
              // next bad line to look out for:
              iv+=1;
-             bad = int(badlines.at(iv).first);
+             bad = int(badlines.at(iv));
           }
           ln2+=1;
     }
@@ -699,8 +711,8 @@ map<string, sequence> parse_paf()
     if ( opt::print_read_cov ) {
         for ( auto const& r : paf_records ) {
             sequence temp = r.second;
-            cout << r.first << "\n";
-            //cout << r.first << "\t" << temp.read_len << "\t" << temp.cov << "\n";
+            //cout << r.first << "\n";
+            cout << r.first << "\t" << temp.read_len << "\t" << temp.cov << "\n";
         }
     } 
     // XXXXXXXXXXXXXXXXXXX
@@ -727,7 +739,6 @@ void calculate_ngx( vector<double> contig_lengths, double genome_size_est, JSONW
     // so first we need to check if addition of contig lens would cause overflow
     genome_size_est = double(genome_size_est)/1000000;
     int x = 0;
-    int nx;
     // this is going to hold key = x percent of genome size estimate, value = x
     map<double, int> gx;
     while ( x <= 100 ) {
@@ -933,7 +944,6 @@ void calculate_median_cov_vs_min_read_length( vector <pair<double, int>> covs, J
 
     writer->Key("median_cov_vs_min_read_length");
     writer->StartObject();
-    double median_cov = 0;
     int i = 0;   // index of current read length
     int i50 = 0; // 50% 
     for (auto &c : covs) {
@@ -1031,7 +1041,7 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     double curr_largest = -1000.0;
     double mode_cov = 0;
     int count = 0;
-    int i = 0;
+    unsigned int i = 0;
     while ( i < covs.size() ){ // iterate through reads
         // look at reads that fall within current bin
         while ( covs[i].first >= l && covs[i].first < u ) { 
@@ -1074,8 +1084,9 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     out("est_genome_size_with_mode_cov: " + to_string(est_genome_size));
     out("est_genome_size_with_median_cov: " + to_string(est_genome_size1));
     out("tot_reads: " + to_string(tot_reads_f) );
-    cout <<  opt::sample_name << "," << mode_cov << "," <<  median_cov << "," << mean_read_len << "," <<  tot_reads_f << ","<< est_genome_size << "," <<  est_genome_size1 << "\n";
-
+    if ( opt::print_gse_stat ) {
+        cout <<  opt::sample_name << "\t" << mode_cov << "\t" <<  median_cov << "\t" << mean_read_len << "\t" <<  tot_reads_f << "\t"<< est_genome_size << "\t" <<  est_genome_size1 << "\n";
+    }
     // now store in JSON object
     writer->Key("est_cov_post_filter_info");
     writer->StartArray();
