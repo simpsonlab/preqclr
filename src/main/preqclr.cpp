@@ -707,7 +707,6 @@ map<string, sequence> parse_paf()
     // XXXXXXXXXXXXXXXXXXX
     // DEBUGGING ZONE
     // XXXXXXXXXXXXXXXXXXX
-    cout << "TOTAL NUMBER OF READS: "<< paf_records.size() << endl;
     if ( opt::print_read_cov ) {
         for ( auto const& r : paf_records ) {
             sequence temp = r.second;
@@ -1085,7 +1084,7 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     out("est_genome_size_with_median_cov: " + to_string(est_genome_size1));
     out("tot_reads: " + to_string(tot_reads_f) );
     if ( opt::print_gse_stat ) {
-        cout <<  opt::sample_name << "\t" << mode_cov << "\t" <<  median_cov << "\t" << mean_read_len << "\t" <<  tot_reads_f << "\t"<< est_genome_size << "\t" <<  est_genome_size1 << "\n";
+        cout <<  opt::sample_name << "\t" << mode_cov << "\t" <<  median_cov << "\t" << mean_read_len << "\t" << tot_reads  << "\t" << tot_reads_f << "\t" << sum_len << "\t" << sum_len_f << "\t"<< est_genome_size << "\t" <<  est_genome_size1 << "\n";
     }
     // now store in JSON object
     writer->Key("est_cov_post_filter_info");
