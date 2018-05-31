@@ -1020,7 +1020,7 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     double upperbound = round(double(covs[i75].first) + bd);
     double lowerbound = (round(double(covs[i25].first) - bd)>1.0) ? round(double(covs[i25].first)) : 1.0;
     if ( !opt::filter_low_cov ) {
-        lowerbound = -1;
+        lowerbound = 1.0;
     }
     if ( !opt::filter_high_cov ) {
         upperbound = 100000000000;
