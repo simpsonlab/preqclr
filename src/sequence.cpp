@@ -11,13 +11,13 @@
 
 using namespace std;
 
-void sequence::set(unsigned long int l, double c)
+void sequence::set(unsigned long int l, long double c)
 {
     read_len = l;
     cov = c;
 }
 
-void sequence::updateCov( double c )
+void sequence::updateCov( long double c )
 {
     cov += c;
 }

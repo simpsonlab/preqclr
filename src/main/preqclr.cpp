@@ -59,16 +59,18 @@ namespace opt
     static string gfa_file = "";
     static string sample_name;
     static unsigned int rlen_cutoff = 0;
+    static unsigned int olen_cutoff = 0;
     static bool remove_dups = false;
     static bool filter_high_cov = true;
     static bool filter_low_cov = true;
     static bool remove_internal_matches = false;
-    static double max_overhang = 1000.0;
+    static double max_overhang = 2000.0;
     static double max_overhang_ratio = 0.80;
     static bool remove_contained = false;
     static bool print_read_cov = false;
     static bool print_gse_stat = false;
     static bool keep_self_overlaps = false;
+    static bool print_new_paf = false;
 }
 
 
@@ -279,6 +281,8 @@ void parse_args ( int argc, char *argv[])
         {"print-read-cov",      no_argument,        NULL,   OPT_PRINT_READ_COV},
         {"print-gse-stat",      no_argument,        NULL,   OPT_PRINT_GSE_STAT},
         {"keep-self-overlaps",  no_argument,        NULL,   OPT_KEEP_SELF_OVERLAPS},
+        {"print-new-paf",		no_argument,		NULL,	OPT_PRINT_NEW_PAF},
+        {"min-olen",			required_argument,	NULL,	'm'},
         { NULL, 0, NULL, 0 }
     };
 
@@ -302,6 +306,7 @@ void parse_args ( int argc, char *argv[])
     "    -g, --gfa			Miniasm Graph Fragment Assembly (GFA) file\n"
     "				This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
     "    -l, --min-rlen=INT		Use overlaps with read lengths >= INT\n"
+    "    -m, --min-olen=INT 		Use overlaps longer than >=INT\n"
     "        --keep-low-cov		Keep reads with low coverage (<= Q25 - IQR*1.25) for genome size est. calculations \n" 
     "        --keep-high-cov		Keep reads with high coverage (>= Q75 + IQR*1.25) for genome size est. calculations \n"
     "        --keep-self-overlaps	Keep overlaps where the query read and target read are the same \n"
@@ -312,6 +317,7 @@ void parse_args ( int argc, char *argv[])
     "        --max-overhang-ratio	The maximum overhang to mapping length ratio [default: 0.8] \n"
     "        --print-read-cov	Print read id and coverage for each read to stdout; overwrites verbose flag \n"
     "        --print-gse-stat	Print genome size estimate statistics only \n"
+    "        --print-new-paf		Print new paf file after filtering overlaps\n"	
     "\n"
     "Report bugs to https://github.com/simpsonlab/preqclr/issues"
     "\n";
@@ -371,6 +377,9 @@ void parse_args ( int argc, char *argv[])
         case 'l':
             arg >> opt::rlen_cutoff;
             break;
+        case 'm':
+            arg >> opt::olen_cutoff;
+            break;
         case OPT_KEEP_LOW_COV:
             opt::filter_low_cov = false;
             break;
@@ -403,6 +412,9 @@ void parse_args ( int argc, char *argv[])
         case OPT_KEEP_SELF_OVERLAPS:
             opt::keep_self_overlaps = true;
             break;
+        case OPT_PRINT_NEW_PAF:
+            opt::print_new_paf = true;
+            break;
         case '?':
             // invalid option: getopt_long already printed an error message
             if (optopt == 'c') {
@@ -430,7 +442,11 @@ void parse_args ( int argc, char *argv[])
         opt::verbose = false;
         opt::print_read_cov = false;
     }
-
+    if (opt::print_new_paf) {
+        opt::verbose=false;
+        opt::print_gse_stat=false;
+        opt::print_read_cov=false;
+    }
 
     // check mandatory variables and assign defaults
     if ( rflag == 0 ) {
@@ -515,8 +531,9 @@ map<string, sequence> parse_paf()
             ln1++;
             continue;
         }
-        // remove internal matches
-        if ( opt::remove_internal_matches ) {
+
+        // remove internal matches or small overlaps
+        if ( opt::remove_internal_matches || opt::olen_cutoff > 0 ) {
             // calculate overhang region
             unsigned int qprefix_len = qstart;
             unsigned int qsuffix_len = qlen - qend - 1;
@@ -524,15 +541,14 @@ map<string, sequence> parse_paf()
             unsigned int tsuffix_len = tlen - tend - 1;
             int left_clip = 0, right_clip = 0;
             if ( ( qstart != 0 ) && ( tstart != 0 ) ){
-                if ( strand == 0 ) {
-                    //cout << qname << "\t" <<tname << "\t" << ln1 << endl;
+                if ( strand == 0 ) { // if both on same strand
                     left_clip += min(qprefix_len, tprefix_len);
                 } else {
                     left_clip += min(qprefix_len, tsuffix_len);
                 }
             }
             if ( ( qend != 0 ) && ( tend != 0 ) ){
-                if ( strand == 0 ) {
+                if ( strand == 0 ) { // if both on same strand
                     right_clip += min(qsuffix_len, tsuffix_len);
                 } else {
                     right_clip += min(qsuffix_len, tprefix_len);
@@ -540,13 +556,19 @@ map<string, sequence> parse_paf()
             }
             double maplen = double(max( qend - qstart, tend - tstart ))*opt::max_overhang_ratio;
             int overhang = left_clip + right_clip;
-            
-            if( double(overhang) > min( opt::max_overhang, maplen ) ) {
+
+            if( opt::remove_internal_matches && ( overhang > min(opt::max_overhang, maplen)) ) {
                 // filter overlaps with long overhang regions
                 // ----====-------
                 //   --====---------
+                // cout << qname << "\t" <<tname << "\t" << ln1 << endl;
                 badlines.push_back(ln1);
-                //cout << qname << "\t" << tname << "\t" << qlen <<"\t" << tlen << "\t"<< qstart << "\t" << qend << "\t" << tstart << "\t" << tend << "\n";
+                // cout << qname << "\t" << tname << "\t" << qlen <<"\t" << tlen << "\t"<< qstart << "\t" << qend << "\t" << tstart << "\t" << tend << "\n";
+                ln1++;
+                continue;
+            }
+            if( opt::olen_cutoff > 0 && ( qend - qstart + left_clip + right_clip < opt::olen_cutoff  || tend - tstart + left_clip + right_clip < opt::olen_cutoff ) ) {
+                badlines.push_back(ln1);
                 ln1++;
                 continue;
             }
@@ -645,9 +667,11 @@ map<string, sequence> parse_paf()
             unsigned int tlen = r2.tl;
             unsigned int tstart = r2.ts;
             unsigned int tend = r2.te;
-
-            //cout << qname << "\t" << tname << "\t" << r2.bl << "\t" << ln2 << "\t" << bad << "\n";
-            
+            if ( opt::print_new_paf) {
+                string s = ( strand == 0 ) ? "-" : "+";
+                cout << qname << "\t" << qlen << "\t" << qstart << "\t" << qend << "\t" << s <<"\t" << tname << "\t" << tlen << "\t" << tstart << "\t" << tend << "\t" << r2.ml << "\t"<< r2.bl << "\t255\n";
+            }
+ 
             unsigned int qprefix_len = qstart;
             unsigned int qsuffix_len = qlen - qend - 1;
             unsigned int tprefix_len = tstart;
@@ -669,39 +693,39 @@ map<string, sequence> parse_paf()
                 }  
             }
 
-                // calculate coverage per read               
-                auto i = paf_records.find(qname);
-                unsigned int overlap_len = abs(qend - qstart) + left_clip + right_clip;
-                double cov = double(overlap_len) / double(qlen);
-                if ( i == paf_records.end() ) {
-                    // if read not found initialize in paf_records
-                    sequence qr;
-                    qr.set(qlen, cov);
-                    paf_records.insert(pair<string,sequence>(qname, qr));
-                } else {
-                    // if read found, update the overlap info
-                    i->second.updateCov(cov);
-                }
+            // calculate coverage per read               
+            auto i = paf_records.find(qname);
+            unsigned int qoverlap_len = abs(qend - qstart) + left_clip + right_clip;
+            long double qcov = double(qoverlap_len) / double(qlen);
+            if ( i == paf_records.end() ) {
+                // if read not found initialize in paf_records
+                sequence qr;
+                qr.set(qlen, qcov);
+                paf_records.insert(pair<string,sequence>(qname, qr));
+            } else {
+                // if read found, update the overlap info
+                i->second.updateCov(qcov);
+            }
 
-                auto j = paf_records.find(tname);
-                overlap_len = abs(tend - tstart) + left_clip + right_clip;
-                cov = double(overlap_len) / double(tlen); 
-                if ( j == paf_records.end() ) {
-                    // if target read not found initialize in paf_records
-                    sequence tr;
-                    tr.set(tlen, cov);
-                    paf_records.insert(pair<string,sequence>(tname, tr));
-                } else {
-                    // if target read found, update the overlap info
-                    j->second.updateCov(cov);
-                }
-          } else if ( iv < badlines.size()-1 ) {
-             // we have a bad line!
-             // next bad line to look out for:
-             iv+=1;
-             bad = int(badlines.at(iv));
-          }
-          ln2+=1;
+            auto j = paf_records.find(tname);
+            unsigned int toverlap_len = abs(tend - tstart) + left_clip + right_clip;
+            long double tcov = double(toverlap_len) / double(tlen); 
+            if ( j == paf_records.end() ) {
+                // if target read not found initialize in paf_records
+                sequence tr;
+                tr.set(tlen, tcov);
+                paf_records.insert(pair<string,sequence>(tname, tr));
+            } else {
+                // if target read found, update the overlap info
+                j->second.updateCov(tcov);
+            }
+        } else if ( iv < badlines.size()-1 ) {
+            // we have a bad line!
+            // next bad line to look out for:
+            iv+=1;
+            bad = int(badlines.at(iv));
+        }
+        ln2+=1;
     }
 
     // XXXXXXXXXXXXXXXXXXX
@@ -713,7 +737,7 @@ map<string, sequence> parse_paf()
             //cout << r.first << "\n";
             cout << r.first << "\t" << temp.read_len << "\t" << temp.cov << "\n";
         }
-    } 
+    }
     // XXXXXXXXXXXXXXXXXXX
 
    return paf_records;
@@ -984,7 +1008,7 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
         string id = it->first;
         sequence r = it->second;
         int r_len = r.read_len;
-        double r_cov = r.cov;
+        long double r_cov = r.cov;
         string key = to_string(r_cov);
         writer->Key(key.c_str());
         writer->Int(r_len);
@@ -1018,14 +1042,13 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     double IQR = covs[i75].first - covs[i25].first;
     double bd = IQR*1.5;
     double upperbound = round(double(covs[i75].first) + bd);
-    double lowerbound = (round(double(covs[i25].first) - bd)>1.0) ? round(double(covs[i25].first)) : 1.0;
+    double lowerbound = (round(double(covs[i25].first) - bd)>2.0) ? round(double(covs[i25].first) - bd) : 2.0;
     if ( !opt::filter_low_cov ) {
-        lowerbound = -1;
+        lowerbound = 2.0;
     }
     if ( !opt::filter_high_cov ) {
         upperbound = 100000000000;
     }
-
 
     // filter outliers by cov: include reads with coverage [Q25-IQR*1.5, Q75+IQR*1.5]
     long long sum_len_f = 0;
@@ -1035,17 +1058,24 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     // the following are used to get the mode of distribution
     // we bin the reads by coverage incrementing by 0.25x
     // we start binning from the lowest value of cov calculated
-    double l = covs[0].first;
-    double u = covs[0].first + 0.25;
+    //double l = covs[0].first;
+    //double u = covs[0].first + 0.25;
+    double l = lowerbound;
+    double u = l + 0.25;
     double curr_largest = -1000.0;
     double mode_cov = 0;
     int count = 0;
     unsigned int i = 0;
-    while ( i < covs.size() ){ // iterate through reads
+    // we want to only consider reads above the lowerbound
+    while ( covs[i].first < l ) {
+        i += 1;
+    }
+    while ( i < covs.size() ){ 
+        // iterate through reads
         // look at reads that fall within current bin
-        while ( covs[i].first >= l && covs[i].first < u ) { 
+        while ( covs[i].first >= l && covs[i].first < u ){ 
             // filter outliers: [Q25-IQR*1.5, Q75+IQR*1.5]
-            if ( (covs[i].first >= lowerbound) && (covs[i].first <= upperbound) ) {
+            if ( (covs[i].first >= lowerbound) && (covs[i].first <= upperbound) ){
                 // count how many reads have coverage in current bin
                 count += 1;
                 tot_reads_f += 1;
@@ -1057,7 +1087,7 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
         }
     //    cout << u << ": " << count << "\n";
         // if this bin has the most amount of reads, the coverage is the mode
-        if ( count > curr_largest ) {
+        if (( count > curr_largest ) && ( u > lowerbound )) {
             curr_largest = count;
             mode_cov = u;
         }
@@ -1066,7 +1096,7 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
         l += 0.25;
         count = 0;
     }
- 
+
     // get the mean read length
     double mean_read_len = sum_len_f/double(tot_reads_f);
 
