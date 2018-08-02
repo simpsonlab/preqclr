@@ -44,7 +44,6 @@ KSEQ_INIT(gzFile, gzread)
 
 #define VERSION "2.0"
 #define SUBPROGRAM "calculate"
-
 using namespace std;
 using namespace rapidjson;
 
@@ -60,17 +59,20 @@ namespace opt
     static string sample_name;
     static unsigned int rlen_cutoff = 0;
     static unsigned int olen_cutoff = 0;
-    static bool remove_dups = false;
+    //static double olen_ratio_cutoff = 0;
+    static bool keep_dups = false;
     static bool filter_high_cov = true;
     static bool filter_low_cov = true;
     static bool remove_internal_matches = false;
-    static double max_overhang = 2000.0;
+    static double max_overhang = 1000.0;
     static double max_overhang_ratio = 0.80;
     static bool remove_contained = false;
     static bool print_read_cov = false;
     static bool print_gse_stat = false;
     static bool keep_self_overlaps = false;
     static bool print_new_paf = false;
+    static double min_iden = 0;
+    static unsigned int min_match = 100;
 }
 
 
@@ -99,27 +101,37 @@ int main( int argc, char *argv[])
 
     // clear any previous log files with same name
     ofstream ofs;
-    ofs.open( opt::sample_name + "_preqclr.log", ofstream::out | ios::trunc );
+    ofs.open( opt::sample_name + ".preqclr.log", ofstream::out | ios::trunc );
     ofs.close();
 
     out("========================================================");
-    out("RUNNING PREQC-LR CALCULATE");
+    out("Run preqclr");
     out("========================================================");
     auto tot_start = chrono::system_clock::now();
     auto tot_start_cpu = clock();
+
+    out("\n[ Parse reads file ]");
+    auto swc = chrono::system_clock::now();
+    auto scpu = clock();
+    auto fq_records = parse_fq ( opt::reads_file );
+    auto ewc = chrono::system_clock::now();
+    auto ecpu = clock();
+    fsec elapsedwc = ewc - swc;
+    double elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
+    out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
  
     // parse the input PAF file and return a map with key = read id, 
     // and value = read object with only needed overlap info
     // SO: https://stackoverflow.com/questions/11062804/measuring-the-runtime-of-a-c-code
     // SO1 to get cast to milliseconds: https://stackoverflow.com/questions/30131181/calculate-time-to-execute-a-function 
     out("[ Parse PAF file ] ");
-    auto swc = chrono::system_clock::now();    
-    auto scpu = clock();
+    swc = chrono::system_clock::now();    
+    scpu = clock();
     map<string, sequence> paf_records = parse_paf();
-    auto ewc = chrono::system_clock::now();
-    auto ecpu = clock();
-    fsec elapsedwc = ewc - swc;
-    double elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
+    ewc = chrono::system_clock::now();
+    ecpu = clock();
+    elapsedwc = ewc - swc;
+    elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
     out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) + "s");
 
     // start json object
@@ -133,16 +145,6 @@ int main( int argc, char *argv[])
 
     // start calculations
     // SO: Calculating CPU time. (https://stackoverflow.com/questions/17432502/how-can-i-measure-cpu-time-and-wall-clock-time-on-both-linux-windows)
-    out("\n[ Parse reads file ]");
-    swc = chrono::system_clock::now();
-    scpu = clock();
-    auto fq_records = parse_fq ( opt::reads_file );
-    ewc = chrono::system_clock::now();
-    ecpu = clock();
-    elapsedwc = ewc - swc;
-    elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
-    out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
-
     swc = chrono::system_clock::now();
     scpu = clock();
     out("\n[ Calculating read length distribution ]");
@@ -271,9 +273,10 @@ void parse_args ( int argc, char *argv[])
         {"gfa",                 required_argument,  NULL,   'g'},
         {"help",                no_argument,        NULL,   'h'},
         {"min-rlen",            required_argument,  NULL,   'l'},
+        {"min-olen",            required_argument,  NULL,   'm'},
         {"keep-low-cov",        no_argument,        NULL,   OPT_KEEP_LOW_COV},
         {"keep-high-cov",       no_argument,        NULL,   OPT_KEEP_HIGH_COV},
-        {"remove-dups",         no_argument,        NULL,   OPT_REMOVE_DUPS},
+        {"keep-dups",         no_argument,        NULL,   OPT_KEEP_DUPS},
         {"remove-int-matches",  no_argument,        NULL,   OPT_REMOVE_INT_MATCHES},
         {"remove-contained",    no_argument,        NULL,   OPT_REMOVE_CONTAINED},
         {"max-overhang",        required_argument,  NULL,   OPT_MAX_OVERHANG},
@@ -282,7 +285,6 @@ void parse_args ( int argc, char *argv[])
         {"print-gse-stat",      no_argument,        NULL,   OPT_PRINT_GSE_STAT},
         {"keep-self-overlaps",  no_argument,        NULL,   OPT_KEEP_SELF_OVERLAPS},
         {"print-new-paf",		no_argument,		NULL,	OPT_PRINT_NEW_PAF},
-        {"min-olen",			required_argument,	NULL,	'm'},
         { NULL, 0, NULL, 0 }
     };
 
@@ -293,7 +295,7 @@ void parse_args ( int argc, char *argv[])
     "Copyright 2018 Ontario Institute for Cancer Research\n";
 
     static const char* PREQCLR_CALCULATE_USAGE_MESSAGE =
-    "Usage: ./preqclr [OPTIONS] --sample_name ecoli --reads reads.fa --paf overlaps.paf --gfa layout.gfa \n"
+    "Usage: preqclr [OPTIONS] --sample_name ecoli --reads reads.fa --paf overlaps.paf --gfa layout.gfa \n"
     "Calculate information for preqclr report\n"
     "\n"
     "    -v, --verbose		Display verbose output\n"
@@ -310,7 +312,7 @@ void parse_args ( int argc, char *argv[])
     "        --keep-low-cov		Keep reads with low coverage (<= Q25 - IQR*1.25) for genome size est. calculations \n" 
     "        --keep-high-cov		Keep reads with high coverage (>= Q75 + IQR*1.25) for genome size est. calculations \n"
     "        --keep-self-overlaps	Keep overlaps where the query read and target read are the same \n"
-    "        --remove-dups		Remove duplicate overlaps; between duplicate overlaps choose longest alignment \n"
+    "        --keep-dups		Keep duplicate overlaps \n"
     "        --remove-contained	Remove contained overlaps \n"
     "        --remove-int-matches	Remove internal matches (overlaps where it is a short match in the middle of both reads) \n"
     "        --max-overhang		The maximum overhang length [default: 1000] \n"
@@ -337,7 +339,7 @@ void parse_args ( int argc, char *argv[])
             exit(0);
         case 'r':
             if ( rflag == 1 ) {
-                fprintf(stderr, "./preqclr: multiple instances of option -r,--reads. \n\n");
+                fprintf(stderr, "preqclr: multiple instances of option -r,--reads. \n\n");
                 fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]); 
                 exit(1);
             }
@@ -346,7 +348,7 @@ void parse_args ( int argc, char *argv[])
             break;
         case 'n':
             if ( nflag == 1 ) {
-                fprintf(stderr, "./preqclr: multiple instances of option -n,--sample_name. \n\n");
+                fprintf(stderr, "preqclr: multiple instances of option -n,--sample_name. \n\n");
                 fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
                 exit(1);
             }
@@ -355,7 +357,7 @@ void parse_args ( int argc, char *argv[])
             break;
         case 'p':
             if ( pflag == 1 ) {
-                fprintf(stderr, "./preqclr: multiple instances of option -p,--paf. \n\n");
+                fprintf(stderr, "preqclr: multiple instances of option -p,--paf. \n\n");
                 fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
                 exit(1);
             }
@@ -364,7 +366,7 @@ void parse_args ( int argc, char *argv[])
             break;
         case 'g':
             if ( gflag == 1 ) {
-                fprintf(stderr, "./preqclr: multiple instances of option -g,--gfa. \n\n");
+                fprintf(stderr, "preqclr: multiple instances of option -g,--gfa. \n\n");
                 fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
                 exit(1);
             }
@@ -386,8 +388,8 @@ void parse_args ( int argc, char *argv[])
         case OPT_KEEP_HIGH_COV:
             opt::filter_high_cov = false;
             break;
-        case OPT_REMOVE_DUPS:
-            opt::remove_dups = true;
+        case OPT_KEEP_DUPS:
+            opt::keep_dups = true;
             break;
         case OPT_REMOVE_INT_MATCHES:
             opt::remove_internal_matches = true;
@@ -418,11 +420,9 @@ void parse_args ( int argc, char *argv[])
         case '?':
             // invalid option: getopt_long already printed an error message
             if (optopt == 'c') {
-                fprintf (stderr, "./preqclr: option -%c requires an argument.\n", optopt);
+                fprintf (stderr, "preqclr: option -%c requires an argument.\n", optopt);
             } else if(isprint(optopt)) {
-                fprintf(stderr, "./preqclr: option `-%c' is invalid thus ignored\n",optopt);
-            } else {
-                fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
+                fprintf(stderr, "preqclr: invalid option thus ignored\n");
             }
             break;
         }
@@ -455,12 +455,12 @@ void parse_args ( int argc, char *argv[])
         exit(1);
     }
     if ( nflag == 0 ) {
-        fprintf(stderr, "./preqclr: missing -n,--sample_name option\n\n");
+        fprintf(stderr, "preqclr: missing -n,--sample_name option\n\n");
         fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE);
         exit(1);
     }
     if ( pflag == 0 ) {
-        fprintf(stderr, "./preqclr: missing -p,--paf option\n\n");
+        fprintf(stderr, "preqclr: missing -p,--paf option\n\n");
         fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE);
         exit(1);
     }
@@ -501,6 +501,7 @@ map<string, sequence> parse_paf()
     vector<int> badlines; // stores all the lines we do not want
     map<size_t, pair<int, int>> h; // stores all the hashed query read name + target read name pairs with line number and alignment length
     int ln1 = 0; // current line number
+    map<string, sequence> paf_records;
     while (paf_read(fp1, &r1) >= 0) {
         string qname = r1.qn;
         string tname = r1.tn;
@@ -511,6 +512,9 @@ map<string, sequence> parse_paf()
         unsigned int tlen = r1.tl;
         unsigned int tstart = r1.ts;
         unsigned int tend = r1.te;
+        unsigned int match = r1.ml;
+        unsigned int al = r1.bl;
+        double al_id = (double)match/(double)al;
 
         //cout << qname << "\t" << tname << "\t" << r1.bl << "\t" << ln1 << "\t" << bad << "\n";
 
@@ -520,20 +524,28 @@ map<string, sequence> parse_paf()
               //self-overlap: the same read
               badlines.push_back(ln1);
               ln1++;
-              //cout << qname << "\n";
               continue;
         }
-		// cout << opt::rlen_cutoff << "\n"; 
-        // remove overlaps with short reads
-        if ( (qlen < opt::rlen_cutoff) || (tlen < opt::rlen_cutoff) ) {
-            // overlaps with short reads
+
+        // remove overlaps with low match id, length below cutoff
+        if ( al_id < opt::min_iden || match < opt::min_match || al < opt::olen_cutoff || qlen < opt::rlen_cutoff || tlen < opt::rlen_cutoff ) {
             badlines.push_back(ln1);
             ln1++;
             continue;
         }
 
-        // remove internal matches or small overlaps
-        if ( opt::remove_internal_matches || opt::olen_cutoff > 0 ) {
+        // remove overlaps with high indel error rate
+        /*int omax = max(qend - qstart, tend - tstart); 
+        int omin = min(qend - qstart, tend - tstart);
+        if ( (1 - double(omin/omax)) < 0.3 ) {
+           // cout << qstart << "\t" << qend << "\t" << tstart << "\t" << tend << "\n";
+           badlines.push_back(ln1);
+           ln1++;
+           continue;
+        }*/
+
+        // remove internal matches
+        if ( opt::remove_internal_matches ) {
             // calculate overhang region
             unsigned int qprefix_len = qstart;
             unsigned int qsuffix_len = qlen - qend - 1;
@@ -557,41 +569,16 @@ map<string, sequence> parse_paf()
             double maplen = double(max( qend - qstart, tend - tstart ))*opt::max_overhang_ratio;
             int overhang = left_clip + right_clip;
 
-            if( opt::remove_internal_matches && ( overhang > min(opt::max_overhang, maplen)) ) {
+            if( opt::remove_internal_matches && ( double(overhang) > min(opt::max_overhang, maplen)) ) {
                 // filter overlaps with long overhang regions
-                // ----====-------
-                //   --====---------
-                // cout << qname << "\t" <<tname << "\t" << ln1 << endl;
-                badlines.push_back(ln1);
-                // cout << qname << "\t" << tname << "\t" << qlen <<"\t" << tlen << "\t"<< qstart << "\t" << qend << "\t" << tstart << "\t" << tend << "\n";
-                ln1++;
-                continue;
-            }
-            if( opt::olen_cutoff > 0 && ( qend - qstart + left_clip + right_clip < opt::olen_cutoff  || tend - tstart + left_clip + right_clip < opt::olen_cutoff ) ) {
                 badlines.push_back(ln1);
                 ln1++;
                 continue;
             }
         }
-        // remove contained overlaps
-        if ( opt::remove_contained ) {
-            if (( strand == 0 ) && ((( qstart <= tstart ) && ( qlen - qend ) <= ( tlen - tend )) ||
-               (( qstart >= tstart ) && ( qlen - qend ) >= ( tlen - tend )))) {
-               // one of the reads contained
-               //cout << qname << "\t" << qlen << "\t" << qstart <<"\t" << qend << "\t"<< tname << "\t" << tlen << "\t" << tstart << "\t" << tend <<"\t" << strand << "\n";
-               badlines.push_back(ln1);
-               ln1++;
-               continue;
-            } else if (( strand != 0 ) && ((( qstart <= (tlen - tend) ) && (( qlen - qend ) <=  tstart )) ||
-               (( qstart >= (tlen - tend) ) && (( qlen - qend ) >= tstart )))) {
-               //cout << qname << "\t" << qlen << "\t" << qstart <<"\t" << qend << "\t"<< tname << "\t" << tlen << "\t" << tstart << "\t" << tend <<"\t" << strand << "\n";
-               badlines.push_back(ln1);
-               ln1++;
-               continue;
-            }
-        }
+
         // remove duplicate overlaps
-        if ( opt::remove_dups ) {
+        if ( !opt::keep_dups ) {
             // create a hashkey with lexicographically smallest combination of read names
             size_t hashkey = min(hash<string>{}(qname + tname), hash<string>{}(tname + qname));
             // check if we've seen this overlap between these two reads before
@@ -623,14 +610,41 @@ map<string, sequence> parse_paf()
                 h.insert(make_pair(hashkey, make_pair(aln_len, ln1)));
             }
         }
-        // overlap is good! read next line!
-        ln1+=1;
+
+        // adjust read length: read length = the region of read with overlaps only
+        // store region with overlap on read and init read in paf_records
+        auto i = paf_records.find(qname);
+        bool success = true;
+        if ( i == paf_records.end() ) {
+            // if read not found initialize in paf_records
+            sequence qr;
+            qr.set(qlen, 0, qstart, qend);
+            // cout << qname << "\t" << qr.min_s << "\t" << qr.max_e << "\n";
+            paf_records.insert(pair<string,sequence>(qname, qr));
+        } else {
+            // if read found, update the overlap info
+            success = i->second.updateOvlpRgn(qstart, qend);
+            // cout << qname << "\t" << i->second.min_s << "\t" << i->second.max_e << "\n";
+        }
+        auto j = paf_records.find(tname);
+        if ( i == paf_records.end() ) {
+            // if read not found initialize in paf_records
+            sequence tr;
+            tr.set(tlen, 0, tstart, tend);
+            paf_records.insert(pair<string,sequence>(tname, tr));
+        } else {
+            // if read found, update the overlap info
+            success = j->second.updateOvlpRgn(tstart, tend);
+        }
+
+        if ( !success ){
+            badlines.push_back(ln1);
+        } 
+        // next overlap, read next line!
+        ln1+=1;    
     }
     h.clear(); // free up memory
     sort(badlines.begin(), badlines.end());
-    //for ( auto b : badlines ) {
-    //    cout << b.first << "\t" << b.second << "\n";
-    //}
 
     // PASS 2: read each line in PAF file that has NOT been noted in PASS 1 as a "bad" line
     const char *c2 = opt::paf_file.c_str();
@@ -641,7 +655,6 @@ map<string, sequence> parse_paf()
         fprintf(stderr, "ERROR: PAF file failed to open. Check to see if it exists, is readable, and is non-empty.\n\n");
         exit(1);
     }
-    map<string, sequence> paf_records;
     int ln2 = 0;
     unsigned int iv = 0; // index in vector
     // the vector is sorted numerically
@@ -660,63 +673,55 @@ map<string, sequence> parse_paf()
             // read each line/overlap and save each column into variable
             string qname = r2.qn;
             string tname = r2.tn;
+            auto i = paf_records.find(qname);
+            auto j = paf_records.find(tname);
             unsigned int qlen = r2.ql;
+            unsigned int qalen = i->second.max_e - i->second.min_s;
             unsigned int qstart = r2.qs;
             unsigned int qend = r2.qe;
             unsigned int strand = r2.rev;
             unsigned int tlen = r2.tl;
+            unsigned int talen = j->second.max_e - j->second.min_s;
             unsigned int tstart = r2.ts;
             unsigned int tend = r2.te;
-            if ( opt::print_new_paf) {
-                string s = ( strand == 0 ) ? "-" : "+";
-                cout << qname << "\t" << qlen << "\t" << qstart << "\t" << qend << "\t" << s <<"\t" << tname << "\t" << tlen << "\t" << tstart << "\t" << tend << "\t" << r2.ml << "\t"<< r2.bl << "\t255\n";
-            }
- 
-            unsigned int qprefix_len = qstart;
-            unsigned int qsuffix_len = qlen - qend - 1;
-            unsigned int tprefix_len = tstart;
-            unsigned int tsuffix_len = tlen - tend - 1;
-            // calculate overlap length, we need to take into account minimap2's softclipping
-            int left_clip = 0, right_clip = 0;
-            if ( ( qstart != 0 ) && ( tstart != 0 ) ){
-                if ( strand == 0 ) {
-                    left_clip += min(qprefix_len, tprefix_len);
-                } else {
-                    left_clip += min(qprefix_len, tsuffix_len);
+            if ( qalen > opt::rlen_cutoff && talen > opt::rlen_cutoff && double(tlen-talen)/tlen < 0.10 && double(qlen-qalen)/qlen < 0.10  ) {
+                if ( opt::print_new_paf) {
+                    string s = ( strand == 0 ) ? "-" : "+";
+                    cout << qname << "\t" << qalen << "\t" << qstart << "\t" << qend << "\t" << s <<"\t" << tname << "\t" << talen << "\t" << tstart << "\t" << tend << "\t" << r2.ml << "\t"<< r2.bl << "\t255\n";
                 }
-            }
-            if ( ( qend != 0 ) && ( tend != 0 ) ){
-                if ( strand == 0 ) {
-                    right_clip += min(qsuffix_len, tsuffix_len);
-                } else {
-                    right_clip += min(qsuffix_len, tprefix_len);
-                }  
-            }
 
-            // calculate coverage per read               
-            auto i = paf_records.find(qname);
-            unsigned int qoverlap_len = abs(qend - qstart) + left_clip + right_clip;
-            long double qcov = double(qoverlap_len) / double(qlen);
-            if ( i == paf_records.end() ) {
-                // if read not found initialize in paf_records
-                sequence qr;
-                qr.set(qlen, qcov);
-                paf_records.insert(pair<string,sequence>(qname, qr));
-            } else {
-                // if read found, update the overlap info
+                // calculate overlap length, we need to take into account minimap2's softclipping 
+                // adjust to new read length (region with overlaps only)
+                unsigned int qprefix_len = qstart - i->second.min_s;
+                unsigned int qsuffix_len = i->second.max_e - qend;
+                unsigned int tprefix_len = tstart - j->second.min_s;
+                unsigned int tsuffix_len = j->second.max_e - tend;
+
+                int left_clip = 0, right_clip = 0;
+                if ( ( qstart != 0 ) && ( tstart !=0 )) {
+                    if ( strand == 0 ) { 
+                        left_clip += min(qprefix_len, tprefix_len);
+                    } else {
+                        left_clip += min(qprefix_len, tsuffix_len);
+                    }
+                }
+                if ( ( qend != 0 ) && ( tend != 0 ) ){
+                    if ( strand == 0 ) {
+                        right_clip += min(qsuffix_len, tsuffix_len);
+                    } else {
+                        right_clip += min(qsuffix_len, tprefix_len);
+                    }     
+                }
+                int overhang = left_clip + right_clip;
+                int omax = max(qend - qstart, tend - tstart);
+                int omin = min(qend - qstart, tend - tstart);
+                int gaps = omax - omin;
+                // calculate coverage per read               
+                unsigned int qoverlap_len = abs(qend - qstart) - gaps + overhang;
+                double qcov = double(qoverlap_len) / double(qalen);
                 i->second.updateCov(qcov);
-            }
-
-            auto j = paf_records.find(tname);
-            unsigned int toverlap_len = abs(tend - tstart) + left_clip + right_clip;
-            long double tcov = double(toverlap_len) / double(tlen); 
-            if ( j == paf_records.end() ) {
-                // if target read not found initialize in paf_records
-                sequence tr;
-                tr.set(tlen, tcov);
-                paf_records.insert(pair<string,sequence>(tname, tr));
-            } else {
-                // if target read found, update the overlap info
+                unsigned int toverlap_len = abs(tend - tstart) - gaps + overhang;
+                double tcov = double(toverlap_len) / double(talen); 
                 j->second.updateCov(tcov);
             }
         } else if ( iv < badlines.size()-1 ) {
@@ -727,18 +732,12 @@ map<string, sequence> parse_paf()
         }
         ln2+=1;
     }
-
-    // XXXXXXXXXXXXXXXXXXX
-    // DEBUGGING ZONE
-    // XXXXXXXXXXXXXXXXXXX
     if ( opt::print_read_cov ) {
         for ( auto const& r : paf_records ) {
             sequence temp = r.second;
-            //cout << r.first << "\n";
             cout << r.first << "\t" << temp.read_len << "\t" << temp.cov << "\n";
         }
     }
-    // XXXXXXXXXXXXXXXXXXX
 
    return paf_records;
 }
@@ -890,6 +889,36 @@ vector <pair< double, int >> parse_fq( string file )
     return fq_records;
 }
 
+//
+// Dust scoring scheme as given by:
+// Morgulis A. "A fast and symmetric DUST implementation to Mask
+// Low-Complexity DNA Sequences". J Comp Bio.
+double calculateDustScore(const string& seq)
+{
+    map<string, int> scoreMap;
+
+    // Cannot calculate dust scores on very short reads
+    if(seq.size() < 5)
+        return 0.0f;
+
+
+    // Slide a 3-mer window over the sequence and insert the sequences into the map
+    for(size_t i = 0; i < seq.size() - 5; ++i)
+    {
+        string fiveMer = seq.substr(i, 5);
+        scoreMap[fiveMer]++;
+    }
+
+    // Calculate the score by summing the square of every element in the map
+    double sum = 0;
+    for (auto& iter : scoreMap) {
+        int tc = iter.second;
+        double score = (double)(tc * (tc - 1)) / 2.0f;
+        sum += score;
+    }
+    return sum / (seq.size() - 4);
+}
+
 void calculate_GC_content( vector <pair< double, int >> fq, JSONWriter* writer )
 {
     /*
@@ -1007,7 +1036,7 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     {
         string id = it->first;
         sequence r = it->second;
-        int r_len = r.read_len;
+        int r_len = r.max_e - r.min_s;
         long double r_cov = r.cov;
         string key = to_string(r_cov);
         writer->Key(key.c_str());
@@ -1042,9 +1071,9 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     double IQR = covs[i75].first - covs[i25].first;
     double bd = IQR*1.5;
     double upperbound = round(double(covs[i75].first) + bd);
-    double lowerbound = (round(double(covs[i25].first) - bd)>2.0) ? round(double(covs[i25].first) - bd) : 2.0;
+    double lowerbound = (round(double(covs[i25].first) - bd)>3.0) ? round(double(covs[i25].first) - bd) : 3.0;
     if ( !opt::filter_low_cov ) {
-        lowerbound = 2.0;
+        lowerbound = 3.0;
     }
     if ( !opt::filter_high_cov ) {
         upperbound = 100000000000;
