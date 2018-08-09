@@ -518,7 +518,6 @@ map<string, sequence> parse_paf()
         unsigned int qlen = r1.ql;
         unsigned int qstart = r1.qs;
         unsigned int qend = r1.qe;
-        unsigned int strand = r1.rev;
         unsigned int tlen = r1.tl;
         unsigned int tstart = r1.ts;
         unsigned int tend = r1.te;
@@ -552,39 +551,6 @@ map<string, sequence> parse_paf()
            badlines.push_back(ln1);
            ln1++;
            continue;
-        }
-
-        // remove internal matches
-        if ( opt::remove_internal_matches ) {
-            // calculate overhang region
-            unsigned int qprefix_len = qstart;
-            unsigned int qsuffix_len = qlen - qend - 1;
-            unsigned int tprefix_len = tstart;
-            unsigned int tsuffix_len = tlen - tend - 1;
-            int left_clip = 0, right_clip = 0;
-            if ( ( qstart != 0 ) && ( tstart != 0 ) ){
-                if ( strand == 0 ) { // if both on same strand
-                    left_clip += min(qprefix_len, tprefix_len);
-                } else {
-                    left_clip += min(qprefix_len, tsuffix_len);
-                }
-            }
-            if ( ( qend != 0 ) && ( tend != 0 ) ){
-                if ( strand == 0 ) { // if both on same strand
-                    right_clip += min(qsuffix_len, tsuffix_len);
-                } else {
-                    right_clip += min(qsuffix_len, tprefix_len);
-                }
-            }
-            double maplen = double(max( qend - qstart, tend - tstart ))*opt::max_overhang_ratio;
-            int overhang = left_clip + right_clip;
-
-            if( opt::remove_internal_matches && ( double(overhang) > min(opt::max_overhang, maplen)) ) {
-                // filter overlaps with long overhang regions
-                badlines.push_back(ln1);
-                ln1++;
-                continue;
-            }
         }
 
         // remove duplicate overlaps
@@ -694,7 +660,6 @@ map<string, sequence> parse_paf()
             unsigned int talen = j->second.max_e - j->second.min_s;
             unsigned int tstart = r2.ts;
             unsigned int tend = r2.te;
-            unsigned int al = r2.bl;
             if ( qalen > opt::rlen_cutoff && talen > opt::rlen_cutoff && double(tlen-talen)/tlen < 0.10 && double(qlen-qalen)/qlen < 0.10  ) {
                 if ( opt::print_new_paf) {
                     string s = ( strand == 0 ) ? "-" : "+";
@@ -724,13 +689,11 @@ map<string, sequence> parse_paf()
                     }     
                 }
                 int overhang = left_clip + right_clip;
-                int qgaps = al - qend + qstart;
-                int tgaps = al - tend + tstart;
                 // calculate coverage per read               
-                unsigned int qoverlap_len = abs(qend - qstart) - qgaps + overhang;
+                unsigned int qoverlap_len = abs(qend - qstart) + overhang;
                 double qcov = double(qoverlap_len) / double(qalen);
                 i->second.updateCov(qcov);
-                unsigned int toverlap_len = abs(tend - tstart) - tgaps + overhang;
+                unsigned int toverlap_len = abs(tend - tstart) + overhang;
                 double tcov = double(toverlap_len) / double(talen); 
                 j->second.updateCov(tcov);
             }
