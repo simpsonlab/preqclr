@@ -71,7 +71,7 @@ namespace opt
     static bool print_gse_stat = false;
     static bool keep_self_overlaps = false;
     static bool print_new_paf = false;
-    static double min_iden = 0;
+    static double min_iden = 0.05;
     static unsigned int min_match = 100;
 }
 
@@ -274,6 +274,7 @@ void parse_args ( int argc, char *argv[])
         {"help",                no_argument,        NULL,   'h'},
         {"min-rlen",            required_argument,  NULL,   'l'},
         {"min-olen",            required_argument,  NULL,   'm'},
+        {"min-iden",            required_argument,  NULL,   'i'},
         {"keep-low-cov",        no_argument,        NULL,   OPT_KEEP_LOW_COV},
         {"keep-high-cov",       no_argument,        NULL,   OPT_KEEP_HIGH_COV},
         {"keep-dups",         no_argument,        NULL,   OPT_KEEP_DUPS},
@@ -309,6 +310,7 @@ void parse_args ( int argc, char *argv[])
     "				This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
     "    -l, --min-rlen=INT		Use overlaps with read lengths >= INT\n"
     "    -m, --min-olen=INT 		Use overlaps longer than >=INT\n"
+    "    -i, --min-iden=INT     Use overlaps with minimum id [0.05]\n"
     "        --keep-low-cov		Keep reads with low coverage (<= Q25 - IQR*1.25) for genome size est. calculations \n" 
     "        --keep-high-cov		Keep reads with high coverage (>= Q75 + IQR*1.25) for genome size est. calculations \n"
     "        --keep-self-overlaps	Keep overlaps where the query read and target read are the same \n"
@@ -381,6 +383,14 @@ void parse_args ( int argc, char *argv[])
             break;
         case 'm':
             arg >> opt::olen_cutoff;
+            break;
+        case 'i':
+            arg >> opt::min_iden;
+            if ( opt::min_iden > 1 || opt::min_iden < 0 ) {
+                fprintf(stderr, "preqclr: invalid value for --min-iden. Must be between 0 and 1. \n\n");
+                fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
+                exit(1);   
+            }
             break;
         case OPT_KEEP_LOW_COV:
             opt::filter_low_cov = false;
@@ -535,14 +545,14 @@ map<string, sequence> parse_paf()
         }
 
         // remove overlaps with high indel error rate
-        /*int omax = max(qend - qstart, tend - tstart); 
+        int omax = max(qend - qstart, tend - tstart); 
         int omin = min(qend - qstart, tend - tstart);
-        if ( (1 - double(omin/omax)) < 0.3 ) {
+        if ( (1 - double(omin)/omax) > 0.3 ) {
            // cout << qstart << "\t" << qend << "\t" << tstart << "\t" << tend << "\n";
            badlines.push_back(ln1);
            ln1++;
            continue;
-        }*/
+        }
 
         // remove internal matches
         if ( opt::remove_internal_matches ) {
@@ -684,6 +694,7 @@ map<string, sequence> parse_paf()
             unsigned int talen = j->second.max_e - j->second.min_s;
             unsigned int tstart = r2.ts;
             unsigned int tend = r2.te;
+            unsigned int al = r2.bl;
             if ( qalen > opt::rlen_cutoff && talen > opt::rlen_cutoff && double(tlen-talen)/tlen < 0.10 && double(qlen-qalen)/qlen < 0.10  ) {
                 if ( opt::print_new_paf) {
                     string s = ( strand == 0 ) ? "-" : "+";
@@ -713,14 +724,13 @@ map<string, sequence> parse_paf()
                     }     
                 }
                 int overhang = left_clip + right_clip;
-                int omax = max(qend - qstart, tend - tstart);
-                int omin = min(qend - qstart, tend - tstart);
-                int gaps = omax - omin;
+                int qgaps = al - qend + qstart;
+                int tgaps = al - tend + tstart;
                 // calculate coverage per read               
-                unsigned int qoverlap_len = abs(qend - qstart) - gaps + overhang;
+                unsigned int qoverlap_len = abs(qend - qstart) - qgaps + overhang;
                 double qcov = double(qoverlap_len) / double(qalen);
                 i->second.updateCov(qcov);
-                unsigned int toverlap_len = abs(tend - tstart) - gaps + overhang;
+                unsigned int toverlap_len = abs(tend - tstart) - tgaps + overhang;
                 double tcov = double(toverlap_len) / double(talen); 
                 j->second.updateCov(tcov);
             }
@@ -1087,8 +1097,6 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     // the following are used to get the mode of distribution
     // we bin the reads by coverage incrementing by 0.25x
     // we start binning from the lowest value of cov calculated
-    //double l = covs[0].first;
-    //double u = covs[0].first + 0.25;
     double l = lowerbound;
     double u = l + 0.25;
     double curr_largest = -1000.0;
@@ -1114,7 +1122,6 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
             }
             i += 1;
         }
-    //    cout << u << ": " << count << "\n";
         // if this bin has the most amount of reads, the coverage is the mode
         if (( count > curr_largest ) && ( u > lowerbound )) {
             curr_largest = count;

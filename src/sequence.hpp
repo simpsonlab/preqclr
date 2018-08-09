@@ -13,7 +13,11 @@ class sequence
 {
   public:
     unsigned long int read_len;
-    long double cov;
-    void set(unsigned long int l, long double c);
-    void updateCov(long double c);
+    double cov;
+    int min_s;
+    int max_e;
+    void set(unsigned long int l, double c, int s, int e);
+    void updateCov(double c);
+    bool updateOvlpRgn(int s, int e);
 };
+
