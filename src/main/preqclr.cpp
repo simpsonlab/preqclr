@@ -18,13 +18,16 @@
 #include <string>
 #include <vector>
 
-#include <limits.h>
 #include <math.h>
 #include "preqclr.hpp"
 
 #include <zlib.h>
 #include <stdio.h>
 #include <getopt.h>
+
+#include <htslib/bgzf.h>
+#include <htslib/sam.h>
+#include <htslib/hts.h>
 
 #include "kseq.h"
 #include "readpaf/paf.h"
@@ -61,8 +64,8 @@ namespace opt
     static unsigned int olen_cutoff = 0;
     //static double olen_ratio_cutoff = 0;
     static bool keep_dups = false;
-    static bool filter_high_cov = true;
-    static bool filter_low_cov = true;
+    static bool keep_high_cov = false;
+    static bool keep_low_cov = false;
     static bool remove_internal_matches = false;
     static double max_overhang = 1000.0;
     static double max_overhang_ratio = 0.80;
@@ -81,7 +84,7 @@ void out( string o )
 {
     // Let's handle the verbose option
     // SO: https://stackoverflow.com/questions/10150468/how-to-redirect-cin-and-cout-to-files
-    string logfile = opt::sample_name + "_preqclr.log";
+    string logfile = opt::sample_name + ".preqclr.log";
     ofstream out;
     out.open( logfile, ios::app );
     out << o << "\n";
@@ -104,6 +107,10 @@ int main( int argc, char *argv[])
     ofs.open( opt::sample_name + ".preqclr.log", ofstream::out | ios::trunc );
     ofs.close();
 
+    // begin timing
+    // SO: https://stackoverflow.com/questions/11062804/measuring-the-runtime-of-a-c-code
+    // SO1: https://stackoverflow.com/questions/30131181/calculate-time-to-execute-a-function
+
     out("========================================================");
     out("Run preqclr");
     out("========================================================");
@@ -120,10 +127,6 @@ int main( int argc, char *argv[])
     double elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
     out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
  
-    // parse the input PAF file and return a map with key = read id, 
-    // and value = read object with only needed overlap info
-    // SO: https://stackoverflow.com/questions/11062804/measuring-the-runtime-of-a-c-code
-    // SO1 to get cast to milliseconds: https://stackoverflow.com/questions/30131181/calculate-time-to-execute-a-function 
     out("[ Parse PAF file ] ");
     swc = chrono::system_clock::now();    
     scpu = clock();
@@ -144,7 +147,6 @@ int main( int argc, char *argv[])
     writer.String(opt::sample_name.c_str());
 
     // start calculations
-    // SO: Calculating CPU time. (https://stackoverflow.com/questions/17432502/how-can-i-measure-cpu-time-and-wall-clock-time-on-both-linux-windows)
     swc = chrono::system_clock::now();
     scpu = clock();
     out("\n[ Calculating read length distribution ]");
@@ -175,7 +177,7 @@ int main( int argc, char *argv[])
     elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
     out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
-    out("\n[ Calculating total number of bases as a function of min read length ]");
+    out("\n[ Calculating total number of bases vs min read length ]");
     swc = chrono::system_clock::now();
     scpu = clock();
     calculate_tot_bases( paf_records, &writer);
@@ -186,10 +188,13 @@ int main( int argc, char *argv[])
     out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
     if ( !opt::gfa_file.empty() ) {
+        // still testing: calc a-stat
+        auto contigs = calculate_ctgs();
+
         out("\n[ Parse GFA file ] ");
         swc = chrono::system_clock::now();
         scpu = clock();
-        auto contigs = parse_gfa();
+        //parse_gfa(contigs);
         ewc = chrono::system_clock::now();
         ecpu = clock();
         elapsedwc = ewc - swc;
@@ -200,6 +205,16 @@ int main( int argc, char *argv[])
         swc = chrono::system_clock::now();
         scpu = clock();
         calculate_ngx( contigs, genome_size_est, &writer );
+        ewc = chrono::system_clock::now();
+        ecpu = clock();
+        elapsedwc = ewc - swc;
+        elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
+        out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
+
+        out("\n[ Calculating repetitivity ]");
+        swc = chrono::system_clock::now();
+        scpu = clock();
+        calculate_repetitivity( contigs, genome_size_est, paf_records.size(), &writer );
         ewc = chrono::system_clock::now();
         ecpu = clock();
         elapsedwc = ewc - swc;
@@ -231,33 +246,6 @@ int main( int argc, char *argv[])
     out("[+] Total time: " + to_string(tot_elapsed.count()) + "s, CPU time: " + to_string(tot_elapsed_cpu) + "s");
 }
 
-vector<double> parse_gfa()
-{
-    // parse gfa to get the contig lengths in MB
-    string line;
-    ifstream infile(opt::gfa_file);
-    if (!infile.is_open()) {
-        fprintf(stderr, "ERROR: GFA failed to open. Check to see if it exists, is readable, and is non-empty.\n\n");
-        exit(1);
-    }
-    vector <double> contig_lengths;
-    while( getline(infile, line) ) {
-        char spec;
-        stringstream ss(line);
-        ss >> spec;
-
-        // get only lines that have summary information on the contig length
-        if ( spec == 'x' ) {
-            string ctgName;
-            int ctgLen, nreads;
-            ss >> spec >> ctgName >> ctgLen >> nreads;
-            double len = double(ctgLen)/1000000;
-            contig_lengths.push_back(len);
-        }
-    }
-    return contig_lengths;
-}
-
 void parse_args ( int argc, char *argv[])
 {
     // getopt
@@ -277,14 +265,13 @@ void parse_args ( int argc, char *argv[])
         {"min-iden",            required_argument,  NULL,   'i'},
         {"keep-low-cov",        no_argument,        NULL,   OPT_KEEP_LOW_COV},
         {"keep-high-cov",       no_argument,        NULL,   OPT_KEEP_HIGH_COV},
-        {"keep-dups",         no_argument,        NULL,   OPT_KEEP_DUPS},
+        {"keep-dups",           no_argument,        NULL,   OPT_KEEP_DUPS},
         {"remove-int-matches",  no_argument,        NULL,   OPT_REMOVE_INT_MATCHES},
         {"remove-contained",    no_argument,        NULL,   OPT_REMOVE_CONTAINED},
         {"max-overhang",        required_argument,  NULL,   OPT_MAX_OVERHANG},
         {"max-overhang-ratio",  required_argument,  NULL,   OPT_MAX_OVERHANG_RATIO},
         {"print-read-cov",      no_argument,        NULL,   OPT_PRINT_READ_COV},
         {"print-gse-stat",      no_argument,        NULL,   OPT_PRINT_GSE_STAT},
-        {"keep-self-overlaps",  no_argument,        NULL,   OPT_KEEP_SELF_OVERLAPS},
         {"print-new-paf",		no_argument,		NULL,	OPT_PRINT_NEW_PAF},
         { NULL, 0, NULL, 0 }
     };
@@ -297,7 +284,7 @@ void parse_args ( int argc, char *argv[])
 
     static const char* PREQCLR_CALCULATE_USAGE_MESSAGE =
     "Usage: preqclr [OPTIONS] --sample_name ecoli --reads reads.fa --paf overlaps.paf --gfa layout.gfa \n"
-    "Calculate information for preqclr report\n"
+    "Calculate quality statistics\n"
     "\n"
     "    -v, --verbose		Display verbose output\n"
     "        --version		Display version\n"
@@ -308,17 +295,16 @@ void parse_args ( int argc, char *argv[])
     "				This is produced using \'minimap2 -x ava-ont sample.fasta sample.fasta\'\n"
     "    -g, --gfa			Miniasm Graph Fragment Assembly (GFA) file\n"
     "				This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
-    "    -l, --min-rlen=INT		Use overlaps with read lengths >= INT\n"
-    "    -m, --min-olen=INT 		Use overlaps longer than >=INT\n"
-    "    -i, --min-iden=INT     Use overlaps with minimum id [0.05]\n"
-    "        --keep-low-cov		Keep reads with low coverage (<= Q25 - IQR*1.25) for genome size est. calculations \n" 
-    "        --keep-high-cov		Keep reads with high coverage (>= Q75 + IQR*1.25) for genome size est. calculations \n"
-    "        --keep-self-overlaps	Keep overlaps where the query read and target read are the same \n"
+    "    -l, --min-rlen=INT		Use overlaps with read lengths >= INT [0]\n"
+    "    -m, --min-olen=INT 		Use overlaps longer than >=INT [0]\n"
+    "    -i, --min-iden=INT          Use overlaps with minimum id [0.05]\n"
+    "        --keep-low-cov		Keep reads with low coverage for genome size est. calculations \n" 
+    "        --keep-high-cov		Keep reads with high coverage for genome size est. calculations \n"
     "        --keep-dups		Keep duplicate overlaps \n"
     "        --remove-contained	Remove contained overlaps \n"
     "        --remove-int-matches	Remove internal matches (overlaps where it is a short match in the middle of both reads) \n"
-    "        --max-overhang		The maximum overhang length [default: 1000] \n"
-    "        --max-overhang-ratio	The maximum overhang to mapping length ratio [default: 0.8] \n"
+    "        --max-overhang		The maximum overhang length [1000] \n"
+    "        --max-overhang-ratio	The maximum overhang to mapping length ratio [0.8] \n"
     "        --print-read-cov	Print read id and coverage for each read to stdout; overwrites verbose flag \n"
     "        --print-gse-stat	Print genome size estimate statistics only \n"
     "        --print-new-paf		Print new paf file after filtering overlaps\n"	
@@ -329,8 +315,6 @@ void parse_args ( int argc, char *argv[])
     int rflag=0, nflag=0, pflag=0, gflag=0;
     int c;
     while ( (c = getopt_long(argc, argv, short_opts, long_opts, NULL)) != -1 ) {
-    // getopt will loop through arguments, returns -1 when end of options, and store current arg in optarg
-    // if optarg is not null, keep as optarg else ""
     std::istringstream arg(optarg != NULL ? optarg : "");
     switch(c) {
         case 'v':
@@ -393,10 +377,10 @@ void parse_args ( int argc, char *argv[])
             }
             break;
         case OPT_KEEP_LOW_COV:
-            opt::filter_low_cov = false;
+            opt::keep_low_cov = true;
             break;
         case OPT_KEEP_HIGH_COV:
-            opt::filter_high_cov = false;
+            opt::keep_high_cov = true;
             break;
         case OPT_KEEP_DUPS:
             opt::keep_dups = true;
@@ -438,7 +422,7 @@ void parse_args ( int argc, char *argv[])
         }
     }
    if (optind < argc) {
-        printf("Non-option argument: ");
+        printf("WARNING: invalid option thus ignored: ");
         while (optind < argc)
             printf("%s ", argv[optind++]);
         printf("\n");
@@ -460,7 +444,7 @@ void parse_args ( int argc, char *argv[])
 
     // check mandatory variables and assign defaults
     if ( rflag == 0 ) {
-        fprintf(stderr, "./preqclr: missing -r,--reads option\n\n");
+        fprintf(stderr, "preqclr: missing -r,--reads option\n\n");
         fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
         exit(1);
     }
@@ -505,12 +489,14 @@ map<string, sequence> parse_paf()
     }
     
     // we need to filter overlaps
-    // self overlap: minimap2 reports an overlap between the same reads (i.e. when query read id == target read id in the PAF file)
-    // duplicate overlap: the same two reads are reported to overlap (i.e. when the same query read id and target read id pair are 
-    //                    seen in multiple lines in the PAF file)
-    vector<int> badlines; // stores all the lines we do not want
-    map<size_t, pair<int, int>> h; // stores all the hashed query read name + target read name pairs with line number and alignment length
-    int ln1 = 0; // current line number
+    // store all the lines we do not
+    vector<int> badlines;
+    // store hashed query read name + target read name pairs with line number
+    // and alignment length
+    map<size_t, pair<int, int>> h;
+    // current line number
+    int ln1 = 0; 
+    // store reads in paf_records: key = read id, value = read
     map<string, sequence> paf_records;
     while (paf_read(fp1, &r1) >= 0) {
         string qname = r1.qn;
@@ -525,12 +511,10 @@ map<string, sequence> parse_paf()
         unsigned int al = r1.bl;
         double al_id = (double)match/(double)al;
 
-        //cout << qname << "\t" << tname << "\t" << r1.bl << "\t" << ln1 << "\t" << bad << "\n";
-
         // start filtering overlaps
         // remove self overlaps
-        if ( (!opt::keep_self_overlaps) && (qname.compare(tname) == 0) ) { 
-              //self-overlap: the same read
+        if ( qname.compare(tname) == 0) { 
+              //self-overlap: query read == target read
               badlines.push_back(ln1);
               ln1++;
               continue;
@@ -547,7 +531,6 @@ map<string, sequence> parse_paf()
         int omax = max(qend - qstart, tend - tstart); 
         int omin = min(qend - qstart, tend - tstart);
         if ( (1 - double(omin)/omax) > 0.3 ) {
-           // cout << qstart << "\t" << qend << "\t" << tstart << "\t" << tend << "\n";
            badlines.push_back(ln1);
            ln1++;
            continue;
@@ -561,14 +544,14 @@ map<string, sequence> parse_paf()
             auto it = h.find(hashkey);
             if (it != h.end()) {
                 // YES, duplicate detected
-                // let's compare the length of overlaps. We want the longer overlap.
+                // compare the length of overlaps to get longer overlap.
                 int curr_aln_len = int(r1.bl);
                 int curr_ln = ln1;
                 int prev_aln_len = int(it->second.first);
                 int prev_ln = int(it->second.second);
                 if ( curr_aln_len > prev_aln_len ) {
                     // prev. overlap between these 2 reads is shorter, we use the current line instead
-                    // prev. overlap's line number is recorded as "bad". it will be skipped in second pass
+                    // prev. overlap's line number is recorded as "bad"
                     badlines.push_back(prev_ln);
                     h[hashkey] = make_pair(curr_aln_len, curr_ln);
                     ln1++;
@@ -622,7 +605,7 @@ map<string, sequence> parse_paf()
     h.clear(); // free up memory
     sort(badlines.begin(), badlines.end());
 
-    // PASS 2: read each line in PAF file that has NOT been noted in PASS 1 as a "bad" line
+    // PASS 2: read only good lines defined in PASS 1
     const char *c2 = opt::paf_file.c_str();
     paf_file_t *fp2;
     paf_rec_t r2;
@@ -631,18 +614,20 @@ map<string, sequence> parse_paf()
         fprintf(stderr, "ERROR: PAF file failed to open. Check to see if it exists, is readable, and is non-empty.\n\n");
         exit(1);
     }
-    int ln2 = 0;
-    unsigned int iv = 0; // index in vector
+    int ln2 = 0; // index in PAF file
+    unsigned int iv = 0; // index in badlines vector
     // the vector is sorted numerically
     // we can loop through the vector once by storing which is the next line to avoid
     // once we have reached this line, we can move on to the next bad line and
     // look out for that one while going through the next lines
     int bad;
     if ( !badlines.empty() ) {
-        bad = int(badlines.at(iv)); // first bad line to watch out for
+        bad = int(badlines.at(iv)); // first bad line
     } else {
         bad = ln1; // no badlines detected, set to last line
     }
+    // find min overlap length
+    double mino = 100000;
     // read good lines in PAF
     while (paf_read(fp2, &r2) >= 0) { 
         if ( ln2 < bad ) {
@@ -660,19 +645,19 @@ map<string, sequence> parse_paf()
             unsigned int talen = j->second.max_e - j->second.min_s;
             unsigned int tstart = r2.ts;
             unsigned int tend = r2.te;
+            // remove reads where the new length <<<< original length
             if ( qalen > opt::rlen_cutoff && talen > opt::rlen_cutoff && double(tlen-talen)/tlen < 0.10 && double(qlen-qalen)/qlen < 0.10  ) {
                 if ( opt::print_new_paf) {
                     string s = ( strand == 0 ) ? "-" : "+";
                     cout << qname << "\t" << qalen << "\t" << qstart << "\t" << qend << "\t" << s <<"\t" << tname << "\t" << talen << "\t" << tstart << "\t" << tend << "\t" << r2.ml << "\t"<< r2.bl << "\t255\n";
                 }
 
-                // calculate overlap length, we need to take into account minimap2's softclipping 
+                // calculate softclipped regions 
                 // adjust to new read length (region with overlaps only)
                 unsigned int qprefix_len = qstart - i->second.min_s;
                 unsigned int qsuffix_len = i->second.max_e - qend;
                 unsigned int tprefix_len = tstart - j->second.min_s;
                 unsigned int tsuffix_len = j->second.max_e - tend;
-
                 int left_clip = 0, right_clip = 0;
                 if ( ( qstart != 0 ) && ( tstart !=0 )) {
                     if ( strand == 0 ) { 
@@ -689,6 +674,7 @@ map<string, sequence> parse_paf()
                     }     
                 }
                 int overhang = left_clip + right_clip;
+
                 // calculate coverage per read               
                 unsigned int qoverlap_len = abs(qend - qstart) + overhang;
                 double qcov = double(qoverlap_len) / double(qalen);
@@ -696,9 +682,16 @@ map<string, sequence> parse_paf()
                 unsigned int toverlap_len = abs(tend - tstart) + overhang;
                 double tcov = double(toverlap_len) / double(talen); 
                 j->second.updateCov(tcov);
+
+                // track minimum overlap length used
+                if ( qcov < mino ) {
+                    mino = qcov;
+                }
+                if ( tcov < mino ) {
+                    mino = tcov;
+                }
             }
         } else if ( iv < badlines.size()-1 ) {
-            // we have a bad line!
             // next bad line to look out for:
             iv+=1;
             bad = int(badlines.at(iv));
@@ -711,122 +704,8 @@ map<string, sequence> parse_paf()
             cout << r.first << "\t" << temp.read_len << "\t" << temp.cov << "\n";
         }
     }
-
+   cout << "mino: " << mino << "\n";
    return paf_records;
-}
-
-void calculate_ngx( vector<double> contig_lengths, double genome_size_est, JSONWriter* writer ){
-    /*
-    ========================================================
-    Calculating NGX
-    --------------------------------------------------------
-    Uses GFA information to evaluate the assembly quality
-    Input:      All the contig lengths in MB ****
-    Output:     NGX values in a dictionary:
-                key   = X
-                value = contig length where summing contigs 
-                with length greater than or equal to this 
-                length is Xth percentile
-                of the genome size estimate....
-    ========================================================
-    */
-    // we will need to add contig lengths downstream
-    // so first we need to check if addition of contig lens would cause overflow
-    genome_size_est = double(genome_size_est)/1000000;
-    int x = 0;
-    // this is going to hold key = x percent of genome size estimate, value = x
-    map<double, int> gx;
-    while ( x <= 100 ) {
-        gx.insert( make_pair((double(x) * genome_size_est)/100, x) );
-        x += 1;
-    }
-    
-    // sort in descending order the contig_lengths
-    sort(contig_lengths.rbegin(), contig_lengths.rend());
-   
-    // this is going to hold key = x, value = ngx
-    map<int, double> ngx;
-    double start = 0, end = 0;
-    for ( auto const& c : contig_lengths ) {
-       end += double(c);
-       // for all values that are less then the curr sum
-       for ( auto& p : gx ) {
-           if ( ( p.first >= start ) && ( p.first <= end ) ) {
-               ngx.insert( make_pair(p.second, c) );
-           }           
-       }
-       start += c;
-    }
-
-    writer->Key("ngx_values");
-    writer->StartObject();
-    for ( auto& p : ngx ) {
-        string key = to_string(p.first);
-        // x value:
-        writer->Key(key.c_str());
-        // ngx value:
-        writer->Double(p.second);
-    }
-    writer->EndObject();   
-}
-
-void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer)
-{
-    /*
-    ========================================================
-    Calculating total number of bases as a function of 
-    min read length
-    --------------------------------------------------------
-    Shows the total number of bases with varying minimum 
-    read length cut offs.
-    Input:      Dictionary of reads with read length info in value
-    Output:     Dictionary:
-                key   = read length cut off
-                value = total number of bases
-    ========================================================
-    */
-
-    // bin the reads by read length in BASES, and sort in decreasing order
-    map < unsigned int, int, greater<unsigned int>> read_lengths;
-    for( auto it = paf.begin(); it != paf.end(); it++) {
-        string id = it->first;
-        unsigned int r_len = it->second.read_len;
-
-        // add as new read length if read length not in map yet
-        auto j = read_lengths.find(r_len);
-        if ( j == read_lengths.end() ) {
-            // if read length not found
-            read_lengths.insert( pair<unsigned int,int>(r_len, 1) );
-        } else {
-            // if read length found
-            j->second += 1;
-        }
-    }
-
-    writer->Key("total_num_bases_vs_min_read_length");
-    writer->StartObject();
-    double curr_longest;   // current longest readlength in BASES
-    unsigned int nr;       // number of reads with read length
-    double nb;             // total number of KILOBASES of reads with current longest read length
-    double tot_num_bases = 0;
-    for (const auto& p : read_lengths) {
-        curr_longest = double(p.first);
-        nr = p.second;
-        nb = (curr_longest/double(1000.0)) * nr;
-
-        // detect for potential overflow issues:
-        // SO: https://stackoverflow.com/questions/199333/how-to-detect-integer-overflow
-        // curr_longest * nr may have encountered an overflow issue
-        // leading to a negative number. We do not include negative nb. 
-            if (!(nb > 0) || !(tot_num_bases > INT_MAX - nb)) {
-                // would not overflow 
-                tot_num_bases += nb;
-                string key = to_string( curr_longest );
-                writer->Key(key.c_str());
-                writer->Int(tot_num_bases);
-            }
-    }
-    writer->EndObject();
 }
 
 vector <pair< double, int >> parse_fq( string file )
@@ -858,11 +737,222 @@ vector <pair< double, int >> parse_fq( string file )
          }
     }
     kseq_destroy(seq);
-    gzclose(fp);         
+    gzclose(fp);
     return fq_records;
 }
 
-//
+void parse_gfa(map<string, contig> ctgs)
+{
+    // parse gfa to get the contig lengths in MB
+    string line;
+    ifstream infile(opt::gfa_file);
+    if (!infile.is_open()) {
+        fprintf(stderr, "ERROR: GFA failed to open. Check to see if it exists, is readable, and is non-empty.\n\n");
+        exit(1);
+    }
+    //vector <double> contig_lengths;
+    while( getline(infile, line) ) {
+        char spec;
+        stringstream ss(line);
+        ss >> spec;
+
+        // get only lines that have summary information on the contig length
+        if ( spec == 'x' ) {
+            string ctgName;
+            int ctgLen;
+            ss >> spec >> ctgName >> ctgLen;
+            auto i = ctgs.find(ctgName);
+            i->second.len = ctgLen;
+        }
+    }
+}
+
+void calculate_repetitivity(map<string, contig> ctg, double g, int n, JSONWriter* writer ) {
+
+    // to calculate the astatistic for each read
+    // we need k = the number of reads in the contig, total number of reads (n)
+    // the length of contig = l, and the gse (G)
+    long unsigned int r = 0;
+    long unsigned int u = 0;
+    double singleCopyTheshold = 30.0;
+    double arrivalRate = double(n)/g;
+
+    // compute final a stat values
+    for (auto const& c: ctg){
+        int k = c.second.num_reads;
+        int l = c.second.len;
+        double astat = arrivalRate*double(l) - double(k)*log(2);
+        cout << c.first << ": " << k << "\t" << l << "\t" << astat << "\n";
+        if ( astat >= singleCopyTheshold ) {
+            u += l;
+        } else {
+            r += l;
+        }
+    }
+
+    cout << "% rep: " << double(r)/double(g) << "\n";
+    cout << "% unique: " << double(u)/double(g) << "\n";
+    cout << "% error: "  << 1 - double(r)/double(g) - double(u)/double(g) << "\n";
+}
+
+map<string, contig> calculate_ctgs() {
+    // ctgs dict: key = ctg name, value = contig (length, number of reads aligned)
+    map<string, contig> ctgs;
+    const char *bam_file = "./reads-to-contigs.bam";
+    htsFile *fp1 = NULL;
+    fp1 = hts_open(bam_file,"rb"); //open bam file
+    bam1_t *read1 = bam_init1();
+    bam_hdr_t *header1 = sam_hdr_read(fp1);
+    int tot_reads = 0;
+    long int sum_read_lens = 0;
+    while(sam_read1(fp1, header1, read1) >= 0) {
+        if( (read1->core.flag & BAM_FUNMAP) == 0 ) {
+            string ctgName = header1->target_name[read1->core.tid];
+            int ctgLen = header1->target_len[read1->core.tid];
+            // update contig dict
+            auto i = ctgs.find(ctgName);
+            if ( i == ctgs.end() ) {
+                contig c;
+                c.set(ctgLen, 1);
+                ctgs.insert(pair<string, contig>(ctgName, c));
+            } else {
+                i->second.num_reads += 1;
+            }
+            // track total reads
+            int qLen = read1->core.l_qseq;
+            tot_reads += 1;
+            sum_read_lens += qLen;
+        }
+    }
+    // adjust contig lengths
+    double avgReadLen = sum_read_lens / double(tot_reads);
+    for ( auto c : ctgs ){
+        c.second.len = c.second.len > avgReadLen ? c.second.len -avgReadLen + 1 : 0; 
+    }
+
+    bam_hdr_destroy(header1);
+    bam_destroy1(read1);
+    hts_close(fp1);
+    return ctgs;
+}
+
+void calculate_ngx(map<string, contig> ctgs, double genome_size_est, JSONWriter* writer ){
+    /*
+    ========================================================
+    Calculating NGX
+    --------------------------------------------------------
+    Uses GFA information to evaluate the assembly quality
+    Input:      All the contig lengths in MB ****
+    Output:     NGX values in a dictionary:
+                key   = X
+                value = contig length where summing contigs 
+                with length greater than or equal to this 
+                length is Xth percentile
+                of the genome size estimate....
+    ========================================================
+    */
+    // gx dict: key = x percent of the genome size estimate, value = x
+    int x = 0;
+    map<double, int> gx;
+    while ( x <= 100 ) {
+        gx.insert( make_pair((double(x) * genome_size_est)/100, x) );
+        x += 1;
+    }
+
+    // save only contig lengths
+    vector<int> contig_lengths;
+    for ( auto const& c: ctgs ) {
+        contig_lengths.push_back(c.second.len);
+    } 
+
+    // sort in descending order the contig_lengths
+    sort(contig_lengths.rbegin(), contig_lengths.rend());
+   
+    // ngx dict: key = x, value = ngx
+    map<int, double> ngx;
+    double start = 0, end = 0;
+    for ( auto const& c : contig_lengths ) {
+       end += double(c);
+       // for all values that are less than the curr sum
+       for ( auto& p : gx ) {
+           if ( ( p.first >= start ) && ( p.first <= end ) ) {
+               ngx.insert( make_pair(p.second, c) );
+           }           
+       }
+       start += c;
+    }
+
+    // write to JSON object
+    writer->Key("ngx_values");
+    writer->StartObject();
+    for ( auto& p : ngx ) {
+        string key = to_string(p.first);
+        // x value:
+        writer->Key(key.c_str());
+        // ngx value:
+        writer->Double(p.second);
+    }
+    writer->EndObject();   
+}
+
+void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer){
+    /*
+    ========================================================
+    Calculating total number of bases as a function of 
+    min read length
+    --------------------------------------------------------
+    Shows the total number of bases with varying minimum 
+    read length cut offs.
+    Input:      Dictionary of reads with read length info in value
+    Output:     Dictionary:
+                key   = read length cut off
+                value = total number of bases
+    ========================================================
+    */
+
+    // bin the reads by read length in BASES, and sort in decreasing order
+    map<unsigned int, int, greater<unsigned int>> read_lengths;
+    for( auto it : paf) {
+        string id = it.first;
+        unsigned int r_len = it.second.read_len;
+
+        // add new read length if not in map yet
+        auto j = read_lengths.find(r_len);
+        if ( j == read_lengths.end() ) {
+            // not found
+            read_lengths.insert( pair<unsigned int,int>(r_len, 1) );
+        } else {
+            // length found
+            j->second += 1;
+        }
+    }
+
+    writer->Key("total_num_bases_vs_min_read_length");
+    writer->StartObject();
+    double curr_longest;   // current longest readlength in BASES
+    unsigned int nr;       // number of reads with read length
+    double nb;             // total number of KILOBASES of reads with current longest read length
+    double tot_num_bases = 0;
+    for (const auto& p : read_lengths) {
+        curr_longest = double(p.first);
+        nr = p.second;
+        nb = (curr_longest/double(1000.0)) * nr;
+
+        // detect for potential overflow issues:
+        // SO: https://stackoverflow.com/questions/199333/how-to-detect-integer-overflow
+        // curr_longest * nr may have encountered an overflow issue
+        // leading to a negative number. We do not include negative nb. 
+            if (!(nb > 0) || !(tot_num_bases > INT_MAX - nb)) {
+                // would not overflow 
+                tot_num_bases += nb;
+                string key = to_string( curr_longest );
+                writer->Key(key.c_str());
+                writer->Int(tot_num_bases);
+            }
+    }
+    writer->EndObject();
+}
+
 // Dust scoring scheme as given by:
 // Morgulis A. "A fast and symmetric DUST implementation to Mask
 // Low-Complexity DNA Sequences". J Comp Bio.
@@ -873,7 +963,6 @@ double calculateDustScore(const string& seq)
     // Cannot calculate dust scores on very short reads
     if(seq.size() < 5)
         return 0.0f;
-
 
     // Slide a 3-mer window over the sequence and insert the sequences into the map
     for(size_t i = 0; i < seq.size() - 5; ++i)
@@ -892,7 +981,7 @@ double calculateDustScore(const string& seq)
     return sum / (seq.size() - 4);
 }
 
-void calculate_GC_content( vector <pair< double, int >> fq, JSONWriter* writer )
+void calculate_GC_content( vector <pair<double, int>> fq, JSONWriter* writer )
 {
     /*
     ========================================================
@@ -929,58 +1018,6 @@ void calculate_GC_content( vector <pair< double, int >> fq, JSONWriter* writer )
     writer->Key("peak_GC_content");
     writer->Double(mode);
 }
-
-void calculate_total_num_bases_vs_min_cov( map<double, long long int, greater<double>> cov_info, JSONWriter* writer ) {
-    /*
-    ========================================================
-    Calculate total number of bases per min cov
-    --------------------------------------------------------
-    Calculate the total number of bases at varying min
-    cov cut-offs
-    Input:     sorted in desc by cov, tot bases per cov dict
-    Output:    tot bases per min cov
-    ========================================================
-    */
-    writer->Key("total_num_bases_vs_min_cov");
-    writer->StartObject();
-    long long int tot_bases = 0;
-    for (auto &c : cov_info) {
-         tot_bases += c.second;
-         string key = to_string( c.first );
-         writer->Key(key.c_str());
-         writer->Int(tot_bases);
-    }
-    writer->EndObject();
-}
-
-void calculate_median_cov_vs_min_read_length( vector <pair<double, int>> covs, JSONWriter* writer ) {
-    /*
-    ========================================================
-    Calculate total number of bases per min cov
-    --------------------------------------------------------
-    Calculate the total number of bases at varying min
-    cov cut-offs
-    Input:     sorted in desc by cov, tot bases per cov dict
-    Output:    tot bases per min cov
-    ========================================================
-    */
-    // sort by descending read length
-    sort(covs.begin(), covs.end(), [](const pair<double,int> &left, const pair<double,int> &right) { return left.second > right.second; });
-
-    writer->Key("median_cov_vs_min_read_length");
-    writer->StartObject();
-    int i = 0;   // index of current read length
-    int i50 = 0; // 50% 
-    for (auto &c : covs) {
-         string key = to_string( c.second );
-         writer->Key(key.c_str());
-         writer->Double(covs[i50].first);
-         i+=1;
-         i50 = floor(double(i)/2);
-    }
-    writer->EndObject();
-}
-
 double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWriter* writer )
 {
     /*
@@ -995,8 +1032,8 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
               value = read length 
     ========================================================
     */
-
-    vector <pair<double, int>> covs;
+    // key = cov, value = num. reads with cov
+    vector<pair<double, int>> covs;
 
     // make an object that will hold pair of coverage and read length
     writer->Key("per_read_est_cov_and_read_length");
@@ -1005,10 +1042,10 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     long double sum_cov = 0;
     int tot_reads = 0;
     map<double,long long int, greater<double>> per_cov_total_num_bases;
-    for( auto it = paf.begin(); it != paf.end(); it++)
+    for ( auto it : paf )
     {
-        string id = it->first;
-        sequence r = it->second;
+        string id = it.first;
+        sequence r = it.second;
         int r_len = r.max_e - r.min_s;
         long double r_cov = r.cov;
         string key = to_string(r_cov);
@@ -1029,11 +1066,6 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     }
     writer->EndObject();
 
-    // write total number of bases vs min cov to json
-    calculate_total_num_bases_vs_min_cov(per_cov_total_num_bases, writer);
-
-    // calculate median coverage vs min read length
-    calculate_median_cov_vs_min_read_length(covs, writer);
     // calculate IQR to use as limits in plotting script
     // sort the estimated coverages
     sort(covs.begin(), covs.end());
@@ -1045,14 +1077,14 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     double bd = IQR*1.5;
     double upperbound = round(double(covs[i75].first) + bd);
     double lowerbound = (round(double(covs[i25].first) - bd)>3.0) ? round(double(covs[i25].first) - bd) : 3.0;
-    if ( !opt::filter_low_cov ) {
+    if ( opt::keep_low_cov ) {
         lowerbound = 3.0;
     }
-    if ( !opt::filter_high_cov ) {
-        upperbound = 100000000000;
+    if ( opt::keep_high_cov ) {
+        upperbound = 1000;
     }
 
-    // filter outliers by cov: include reads with coverage [Q25-IQR*1.5, Q75+IQR*1.5]
+    // filter by coverage
     long long sum_len_f = 0;
     long double sum_cov_f = 0;
     int tot_reads_f = 0;
@@ -1106,13 +1138,14 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     // calculate estimated genome size
     double est_genome_size = ( tot_reads_f * mean_read_len ) / double(mode_cov);
     double est_genome_size1 = ( tot_reads_f * mean_read_len ) / double(median_cov);
-    out("mode_cov: " + to_string(mode_cov));
-    out("median_cov: " + to_string(median_cov));
-    out("mean_read_length: " + to_string(mean_read_len));
-    out("est_genome_size_with_mode_cov: " + to_string(est_genome_size));
-    out("est_genome_size_with_median_cov: " + to_string(est_genome_size1));
-    out("tot_reads: " + to_string(tot_reads_f) );
+    out("mode cov: " + to_string(mode_cov));
+    out("median cov: " + to_string(median_cov));
+    out("mean read length: " + to_string(mean_read_len));
+    out("est genome size with mode cov: " + to_string(est_genome_size));
+    out("est genome size with median cov: " + to_string(est_genome_size1));
+    out("tot reads: " + to_string(tot_reads_f) );
     if ( opt::print_gse_stat ) {
+        cout <<"sample_name\tmode_cov\tmedian_cov\tmean_read_len\ttot_reads_before_filter\ttot_reads_after_filter\ttot_bases_before_filter\ttot_bases_after_filter\test_genome_size_with_mode_cov\test_genome_size_with_median_cov\n";
         cout <<  opt::sample_name << "\t" << mode_cov << "\t" <<  median_cov << "\t" << mean_read_len << "\t" << tot_reads  << "\t" << tot_reads_f << "\t" << sum_len << "\t" << sum_len_f << "\t"<< est_genome_size << "\t" <<  est_genome_size1 << "\n";
     }
     // now store in JSON object
