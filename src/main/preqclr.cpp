@@ -112,12 +112,12 @@ int main( int argc, char *argv[])
     // SO1: https://stackoverflow.com/questions/30131181/calculate-time-to-execute-a-function
 
     out("========================================================");
-    out("Run preqclr");
+    out("Run preqclr calculate");
     out("========================================================");
     auto tot_start = chrono::system_clock::now();
     auto tot_start_cpu = clock();
 
-    out("\n[ Parse reads file ]");
+    out("[ Parse reads file ]");
     auto swc = chrono::system_clock::now();
     auto scpu = clock();
     auto fq_records = parse_fq ( opt::reads_file );
@@ -149,7 +149,7 @@ int main( int argc, char *argv[])
     // start calculations
     swc = chrono::system_clock::now();
     scpu = clock();
-    out("\n[ Calculating read length distribution ]");
+    out("[ Calculating read length distribution ]");
     calculate_read_length( fq_records, &writer);
     ewc = chrono::system_clock::now();
     ecpu = clock();
@@ -157,7 +157,7 @@ int main( int argc, char *argv[])
     elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
     out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) + "s");
 
-    out("\n[ Calculating est cov per read and est genome size ]");
+    out("[ Calculating est cov per read and est genome size ]");
     swc = chrono::system_clock::now();
     scpu = clock();
     int genome_size_est = calculate_est_cov_and_est_genome_size( paf_records, &writer);
@@ -167,7 +167,7 @@ int main( int argc, char *argv[])
     elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;
     out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
-    out("\n[ Calculating GC-content per read ]");
+    out("[ Calculating GC-content per read ]");
     swc = chrono::system_clock::now();
     scpu = clock();
     calculate_GC_content( fq_records, &writer);
@@ -177,7 +177,7 @@ int main( int argc, char *argv[])
     elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
     out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
-    out("\n[ Calculating total number of bases vs min read length ]");
+    out("[ Calculating total number of bases vs min read length ]");
     swc = chrono::system_clock::now();
     scpu = clock();
     calculate_tot_bases( paf_records, &writer);
@@ -191,7 +191,7 @@ int main( int argc, char *argv[])
         // still testing: calc a-stat
         auto contigs = calculate_ctgs();
 
-        out("\n[ Parse GFA file ] ");
+        out("[ Parse GFA file ] ");
         swc = chrono::system_clock::now();
         scpu = clock();
         //parse_gfa(contigs);
@@ -201,7 +201,7 @@ int main( int argc, char *argv[])
         elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
         out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
-        out("\n[ Calculating NGX ]");
+        out("[ Calculating NGX ]");
         swc = chrono::system_clock::now();
         scpu = clock();
         calculate_ngx( contigs, genome_size_est, &writer );
@@ -211,7 +211,7 @@ int main( int argc, char *argv[])
         elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
         out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
 
-        out("\n[ Calculating repetitivity ]");
+        out("[ Calculating repetitivity ]");
         swc = chrono::system_clock::now();
         scpu = clock();
         calculate_repetitivity( contigs, genome_size_est, paf_records.size(), &writer );
@@ -226,7 +226,7 @@ int main( int argc, char *argv[])
     string filename = opt::sample_name + ".preqclr";
 
     // wrap it up
-    out("\n[ Done ]");
+    out("[ Done ]");
     out("[+] Resulting preqclr file: " + filename );
     auto tot_end = chrono::system_clock::now();
     auto tot_end_cpu = clock();
