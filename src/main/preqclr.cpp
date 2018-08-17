@@ -796,11 +796,6 @@ map<string, contig> calculate_ctgs() {
             sum_read_lens += qLen;
         }
     }
-    // adjust contig lengths
-    double avgReadLen = sum_read_lens / double(tot_reads);
-    for ( auto c : ctgs ) {
-        c.second.len = c.second.len > avgReadLen ? c.second.len - avgReadLen + 1 : 0; 
-    }
 
     bam_hdr_destroy(header1);
     bam_destroy1(read1);
