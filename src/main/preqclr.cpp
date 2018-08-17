@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
     auto fq_records = timeit(parse_fq, opt::reads_file, &writer);
  
     out("[ Parse PAF file ] ");
-    auto paf_records = timeit(parse_paf);
+    auto paf_records = timeit(parse_paf, &writer);
 
     // start calculations
     out("[ Writing read length distribution ]");
@@ -428,7 +428,7 @@ void parse_args ( int argc, char *argv[])
 
 };
 
-map<string, sequence> parse_paf()
+map<string, sequence> parse_paf(JSONWriter* writer)
 {
     /*
     ========================================================
@@ -454,6 +454,7 @@ map<string, sequence> parse_paf()
         fprintf(stderr, "ERROR: PAF file failed to open. Check to see if it exists, is readable, and is non-empty.\n\n");
         exit(EXIT_FAILURE);
     }
+
     // initialize overlap info
     string qname, tname;
     unsigned int qlen, qstart, qend, tlen, tstart, tend, strand, match, al;
@@ -468,6 +469,8 @@ map<string, sequence> parse_paf()
     int ln1 = 0; 
     // store reads in paf_records: key = read id, value = read
     map<string, sequence> paf_records;
+    writer->Key("indel_error_rates");
+    writer->StartArray();
     while (paf_read(fp1, &r1) >= 0) {
         qname = r1.qn,  qlen = r1.ql, qstart = r1.qs, qend = r1.qe; 
         tname = r1.tn, tlen = r1.tl, tstart = r1.ts, tend = r1.te;
@@ -477,10 +480,10 @@ map<string, sequence> parse_paf()
         // start filtering overlaps
         // remove self overlaps
         if ( qname.compare(tname) == 0) { 
-              //self-overlap: query read == target read
-              badlines.push_back(ln1);
-              ln1++;
-              continue;
+            //self-overlap: query read == target read
+            badlines.push_back(ln1);
+            ln1++;
+            continue;
         }
 
         // remove overlaps with low match id, length below cutoff
@@ -494,9 +497,9 @@ map<string, sequence> parse_paf()
         int omax = max(qend - qstart, tend - tstart); 
         int omin = min(qend - qstart, tend - tstart);
         if ( (1 - double(omin)/omax) > 0.3 ) {
-           badlines.push_back(ln1);
-           ln1++;
-           continue;
+            badlines.push_back(ln1);
+            ln1++;
+            continue;
         }
 
         // remove duplicate overlaps
@@ -561,11 +564,14 @@ map<string, sequence> parse_paf()
 
         if ( !success ){
             badlines.push_back(ln1);
+            double indel_error_rate = (1 - double(omin)/omax);
+            writer->Double(indel_error_rate);
         } 
         // next overlap, read next line!
         ln1+=1;    
     }
     h.clear(); // free up memory
+    writer->EndArray();
     sort(badlines.begin(), badlines.end());
 
     // PASS 2: read only good lines defined in PASS 1
@@ -587,8 +593,14 @@ map<string, sequence> parse_paf()
     } else {
         bad = ln1; // no badlines detected, set to last line
     }
+
     // find min overlap length
     double mino = 100000;
+
+    // write overlap lengths to JSON
+    writer->Key("overlap_lengths");
+    writer->StartArray();
+
     // read good lines in PAF
     while (paf_read(fp2, &r1) >= 0) { 
         if ( ln2 < bad ) {
@@ -645,6 +657,10 @@ map<string, sequence> parse_paf()
                 if ( tcov < mino ) {
                     mino = tcov;
                 }
+
+                // write to JSON overlap info
+                writer->Int(qoverlap_len);
+                writer->Int(toverlap_len);
             }
         } else if ( iv < badlines.size()-1 ) {
             // next bad line to look out for:
@@ -653,6 +669,7 @@ map<string, sequence> parse_paf()
         }
         ln2+=1;
     }
+    writer->EndArray();
     if ( opt::print_read_cov ) {
         for ( auto const& r : paf_records ) {
             sequence temp = r.second;
@@ -896,14 +913,14 @@ void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer){
         // detect for potential overflow issues:
         // SO: https://stackoverflow.com/questions/199333/how-to-detect-integer-overflow
         // curr_longest * nr may have encountered an overflow issue
-        // leading to a negative number. We do not include negative nb. 
-            if (!(nb > 0) || !(tot_num_bases > INT_MAX - nb)) {
-                // would not overflow 
-                tot_num_bases += nb;
-                string key = to_string( curr_longest );
-                writer->Key(key.c_str());
-                writer->Int(tot_num_bases);
-            }
+        // leading to a negative number. We do not include negative nb.
+        if (!(nb > 0) || !(tot_num_bases > INT_MAX - nb)) {
+            // would not overflow 
+            tot_num_bases += nb;
+            string key = to_string(curr_longest);
+            writer->Key(key.c_str());
+            writer->Int(tot_num_bases);
+        }
     }
     writer->EndObject();
 }

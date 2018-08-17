@@ -40,6 +40,6 @@ map<string, contig> calculate_ctgs();
 int getopt( int argc, char* const* argv[], const char *optstring);
 enum { OPT_VERSION, OPT_KEEP_LOW_COV, OPT_KEEP_HIGH_COV, OPT_KEEP_DUPS, OPT_REMOVE_INT_MATCHES, OPT_MAX_OVERHANG, OPT_MAX_OVERHANG_RATIO, OPT_REMOVE_CONTAINED, OPT_PRINT_READ_COV, OPT_KEEP_SELF_OVERLAPS, OPT_PRINT_GSE_STAT, OPT_PRINT_NEW_PAF };
 void parse_args(int argc, char *argv[]);
-map<string, sequence> parse_paf();
+map<string, sequence> parse_paf(JSONWriter* writer);
 void parse_gfa(map<string, contig> ctgs);
 vector<pair<double,int>> parse_fq(string readsFile, JSONWriter* writer);

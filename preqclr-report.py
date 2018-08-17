@@ -21,7 +21,7 @@ except ImportError:
     print('Missing package(s)')    
     quit()
 
-plots_available = ['est_genome_size', 'read_length_dist', 'est_cov_dist', 'per_read_GC_content_dist', 'total_num_bases_vs_min_read_length']
+plots_available = ['est_genome_size', 'read_length_dist', 'est_cov_dist', 'per_read_GC_content_dist', 'total_num_bases_vs_min_read_length', 'dust_score', 'overlap_lengths', 'indel_error_rates']
 save_png=False
 max_percentile=90
 log=list()
@@ -168,6 +168,9 @@ def create_report(output_prefix, preqclr_file, plots_requested):
     per_read_GC_content = dict()
     total_num_bases_vs_min_read_length = dict()
     ngx_values = dict()
+    dust_scores = dict()
+    overlap_lengths = dict()
+    indel_error_rates = dict()
 
     # each sample will be represented with a unique marker and color
     markers = ['s', 'o', '^', 'p', '+', '*', 'v']
@@ -177,8 +180,10 @@ def create_report(output_prefix, preqclr_file, plots_requested):
     # in preqclr calculate, users needed to pass a GFA file in 
     # order for NGX values to be calculated
     ngx_calculated=False
+    # check to see if DUST calculated (new feature)
+    dust_calculated=False
 
-    calcs = ['sample_name', 'est_genome_size', 'read_lengths', 'read_counts_per_GC_content', 'total_num_bases_vs_min_read_length']
+    calcs = ['sample_name', 'est_genome_size', 'read_lengths', 'read_counts_per_GC_content', 'total_num_bases_vs_min_read_length', 'dust_scores', 'overlap_lengths', 'indel_error_rates']
 
     # start reading the preqclr file(s)
     for s_preqclr_file in preqclr_file:
@@ -200,11 +205,17 @@ def create_report(output_prefix, preqclr_file, plots_requested):
             peak_cov[s] = data['mode_cov']
             per_read_GC_content[s] = (color, data['read_counts_per_GC_content'], marker)
             total_num_bases_vs_min_read_length[s] = (color, data['total_num_bases_vs_min_read_length'], marker)
-            median_cov_vs_min_read_length[s] = (color, data['median_cov_vs_min_read_length'], marker)
+            dust_scores[s] = (color, data['dust_scores'], marker)
+            overlap_lengths[s] = (color, data['overlap_lengths'], marker)
+            indel_error_rates[s] = (color, data['indel_error_rates'], marker)
             # check if ngx calculated
             if 'ngx_values' in data.keys():
                 ngx_calculated=True
                 ngx_values[s] = (color, data['ngx_values'], marker)
+            # check if DUST score calculated
+            if 'dust_scores' in data.keys():
+                dust_calculated=True
+                dust_scores[s] = (color, data['dust_scores'], marker)
 
     # --------------------------------------------------------
     # PART 2: Calculate the number of plots to be created
@@ -228,6 +239,9 @@ def create_report(output_prefix, preqclr_file, plots_requested):
     # calculate the number of samples that had ngx_calculations
     if ngx_calculated:
         b+=1
+    if dust_calculated:
+        b+=1
+
     num_plots = a + b
     if num_plots > 6:
         num_plots +=1
@@ -346,7 +360,45 @@ def create_report(output_prefix, preqclr_file, plots_requested):
             extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
             ax_png_file = "./" + output_prefix + "/png/plot_ngx.png"
             temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
-
+    if dust_calculated:
+        if ( num_ss > 1 and num_plots_fin%6 == 0 and num_plots_fin >= 6):
+            ax = subplots.pop(0)
+            plot_legend(ax, est_genome_sizes)
+            num_plots_fin+=1
+        ax = subplots.pop(0)
+        num_plots_fin+=1
+        ax_temp = plot_dust_scores(ax, dust_scores, output_prefix)
+        if save_png:
+            temp_fig = ax_temp.get_figure()
+            extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+            ax_png_file = "./" + output_prefix + "/png/plot_dust_scores.png"
+            temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
+    if 'indel_error_rates' in plots_requested: 
+        if ( num_ss > 1 and num_plots_fin%6 == 0 and num_plots_fin >= 6):
+            ax = subplots.pop(0)
+            plot_legend(ax, est_genome_sizes)
+            num_plots_fin+=1
+        ax = subplots.pop(0)
+        num_plots_fin+=1
+        ax_temp = plot_indel_error_rates(ax, indel_error_rates, output_prefix)
+        if save_png:
+            temp_fig = ax_temp.get_figure()
+            extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+            ax_png_file = "./" + output_prefix + "/png/plot_indel_error_rates.png"
+            temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)   
+    if 'overlap_lengths' in plots_requested:
+        if ( num_ss > 1 and num_plots_fin%6 == 0 and num_plots_fin >= 6):
+            ax = subplots.pop(0)
+            plot_legend(ax, est_genome_sizes)
+            num_plots_fin+=1
+        ax = subplots.pop(0)
+        num_plots_fin+=1
+        ax_temp = plot_overlap_lengths(ax, overlap_lengths, output_prefix)
+        if save_png:
+            temp_fig = ax_temp.get_figure()
+            extent = ax_temp.get_window_extent().transformed(temp_fig.dpi_scale_trans.inverted())
+            ax_png_file = "./" + output_prefix + "/png/plot_overlap_lengths.png"
+            temp_fig.savefig(ax_png_file, bbox_inches=extent.expanded(expand_x, expand_y), dpi=700)
     # --------------------------------------------------------
     # PART 5: Finalize the pdf file; save figs
     # --------------------------------------------------------
@@ -653,6 +705,113 @@ def plot_ngx(ax, data, output_prefix):
     ax.set_ylabel('Contig length (Mbps)')
     ax.set_xlim(0,100)
     return ax
+
+def plot_indel_error_rates(ax, data, output_prefix):
+    # ========================================================
+    custom_print( "[ Plotting INDEL error rates ]" )
+    # ========================================================
+    for s in data:
+        s_name = s
+        s_color = data[s][0]
+        sd = list()
+        for i in data[s][1]:
+            if i != 0:
+                sd.append(round(i,3))
+        x, y = zip(*sorted(collections.Counter(sorted(sd)).items()))
+
+        # normalize yvalues
+        sy = sum(y)
+        ny = list()
+        i = 0
+        max_y = -1000
+        while ( i < len(y) ):
+            j = float(y[i])/float(sy)
+            if ( y[i] > max_y ):
+                max_y = y[i]
+            ny.append(j)
+            i+=1
+
+        # plot!
+        ax.plot(x, ny, color=s_color, label=s_name)
+
+    # configure subplot
+    ax.set_title('INDEL error rates distribution')
+    ax.set_xlabel('INDEL error rate')
+    ax.set_ylabel('Proportion')
+    ax.grid(True, linestyle='-', linewidth=0.3)
+    return ax
+
+def plot_overlap_lengths(ax, data, output_prefix):
+    # ========================================================
+    custom_print( "[ Plotting overlap lengths ]" )
+    # ========================================================
+    for s in data:
+        s_name = s
+        s_color = data[s][0]
+        sd = list()
+        for i in data[s][1]:
+            if i != 0:
+                sd.append(int(math.ceil(i / 10.0)) * 10)
+        x, y = zip(*sorted(collections.Counter(sorted(sd)).items()))
+
+        # normalize yvalues
+        sy = sum(y)
+        ny = list()
+        i = 0
+        max_y = -1000
+        while ( i < len(y) ):
+            j = float(y[i])/float(sy)
+            if ( y[i] > max_y ):
+                max_y = y[i]
+            ny.append(j)
+            i+=1
+
+        # plot!
+        ax.plot(x, ny, color=s_color, label=s_name)
+
+    # configure subplot
+    ax.set_title('Overlap lengths distribution')
+    ax.set_xlabel('Overlap length (bps)')
+    ax.set_ylabel('Proportion')
+    ax.grid(True, linestyle='-', linewidth=0.3)
+    return ax
+
+def plot_dust_scores(ax, data, output_prefix):
+    # ========================================================
+    custom_print( "[ Plotting DUST score distribution ]" )
+    # ========================================================
+    for s in data:
+        per_read_DUST_score = {}
+        s_name = s
+        s_color = data[s][0]
+        sd = list()
+        for i in data[s][1]:
+            if i != 0:
+                sd.append(float(i))
+        x, y = zip(*sorted(collections.Counter(sorted(sd)).items()))
+
+        # normalize yvalues
+        sy = sum(y)
+        ny = list()
+        i = 0
+        max_y = -1000
+        while ( i < len(y) ):
+            j = float(y[i])/float(sy)
+            if ( y[i] > max_y ):
+                max_y = y[i]
+            ny.append(j)
+            i+=1
+
+        # plot!
+        ax.plot(x, ny, color=s_color, label=s_name)
+
+    # configure subplot
+    ax.set_title('DUST score distribution')
+    ax.set_xlabel('DUST score')
+    ax.set_ylabel('Proportion')
+    ax.grid(True, linestyle='-', linewidth=0.3)
+    return ax
+
 
 def custom_print(s):
     global verbose
