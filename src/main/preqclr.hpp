@@ -28,7 +28,7 @@ using namespace rapidjson;
 typedef PrettyWriter<StringBuffer> JSONWriter;
 
 double calculate_est_cov_and_est_genome_size(map<string, sequence> paf, JSONWriter* writer);
-void calculate_read_length(vector <pair <double, int>> fq, JSONWriter* writer);
+void write_read_length(vector <pair <double, int>> fq, JSONWriter* writer);
 void calculate_GC_content(vector <pair <double, int>> fq, JSONWriter* writer);
 void calculate_tot_bases(map<string, sequence> paf, JSONWriter* writer);
 void calculate_ngx(map<string, contig> contigs, double genome_size_est, JSONWriter* writer);

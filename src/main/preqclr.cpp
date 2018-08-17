@@ -162,8 +162,8 @@ int main(int argc, char *argv[])
     auto paf_records = timeit(parse_paf);
 
     // start calculations
-    out("[ Calculating read length distribution ]");
-    timeit(calculate_read_length, fq_records, &writer);
+    out("[ Writing read length distribution ]");
+    timeit(write_read_length, fq_records, &writer);
 
     out("[ Calculating est cov per read and est genome size ]");
     int genome_size_est = timeit(calculate_est_cov_and_est_genome_size, paf_records, &writer);
@@ -1145,7 +1145,7 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     return est_genome_size;
 }
 
-void calculate_read_length(vector<pair<double,int>> fq, JSONWriter* writer)
+void write_read_length(vector<pair<double,int>> fq, JSONWriter* writer)
 {
     /*
     ========================================================
