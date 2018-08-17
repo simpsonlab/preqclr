@@ -249,31 +249,31 @@ void parse_args ( int argc, char *argv[])
     "Copyright 2018 Ontario Institute for Cancer Research\n";
 
     static const char* PREQCLR_CALCULATE_USAGE_MESSAGE =
-    "Usage: preqclr [OPTIONS] --sample_name ecoli --reads reads.fa --paf overlaps.paf --gfa layout.gfa \n"
+    "usage: preqclr [OPTIONS] --sample_name ecoli --reads reads.fa --paf overlaps.paf --gfa layout.gfa \n"
     "Calculate quality statistics\n"
     "\n"
-    "    -v, --verbose		Display verbose output\n"
-    "        --version		Display version\n"
-    "    -r, --reads			Fasta, fastq, fasta.gz, or fastq.gz files containing reads\n"
-    "    -n, --sample_name		Sample name; we recommend using the name of species for example\n" 
-    "				This will be used as output prefix\n"
-    "    -p, --paf			Minimap2 Pairwise mApping Format (PAF) file \n"
-    "				This is produced using \'minimap2 -x ava-ont sample.fasta sample.fasta\'\n"
-    "    -g, --gfa			Miniasm Graph Fragment Assembly (GFA) file\n"
-    "				This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
-    "    -l, --min-rlen=INT		Use overlaps with read lengths >= INT [0]\n"
-    "    -m, --min-olen=INT 		Use overlaps longer than >=INT [0]\n"
-    "    -i, --min-iden=INT          Use overlaps with minimum id [0.05]\n"
-    "        --keep-low-cov		Keep reads with low coverage for genome size est. calculations \n" 
-    "        --keep-high-cov		Keep reads with high coverage for genome size est. calculations \n"
-    "        --keep-dups		Keep duplicate overlaps \n"
-    "        --remove-contained	Remove contained overlaps \n"
-    "        --remove-int-matches	Remove internal matches (overlaps where it is a short match in the middle of both reads) \n"
-    "        --max-overhang		The maximum overhang length [1000] \n"
-    "        --max-overhang-ratio	The maximum overhang to mapping length ratio [0.8] \n"
-    "        --print-read-cov	Print read id and coverage for each read to stdout; overwrites verbose flag \n"
-    "        --print-gse-stat	Print genome size estimate statistics only \n"
-    "        --print-new-paf		Print new paf file after filtering overlaps\n"	
+    "    -v, --verbose              Display verbose output\n"
+    "        --version              Display version\n"
+    "    -r, --reads                Fasta, fastq, fasta.gz, or fastq.gz files containing reads\n"
+    "    -n, --sample_name          Sample name; we recommend using the name of species for example\n" 
+    "                               This will be used as output prefix\n"
+    "    -p, --paf                  Minimap2 Pairwise mApping Format (PAF) file \n"
+    "                               This is produced using \'minimap2 -x ava-ont sample.fasta sample.fasta\'\n"
+    "    -g, --gfa                  Miniasm Graph Fragment Assembly (GFA) file\n"
+    "                               This file is produced using \'miniasm -f reads.fasta overlaps.paf\'\n"
+    "    -l, --min-rlen=INT         Use overlaps with read lengths >= INT [0]\n"
+    "    -m, --min-olen=INT         Use overlaps longer than >=INT [0]\n"
+    "    -i, --min-iden=INT         Use overlaps with minimum id [0.05]\n"
+    "        --keep-low-cov         Keep reads with low coverage for genome size est. calculations \n" 
+    "        --keep-high-cov        Keep reads with high coverage for genome size est. calculations \n"
+    "        --keep-dups            Keep duplicate overlaps \n"
+    "        --remove-contained     Remove contained overlaps \n"
+    "        --remove-int-matches   Remove internal matches (overlaps where it is a short match in the middle of both reads) \n"
+    "        --max-overhang         The maximum overhang length [1000] \n"
+    "        --max-overhang-ratio   The maximum overhang to mapping length ratio [0.8] \n"
+    "        --print-read-cov       Print read id and coverage for each read to stdout; overwrites verbose flag \n"
+    "        --print-gse-stat       Print genome size estimate statistics only \n"
+    "        --print-new-paf        Print new paf file after filtering overlaps\n"	
     "\n"
     "Report bugs to https://github.com/simpsonlab/preqclr/issues"
     "\n";
@@ -293,7 +293,7 @@ void parse_args ( int argc, char *argv[])
             if ( rflag == 1 ) {
                 fprintf(stderr, "preqclr: multiple instances of option -r,--reads. \n\n");
                 fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]); 
-                exit(1);
+                exit(EXIT_FAILURE);
             }
             rflag = 1;
             arg >> opt::reads_file;
@@ -303,7 +303,7 @@ void parse_args ( int argc, char *argv[])
             if ( nflag == 1 ) {
                 fprintf(stderr, "preqclr: multiple instances of option -n,--sample_name. \n\n");
                 fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
-                exit(1);
+                exit(EXIT_FAILURE);
             }
             nflag = 1;
             arg >> opt::sample_name;
@@ -312,7 +312,7 @@ void parse_args ( int argc, char *argv[])
             if ( pflag == 1 ) {
                 fprintf(stderr, "preqclr: multiple instances of option -p,--paf. \n\n");
                 fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
-                exit(1);
+                exit(EXIT_FAILURE);
             }
             pflag = 1;
             arg >> opt::paf_file;
@@ -321,7 +321,7 @@ void parse_args ( int argc, char *argv[])
             if ( gflag == 1 ) {
                 fprintf(stderr, "preqclr: multiple instances of option -g,--gfa. \n\n");
                 fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
-                exit(1);
+                exit(EXIT_FAILURE);
             }
             gflag = 1;
             arg >> opt::gfa_file;
@@ -340,7 +340,7 @@ void parse_args ( int argc, char *argv[])
             if ( opt::min_iden > 1 || opt::min_iden < 0 ) {
                 fprintf(stderr, "preqclr: invalid value for --min-iden. Must be between 0 and 1. \n\n");
                 fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
-                exit(1);   
+                exit(EXIT_FAILURE);   
             }
             break;
         case OPT_KEEP_LOW_COV:
@@ -413,17 +413,17 @@ void parse_args ( int argc, char *argv[])
     if ( rflag == 0 ) {
         fprintf(stderr, "preqclr: missing -r,--reads option\n\n");
         fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE, argv[0]);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     if ( nflag == 0 ) {
         fprintf(stderr, "preqclr: missing -n,--sample_name option\n\n");
         fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     if ( pflag == 0 ) {
         fprintf(stderr, "preqclr: missing -p,--paf option\n\n");
         fprintf(stderr, PREQCLR_CALCULATE_USAGE_MESSAGE);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
 };
@@ -452,8 +452,11 @@ map<string, sequence> parse_paf()
     fp1 = paf_open(c1);
     if (!fp1) {
         fprintf(stderr, "ERROR: PAF file failed to open. Check to see if it exists, is readable, and is non-empty.\n\n");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
+    // initialize overlap info
+    string qname, tname;
+    unsigned int qlen, qstart, qend, tlen, tstart, tend, strand, match, al;
     
     // we need to filter overlaps
     // store all the lines we do not
@@ -466,16 +469,9 @@ map<string, sequence> parse_paf()
     // store reads in paf_records: key = read id, value = read
     map<string, sequence> paf_records;
     while (paf_read(fp1, &r1) >= 0) {
-        string qname = r1.qn;
-        string tname = r1.tn;
-        unsigned int qlen = r1.ql;
-        unsigned int qstart = r1.qs;
-        unsigned int qend = r1.qe;
-        unsigned int tlen = r1.tl;
-        unsigned int tstart = r1.ts;
-        unsigned int tend = r1.te;
-        unsigned int match = r1.ml;
-        unsigned int al = r1.bl;
+        qname = r1.qn,  qlen = r1.ql, qstart = r1.qs, qend = r1.qe; 
+        tname = r1.tn, tlen = r1.tl, tstart = r1.ts, tend = r1.te;
+        match = r1.ml, al = r1.bl;
         double al_id = (double)match/(double)al;
 
         // start filtering overlaps
@@ -573,13 +569,11 @@ map<string, sequence> parse_paf()
     sort(badlines.begin(), badlines.end());
 
     // PASS 2: read only good lines defined in PASS 1
-    const char *c2 = opt::paf_file.c_str();
     paf_file_t *fp2;
-    paf_rec_t r2;
-    fp2 = paf_open(c2);
+    fp2 = paf_open(c1);
     if (!fp2) {
         fprintf(stderr, "ERROR: PAF file failed to open. Check to see if it exists, is readable, and is non-empty.\n\n");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     int ln2 = 0; // index in PAF file
     unsigned int iv = 0; // index in badlines vector
@@ -596,27 +590,21 @@ map<string, sequence> parse_paf()
     // find min overlap length
     double mino = 100000;
     // read good lines in PAF
-    while (paf_read(fp2, &r2) >= 0) { 
+    while (paf_read(fp2, &r1) >= 0) { 
         if ( ln2 < bad ) {
             // read each line/overlap and save each column into variable
-            string qname = r2.qn;
-            string tname = r2.tn;
+            qname = r1.qn,  qlen = r1.ql, qstart = r1.qs, qend = r1.qe;
+            tname = r1.tn, tlen = r1.tl, tstart = r1.ts, tend = r1.te;
+            match = r1.ml, al = r1.bl, strand = r1.rev;
             auto i = paf_records.find(qname);
             auto j = paf_records.find(tname);
-            unsigned int qlen = r2.ql;
             unsigned int qalen = i->second.max_e - i->second.min_s;
-            unsigned int qstart = r2.qs;
-            unsigned int qend = r2.qe;
-            unsigned int strand = r2.rev;
-            unsigned int tlen = r2.tl;
             unsigned int talen = j->second.max_e - j->second.min_s;
-            unsigned int tstart = r2.ts;
-            unsigned int tend = r2.te;
             // remove reads where the new length <<<< original length
             if ( qalen > opt::rlen_cutoff && talen > opt::rlen_cutoff && double(tlen-talen)/tlen < 0.10 && double(qlen-qalen)/qlen < 0.10  ) {
                 if ( opt::print_new_paf) {
                     string s = ( strand == 0 ) ? "-" : "+";
-                    cout << qname << "\t" << qalen << "\t" << qstart << "\t" << qend << "\t" << s <<"\t" << tname << "\t" << talen << "\t" << tstart << "\t" << tend << "\t" << r2.ml << "\t"<< r2.bl << "\t255\n";
+                    cout << qname << "\t" << qalen << "\t" << qstart << "\t" << qend << "\t" << s <<"\t" << tname << "\t" << talen << "\t" << tstart << "\t" << tend << "\t" << r1.ml << "\t"<< r1.bl << "\t255\n";
                 }
 
                 // calculate softclipped regions 
@@ -683,7 +671,7 @@ vector<pair<double, int>> parse_fq(string file, JSONWriter* writer)
     fp = gzopen(c, "r");
     if (fp == 0) {
         fprintf(stderr, "ERROR: reads file failed to open. Check to see if it exists, is readable, and is non-empty.\n\n");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     seq = kseq_init(fp);
     vector<pair<double, int>> fq_records;
@@ -697,7 +685,7 @@ vector<pair<double, int>> parse_fq(string file, JSONWriter* writer)
          // only read 40% of sequences
          if (((rand() % 10) + 1) < 4) {
              for ( int i=0; i<r_len; i++) {
-                 gc += sequence[i] == 'G' || sequence[i] == 'C' ? 1 : 0;
+                 gc += sequence[i] == 'G' || sequence[i] == 'C';
              }
              double gc_cont = (double(gc) / double(r_len)) *100.0;
              fq_records.push_back(make_pair(gc_cont, r_len));
@@ -720,7 +708,7 @@ void parse_gfa(map<string, contig> ctgs)
     ifstream infile(opt::gfa_file);
     if (!infile.is_open()) {
         fprintf(stderr, "ERROR: GFA failed to open. Check to see if it exists, is readable, and is non-empty.\n\n");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     //vector <double> contig_lengths;
     while( getline(infile, line) ) {
@@ -985,6 +973,7 @@ void calculate_GC_content( vector <pair<double, int>> fq, JSONWriter* writer )
     writer->Key("peak_GC_content");
     writer->Double(mode);
 }
+
 double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWriter* writer )
 {
     /*
@@ -1149,11 +1138,11 @@ void write_read_length(vector<pair<double,int>> fq, JSONWriter* writer)
 {
     /*
     ========================================================
-    Calculating read lengths
+    Writing read lengths
     --------------------------------------------------------
     For each read add read lengths to JSON object
-    Input:        PAF records dictionary
-    Output:     List of all read lengths
+    Input:      PAF records dictionary
+    Output:     Nothing
     ========================================================
     */
 
