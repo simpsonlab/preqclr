@@ -78,9 +78,8 @@ namespace opt
     static unsigned int min_match = 100;
 }
 
-
 bool endFile = false;
-void out( string o )
+void out(string o)
 {
     // Let's handle the verbose option
     // SO: https://stackoverflow.com/questions/10150468/how-to-redirect-cin-and-cout-to-files
@@ -96,7 +95,40 @@ void out( string o )
     }
 }
 
-int main( int argc, char *argv[]) 
+// runs pre and post timing functions
+// SO: https://stackoverflow.com/questions/18517266/template-functor-wrapper-that-can-return-a-void-or-non-void-value
+struct timer
+{
+    chrono::system_clock::time_point swc;
+    clock_t scpu;
+    timer()
+    {
+        swc = chrono::system_clock::now();
+        scpu = clock();
+    }
+
+    ~timer()
+    {
+        auto ewc = chrono::system_clock::now();     
+        auto ecpu = clock();
+        auto elapsedwc = ewc - swc;
+        auto elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;
+        out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) + "s");
+    }
+    timer(timer&) = delete;
+    void operator = (timer&) = delete;
+};
+
+// times and executes any functions
+// SO: https://stackoverflow.com/questions/14297971/passing-any-function-as-a-template-parameter
+template<typename T, typename... Ts>
+auto timeit(T (*FUNC)(Ts...), Ts... args) -> decltype(FUNC(args...))
+{
+    timer time;
+    return FUNC(forward<Ts>(args)...);
+}
+
+int main(int argc, char *argv[]) 
 {
     // parse the input arguments, if successful it will save all the arguments
     // in the global struct opts
@@ -105,7 +137,6 @@ int main( int argc, char *argv[])
     // clear any previous log files with same name
     ofstream ofs;
     ofs.open( opt::sample_name + ".preqclr.log", ofstream::out | ios::trunc );
-    ofs.close();
 
     // begin timing
     // SO: https://stackoverflow.com/questions/11062804/measuring-the-runtime-of-a-c-code
@@ -117,109 +148,44 @@ int main( int argc, char *argv[])
     auto tot_start = chrono::system_clock::now();
     auto tot_start_cpu = clock();
 
-    out("[ Parse reads file ]");
-    auto swc = chrono::system_clock::now();
-    auto scpu = clock();
-    auto fq_records = parse_fq ( opt::reads_file );
-    auto ewc = chrono::system_clock::now();
-    auto ecpu = clock();
-    fsec elapsedwc = ewc - swc;
-    double elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
-    out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
- 
-    out("[ Parse PAF file ] ");
-    swc = chrono::system_clock::now();    
-    scpu = clock();
-    map<string, sequence> paf_records = parse_paf();
-    ewc = chrono::system_clock::now();
-    ecpu = clock();
-    elapsedwc = ewc - swc;
-    elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
-    out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) + "s");
-
     // start json object
     StringBuffer s;
     JSONWriter writer(s);
-    writer.StartObject();
 
-    // add input arguments
+    writer.StartObject();
     writer.String("sample_name");
     writer.String(opt::sample_name.c_str());
+    out("[ Parse reads file ]");
+    auto fq_records = timeit(parse_fq, opt::reads_file, &writer);
+ 
+    out("[ Parse PAF file ] ");
+    auto paf_records = timeit(parse_paf);
 
     // start calculations
-    swc = chrono::system_clock::now();
-    scpu = clock();
     out("[ Calculating read length distribution ]");
-    calculate_read_length( fq_records, &writer);
-    ewc = chrono::system_clock::now();
-    ecpu = clock();
-    elapsedwc = ewc - swc;
-    elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
-    out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) + "s");
+    timeit(calculate_read_length, fq_records, &writer);
 
     out("[ Calculating est cov per read and est genome size ]");
-    swc = chrono::system_clock::now();
-    scpu = clock();
-    int genome_size_est = calculate_est_cov_and_est_genome_size( paf_records, &writer);
-    ewc = chrono::system_clock::now();
-    ecpu = clock();
-    elapsedwc = ewc - swc;
-    elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;
-    out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
+    int genome_size_est = timeit(calculate_est_cov_and_est_genome_size, paf_records, &writer);
 
     out("[ Calculating GC-content per read ]");
-    swc = chrono::system_clock::now();
-    scpu = clock();
-    calculate_GC_content( fq_records, &writer);
-    ewc = chrono::system_clock::now();
-    ecpu = clock();
-    elapsedwc = ewc - swc;
-    elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
-    out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
+    timeit(calculate_GC_content, fq_records, &writer);
 
     out("[ Calculating total number of bases vs min read length ]");
-    swc = chrono::system_clock::now();
-    scpu = clock();
-    calculate_tot_bases( paf_records, &writer);
-    ewc = chrono::system_clock::now();
-    ecpu = clock();
-    elapsedwc = ewc - swc;
-    elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
-    out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
+    timeit(calculate_tot_bases, paf_records, &writer);
 
     if ( !opt::gfa_file.empty() ) {
         // still testing: calc a-stat
         auto contigs = calculate_ctgs();
 
         out("[ Parse GFA file ] ");
-        swc = chrono::system_clock::now();
-        scpu = clock();
-        //parse_gfa(contigs);
-        ewc = chrono::system_clock::now();
-        ecpu = clock();
-        elapsedwc = ewc - swc;
-        elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
-        out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
+        timeit(parse_gfa, contigs);
 
         out("[ Calculating NGX ]");
-        swc = chrono::system_clock::now();
-        scpu = clock();
-        calculate_ngx( contigs, genome_size_est, &writer );
-        ewc = chrono::system_clock::now();
-        ecpu = clock();
-        elapsedwc = ewc - swc;
-        elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
-        out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
+        timeit(calculate_ngx, contigs, (double)genome_size_est, &writer);
 
         out("[ Calculating repetitivity ]");
-        swc = chrono::system_clock::now();
-        scpu = clock();
-        calculate_repetitivity( contigs, genome_size_est, paf_records.size(), &writer );
-        ewc = chrono::system_clock::now();
-        ecpu = clock();
-        elapsedwc = ewc - swc;
-        elapsedcpu = (ecpu - scpu)/(double)CLOCKS_PER_SEC;;
-        out("[+] Time elapsed: " + to_string(elapsedwc.count()) + "s, CPU time: "  + to_string(elapsedcpu) +"s");
+        timeit(calculate_repetitivity, contigs, (double)genome_size_est, (int)paf_records.size(), &writer);
     }
 
     // convert JSON document to string and print
@@ -331,6 +297,7 @@ void parse_args ( int argc, char *argv[])
             }
             rflag = 1;
             arg >> opt::reads_file;
+            out("reads file = " + opt::reads_file);
             break;
         case 'n':
             if ( nflag == 1 ) {
@@ -708,7 +675,7 @@ map<string, sequence> parse_paf()
    return paf_records;
 }
 
-vector <pair< double, int >> parse_fq( string file )
+vector<pair<double, int>> parse_fq(string file, JSONWriter* writer)
 {
     gzFile fp;
     kseq_t *seq;
@@ -719,7 +686,9 @@ vector <pair< double, int >> parse_fq( string file )
         exit(1);
     }
     seq = kseq_init(fp);
-    vector <pair< double, int >> fq_records;
+    vector<pair<double, int>> fq_records;
+    writer->Key("dust_scores");
+    writer->StartArray();
     while (kseq_read(seq) >= 0) {
          string id = seq->name.s;
          string sequence = seq->seq.s;
@@ -732,10 +701,13 @@ vector <pair< double, int >> parse_fq( string file )
              }
              double gc_cont = (double(gc) / double(r_len)) *100.0;
              fq_records.push_back(make_pair(gc_cont, r_len));
+             auto ds = round(calculateDustScore(sequence));           
+             writer->Double(ds);
          } else {
              fq_records.push_back(make_pair(0, r_len));
          }
     }
+    writer->EndArray();
     kseq_destroy(seq);
     gzclose(fp);
     return fq_records;
@@ -767,8 +739,8 @@ void parse_gfa(map<string, contig> ctgs)
     }
 }
 
-void calculate_repetitivity(map<string, contig> ctg, double g, int n, JSONWriter* writer ) {
-
+void calculate_repetitivity(map<string, contig> ctg, double g, int n, JSONWriter* writer)
+{
     // to calculate the astatistic for each read
     // we need k = the number of reads in the contig, total number of reads (n)
     // the length of contig = l, and the gse (G)
@@ -782,7 +754,7 @@ void calculate_repetitivity(map<string, contig> ctg, double g, int n, JSONWriter
         int k = c.second.num_reads;
         int l = c.second.len;
         double astat = arrivalRate*double(l) - double(k)*log(2);
-        cout << c.first << ": " << k << "\t" << l << "\t" << astat << "\n";
+        //cout << c.first << ": " << k << "\t" << l << "\t" << astat << "\n";
         if ( astat >= singleCopyTheshold ) {
             u += l;
         } else {
@@ -826,8 +798,8 @@ map<string, contig> calculate_ctgs() {
     }
     // adjust contig lengths
     double avgReadLen = sum_read_lens / double(tot_reads);
-    for ( auto c : ctgs ){
-        c.second.len = c.second.len > avgReadLen ? c.second.len -avgReadLen + 1 : 0; 
+    for ( auto c : ctgs ) {
+        c.second.len = c.second.len > avgReadLen ? c.second.len - avgReadLen + 1 : 0; 
     }
 
     bam_hdr_destroy(header1);
@@ -958,23 +930,23 @@ void calculate_tot_bases( map<string, sequence> paf, JSONWriter* writer){
 // Low-Complexity DNA Sequences". J Comp Bio.
 double calculateDustScore(const string& seq)
 {
-    map<string, int> scoreMap;
+    map<string, size_t> scoreMap;
 
     // Cannot calculate dust scores on very short reads
-    if(seq.size() < 5)
+    if(seq.size() < 3)
         return 0.0f;
 
     // Slide a 3-mer window over the sequence and insert the sequences into the map
     for(size_t i = 0; i < seq.size() - 5; ++i)
     {
-        string fiveMer = seq.substr(i, 5);
-        scoreMap[fiveMer]++;
+        string triMer = seq.substr(i, 3);
+        scoreMap[triMer]++;
     }
 
     // Calculate the score by summing the square of every element in the map
-    double sum = 0;
+    float sum = 0;
     for (auto& iter : scoreMap) {
-        int tc = iter.second;
+        size_t tc = iter.second;
         double score = (double)(tc * (tc - 1)) / 2.0f;
         sum += score;
     }
@@ -1178,7 +1150,7 @@ double calculate_est_cov_and_est_genome_size( map<string, sequence> paf, JSONWri
     return est_genome_size;
 }
 
-void calculate_read_length( vector<pair<double, int>> fq, JSONWriter* writer)
+void calculate_read_length(vector<pair<double,int>> fq, JSONWriter* writer)
 {
     /*
     ========================================================
