@@ -7,5 +7,5 @@
 	url = https://github.com/Tencent/rapidjson.git
 	branch = master
 [submodule "htslib"]
-	path = htslib
+	path = include/htslib
 	url = https://github.com/samtools/htslib.git
