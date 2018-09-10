@@ -8,23 +8,44 @@ SUBDIRS := include src include/readpaf include/rapidjson/include include/zstr/sr
 #
 
 #Basic flags every build needs
-LIBS = -lz
+LIBS = -lz -llzma -lbz2  -lpthread
 CXXFLAGS ?= -g -O3 -Wall -Wextra
 CXXFLAGS += -std=c++11 
 CFLAGS ?= -O3 -std=c99
 CXX ?= g++
 CC ?= gcc
 
+# Change the value of HDF5, EIGEN, or HTS below to any value to disable compilation of bundled code
+HTS?=install
+
+# Default to build and link the libhts submodule
+ifeq ($(HTS), install)
+    HTS_LIB=./include/htslib/libhts.a
+    HTS_INCLUDE=-I./include/htslib -I./include/htslib/htslib
+else
+    # Use system-wide htslib
+    HTS_LIB=
+    HTS_INCLUDE=
+    LIBS += -lhts
+endif
+
 # Include the src subdirectories
 NP_INCLUDE=$(addprefix -I./, $(SUBDIRS))
 
 # Add include flags
-CPPFLAGS += $(NP_INCLUDE)
+CPPFLAGS += $(NP_INCLUDE) $(HTS_INCLUDE)
 
 # Main programs to build
 PROGRAM=preqclr
 
 all: $(PROGRAM)
+
+#
+# Build libhts
+#
+htslib/libhts.a:
+	cd include/htslib && make || exit 255
+
 
 #
 # Source files
@@ -48,7 +69,7 @@ C_OBJ=$(C_SRC:.c=.o)
 
 # Link main executable
 $(PROGRAM): ./src/main/preqclr.o $(CPP_OBJ) $(C_OBJ) 
-	$(CXX) -o $@ $(CXXFLAGS) $(CPPFLAGS) -fPIC $< $(CPP_OBJ) $(C_OBJ) $(LIBS) $(LDFLAGS)
+	$(CXX) -o $@ $(CXXFLAGS) $(CPPFLAGS) -fPIC $< $(CPP_OBJ) $(C_OBJ) $(HTS_LIB) $(LIBS) $(LDFLAGS)
 
 
 clean:
