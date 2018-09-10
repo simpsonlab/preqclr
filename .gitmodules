@@ -6,3 +6,6 @@
 	path = include/rapidjson
 	url = https://github.com/Tencent/rapidjson.git
 	branch = master
+[submodule "include/htslib"]
+	path = include/htslib
+	url = https://github.com/samtools/htslib
